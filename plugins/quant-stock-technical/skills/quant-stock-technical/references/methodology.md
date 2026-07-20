@@ -106,3 +106,16 @@ The setup is `READY` when total score is at least 60 and otherwise `CONDITIONAL`
 ## Quantitative counterpoint
 
 Select the risk component with the highest historical percentile. Render only its metric value, historical percentile, and entry-to-stop percentage using a fixed template. Do not add narrative judgment.
+
+## Downstream handoff contract
+
+Machine-readable results include:
+
+```text
+source_skill = quant-stock-technical
+result_schema = quant-stock-technical/v1
+method_version = qta-1.0.0
+calculation_status = READY
+```
+
+`stock-scenario-story` accepts only the complete unmodified JSON result. A Markdown rendering, hand-entered score summary, incomplete payload, or failed calculation is not a valid handoff.

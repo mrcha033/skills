@@ -465,6 +465,8 @@ def calculate(ticker_bars: list[Bar], benchmark_bars: list[Bar], market: str, ti
     risk_line = f"{dominant_risk} {risk_value} (과거 백분위 {percentiles[dominant_risk]:.1f}), 진입-손절 거리 {stop_distance:.2f}%"
 
     result: dict[str, Any] = {
+        "source_skill": "quant-stock-technical",
+        "result_schema": "quant-stock-technical/v1",
         "calculation_status": "READY",
         "setup_status": "READY" if total_score >= 60.0 else "CONDITIONAL",
         "method_version": METHOD_VERSION,
@@ -568,6 +570,8 @@ def self_test() -> None:
         parsed_ticker, parsed_benchmark = align(read_csv(str(paths[0])), read_csv(str(paths[1])), ticker_bars[-1].day)
         result = calculate(parsed_ticker, parsed_benchmark, "TEST", "SYNTH", 0.01, "deterministic-self-test")
     assert result["calculation_status"] == "READY"
+    assert result["source_skill"] == "quant-stock-technical"
+    assert result["result_schema"] == "quant-stock-technical/v1"
     assert 0 <= result["total_score"] <= 100
     assert result["stop_price"] < result["entry_price"] < result["take_profit_price"]
     print(json.dumps({"self_test": "PASS", "method_version": METHOD_VERSION, "total_score": result["total_score"]}, ensure_ascii=False))
@@ -594,7 +598,7 @@ def main() -> int:
         return 0
     missing = [name for name in ("ticker_csv", "benchmark_csv", "market", "ticker", "tick_size") if getattr(args, name) is None]
     if missing:
-        result = {"calculation_status": "BLOCKED", "reason": "missing arguments: " + ", ".join(missing), "method_version": METHOD_VERSION}
+        result = {"source_skill": "quant-stock-technical", "result_schema": "quant-stock-technical/v1", "calculation_status": "BLOCKED", "reason": "missing arguments: " + ", ".join(missing), "method_version": METHOD_VERSION}
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 2
     try:
@@ -602,7 +606,7 @@ def main() -> int:
         ticker_rows, benchmark_rows = align(read_csv(args.ticker_csv), read_csv(args.benchmark_csv), requested_date)
         result = calculate(ticker_rows, benchmark_rows, args.market, args.ticker, args.tick_size, args.source_name)
     except (BlockedError, OSError, ValueError) as exc:
-        result = {"calculation_status": "BLOCKED", "reason": str(exc), "method_version": METHOD_VERSION}
+        result = {"source_skill": "quant-stock-technical", "result_schema": "quant-stock-technical/v1", "calculation_status": "BLOCKED", "reason": str(exc), "method_version": METHOD_VERSION}
         print(render_markdown(result) if args.format == "markdown" else json.dumps(result, ensure_ascii=False, indent=2))
         return 2
     print(render_markdown(result) if args.format == "markdown" else json.dumps(result, ensure_ascii=False, indent=2))

@@ -6,8 +6,8 @@
     "name": "mrcha033",
     "url": "https://github.com/mrcha033"
   },
-  "homepage": "https://github.com/mrcha033/quant-stock-technical",
-  "repository": "https://github.com/mrcha033/quant-stock-technical",
+  "homepage": "https://github.com/mrcha033/stock-analysis-marketplace",
+  "repository": "https://github.com/mrcha033/stock-analysis-marketplace",
   "keywords": ["stocks", "technical-analysis", "ohlcv", "quantitative", "codex"],
   "skills": "./skills/",
   "interface": {

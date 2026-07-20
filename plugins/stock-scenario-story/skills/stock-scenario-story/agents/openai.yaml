@@ -1,0 +1,4 @@
+interface:
+  display_name: "Stock Scenario Story"
+  short_description: "Research-driven stories from validated quant results"
+  default_prompt: "Use $stock-scenario-story after $quant-stock-technical to research and narrate evidence-backed market scenarios."

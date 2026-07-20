@@ -19,5 +19,12 @@ jobs:
         run: |
           python -m json.tool .agents/plugins/marketplace.json >/dev/null
           python -m json.tool plugins/quant-stock-technical/.codex-plugin/plugin.json >/dev/null
+          python -m json.tool plugins/stock-scenario-story/.codex-plugin/plugin.json >/dev/null
       - name: Run deterministic calculator self-test
         run: python -B plugins/quant-stock-technical/skills/quant-stock-technical/scripts/analyze_stock.py --self-test
+      - name: Run mandatory handoff-gate self-test
+        run: python -B plugins/stock-scenario-story/skills/stock-scenario-story/scripts/validate_quant_handoff.py --self-test
+      - name: Run numbers-free story gate self-test
+        run: python -B plugins/stock-scenario-story/skills/stock-scenario-story/scripts/validate_story_text.py --self-test
+      - name: Run paired-skill integration test
+        run: python -B tests/test_handoff_integration.py

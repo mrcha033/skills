@@ -1,0 +1,26 @@
+{
+  "name": "stock-scenario-story",
+  "version": "0.1.0",
+  "description": "Numbers-free, evidence-grounded stock showmanship gated by validated quant-stock-technical results.",
+  "author": {
+    "name": "mrcha033",
+    "url": "https://github.com/mrcha033"
+  },
+  "homepage": "https://github.com/mrcha033/stock-analysis-marketplace",
+  "repository": "https://github.com/mrcha033/stock-analysis-marketplace",
+  "keywords": ["stocks", "scenario-analysis", "qualitative-research", "storytelling", "codex"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Stock Scenario Story",
+    "shortDescription": "Numbers-free stock stories after deterministic scoring.",
+    "longDescription": "Validate a quant-stock-technical result, hide every upstream number, research company and market context as of the same cutoff, and perform an entertaining evidence-grounded stock story in a flamboyant showman voice.",
+    "developerName": "mrcha033",
+    "category": "Finance",
+    "capabilities": ["Research", "Analysis", "Read-only"],
+    "defaultPrompt": [
+      "Turn this validated quant result into a numbers-free stock spectacle.",
+      "Tell a sourced qualitative stock story without showing any numbers.",
+      "Pitch this company like a theatrical market showman, purely for fun."
+    ]
+  }
+}

@@ -41,6 +41,8 @@ python3 scripts/analyze_stock.py \
 
 Use `--format json` for machine-readable output. Run `python3 scripts/analyze_stock.py --self-test` after modifying the calculator.
 
+When `$stock-scenario-story` will run next, save the unmodified JSON output to a file. That downstream skill requires `source_skill`, `result_schema`, `method_version`, and the complete calculator payload; do not summarize or reconstruct the handoff manually.
+
 ## Output boundaries
 
 - Interpret the 0-100 score as historical technical strength under method `qta-1.0.0`, not as probability of profit.
