@@ -1,8 +1,10 @@
-# Stock Analysis Marketplace
+# MrCha Plugins
 
-A public Codex marketplace for paired quantitative and qualitative stock-analysis workflows.
+A public, multi-topic Codex plugin marketplace by `mrcha033`.
 
-## Plugins
+The marketplace identity is intentionally independent of any one plugin category. Finance is the first collection; future research, productivity, developer-tool, or other plugins can live beside it without creating a new marketplace.
+
+## Finance collection
 
 ### Quant Stock Technical
 
@@ -25,10 +27,10 @@ The `stock-scenario-story` skill is the deliberate qualitative antithesis. It ru
 Clone this repository, then register its repository marketplace and install the plugin:
 
 ```bash
-git clone https://github.com/mrcha033/stock-analysis-marketplace.git
-codex plugin marketplace add /absolute/path/to/stock-analysis-marketplace
-codex plugin add quant-stock-technical@stock-analysis-marketplace
-codex plugin add stock-scenario-story@stock-analysis-marketplace
+git clone https://github.com/mrcha033/codex-plugins.git
+codex plugin marketplace add /absolute/path/to/codex-plugins
+codex plugin add quant-stock-technical@mrcha033
+codex plugin add stock-scenario-story@mrcha033
 ```
 
 Start a new Codex task and invoke `$quant-stock-technical`.

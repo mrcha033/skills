@@ -6,8 +6,8 @@
     "name": "mrcha033",
     "url": "https://github.com/mrcha033"
   },
-  "homepage": "https://github.com/mrcha033/stock-analysis-marketplace",
-  "repository": "https://github.com/mrcha033/stock-analysis-marketplace",
+  "homepage": "https://github.com/mrcha033/codex-plugins",
+  "repository": "https://github.com/mrcha033/codex-plugins",
   "keywords": ["stocks", "scenario-analysis", "qualitative-research", "storytelling", "codex"],
   "skills": "./skills/",
   "interface": {
