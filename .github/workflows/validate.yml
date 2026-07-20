@@ -15,16 +15,20 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Validate JSON manifests
+      - name: Validate skill metadata
         run: |
-          python -m json.tool .agents/plugins/marketplace.json >/dev/null
-          python -m json.tool plugins/quant-stock-technical/.codex-plugin/plugin.json >/dev/null
-          python -m json.tool plugins/stock-scenario-story/.codex-plugin/plugin.json >/dev/null
+          python - <<'PY'
+          from pathlib import Path
+          for skill in Path("skills").iterdir():
+              text = (skill / "SKILL.md").read_text()
+              assert text.startswith("---\n")
+              assert f"name: {skill.name}\n" in text
+          PY
       - name: Run deterministic calculator self-test
-        run: python -B plugins/quant-stock-technical/skills/quant-stock-technical/scripts/analyze_stock.py --self-test
+        run: python -B skills/quant-stock-technical/scripts/analyze_stock.py --self-test
       - name: Run mandatory handoff-gate self-test
-        run: python -B plugins/stock-scenario-story/skills/stock-scenario-story/scripts/validate_quant_handoff.py --self-test
+        run: python -B skills/stock-scenario-story/scripts/validate_quant_handoff.py --self-test
       - name: Run numbers-free story gate self-test
-        run: python -B plugins/stock-scenario-story/skills/stock-scenario-story/scripts/validate_story_text.py --self-test
+        run: python -B skills/stock-scenario-story/scripts/validate_story_text.py --self-test
       - name: Run paired-skill integration test
         run: python -B tests/test_handoff_integration.py

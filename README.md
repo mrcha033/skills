@@ -1,75 +1,58 @@
-# MrCha Plugins
+# MrCha Skills
 
-A public, multi-topic Codex plugin marketplace by `mrcha033`.
+A public, multi-topic collection of portable Agent Skills by `mrcha033`.
 
-The marketplace identity is intentionally independent of any one plugin category. Finance is the first collection; future research, productivity, developer-tool, or other plugins can live beside it without creating a new marketplace.
+This repository contains skills, not plugins and not a plugin marketplace. Each directory under `skills/` is a self-contained skill built around `SKILL.md` and its supporting resources.
 
-## Finance collection
+## Finance skills
 
 ### Quant Stock Technical
 
-The `quant-stock-technical` skill calculates:
-
-- analysis date, market, and ticker
-- short-, medium-, and long-horizon scores and mechanical labels
-- a one-line quantitative risk counterpoint
-- entry, stop, and take-profit levels
-- a 0-100 historical technical-strength score
-
-The model does not use news, fundamentals, analyst opinions, sentiment, or discretionary LLM judgment. Version `qta-1.0.0` uses completed end-of-day data and does not provide real-time monitoring or order execution.
+`quant-stock-technical` calculates reproducible technical opinions, risk, entry, stop, target, and a historical technical-strength score from completed daily adjusted OHLCV data. It excludes news, fundamentals, sentiment, analyst opinion, and discretionary model judgment.
 
 ### Stock Scenario Story
 
-The `stock-scenario-story` skill is the deliberate qualitative antithesis. It runs only after validating the complete JSON result from `quant-stock-technical`, hides every upstream number, researches point-in-time company and market context, and performs a theatrical, sourced, numbers-free stock tale purely for entertainment.
+`stock-scenario-story` is its qualitative antithesis. It runs only after validating the complete result from `quant-stock-technical`, hides every upstream number, researches the surrounding company and market context, and tells a sourced, theatrical, numbers-free story purely for entertainment.
 
-## Install
+## Use in ChatGPT
 
-Clone this repository, then register its repository marketplace and install the plugin:
+Download one skill archive from the latest GitHub release. In an eligible ChatGPT workspace, open **Plugins → Skills → Create → Upload from your computer**, then upload the archive. GitHub repository URLs are not ChatGPT installation links.
+
+## Use in Codex
+
+Clone the repository and copy the desired skill directory into the local Codex skills directory:
 
 ```bash
-git clone https://github.com/mrcha033/codex-plugins.git
-codex plugin marketplace add /absolute/path/to/codex-plugins
-codex plugin add quant-stock-technical@mrcha033
-codex plugin add stock-scenario-story@mrcha033
+git clone https://github.com/mrcha033/skills.git mrcha-skills
+cp -R mrcha-skills/skills/quant-stock-technical ~/.codex/skills/
+cp -R mrcha-skills/skills/stock-scenario-story ~/.codex/skills/
 ```
 
-Start a new Codex task and invoke `$quant-stock-technical`.
+Start a new Codex task after copying. Invoke `$quant-stock-technical` first and pass its unmodified JSON result to `$stock-scenario-story`.
 
-Invoke `$stock-scenario-story` only with the unmodified JSON output from the deterministic skill.
+## Use in Claude Code
+
+The core skill folders follow the Agent Skills layout. Copy a desired folder into `~/.claude/skills/` or a project's `.claude/skills/` directory. Platform-specific behavior may still require testing in the target product.
 
 ## Input
 
-Provide finalized ticker and same-market benchmark CSV files with these columns:
+The deterministic skill requires finalized ticker and same-market benchmark CSV files with:
 
 ```text
 date,open,high,low,close,adjusted_close,volume
 ```
 
-At least 756 shared completed sessions are required; 1,260 are recommended. Also provide the market, ticker, and valid market tick size.
-
-Example calculator call:
-
-```bash
-python3 plugins/quant-stock-technical/skills/quant-stock-technical/scripts/analyze_stock.py \
-  --ticker-csv arm.csv \
-  --benchmark-csv soxx.csv \
-  --market NASDAQ \
-  --ticker ARM \
-  --tick-size 0.01 \
-  --source-name licensed-eod-export \
-  --format markdown
-```
+Also provide the market, ticker, and valid market tick size. The skill requires at least 756 shared completed sessions and recommends 1,260.
 
 ## Validation
 
 ```bash
-python3 -B plugins/quant-stock-technical/skills/quant-stock-technical/scripts/analyze_stock.py --self-test
-python3 -B plugins/stock-scenario-story/skills/stock-scenario-story/scripts/validate_quant_handoff.py --self-test
-python3 -B plugins/stock-scenario-story/skills/stock-scenario-story/scripts/validate_story_text.py --self-test
+python3 -B skills/quant-stock-technical/scripts/analyze_stock.py --self-test
+python3 -B skills/stock-scenario-story/scripts/validate_quant_handoff.py --self-test
+python3 -B skills/stock-scenario-story/scripts/validate_story_text.py --self-test
+python3 -B tests/test_handoff_integration.py
 ```
 
-## Boundaries
+The score is historical technical strength, not a probability of profit. Calculated price levels do not account for suitability, position sizing, fees, taxes, FX, slippage, broker rules, or fill probability.
 
-The 0-100 result is a ticker-relative historical technical-strength score, not a probability of profit. Calculated price levels do not account for suitability, position sizing, fees, taxes, FX, slippage, broker rules, or fill probability.
-
-No software license has been granted yet. Public availability of this repository does not grant permission to copy, modify, or redistribute its contents.
+No software license has been granted yet. Public availability does not grant permission to copy, modify, or redistribute the contents.

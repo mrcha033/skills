@@ -9,8 +9,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-QUANT_PATH = ROOT / "plugins/quant-stock-technical/skills/quant-stock-technical/scripts/analyze_stock.py"
-STORY_GATE_PATH = ROOT / "plugins/stock-scenario-story/skills/stock-scenario-story/scripts/validate_quant_handoff.py"
+QUANT_PATH = ROOT / "skills/quant-stock-technical/scripts/analyze_stock.py"
+STORY_GATE_PATH = ROOT / "skills/stock-scenario-story/scripts/validate_quant_handoff.py"
 
 
 def load_module(name: str, path: Path):
