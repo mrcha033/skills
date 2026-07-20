@@ -16,7 +16,12 @@ This repository contains skills, not plugins and not a plugin marketplace. Each 
 
 ## Use in ChatGPT
 
-Download one skill archive from the latest GitHub release. In an eligible ChatGPT workspace, open **Plugins → Skills → Create → Upload from your computer**, then upload the archive. GitHub repository URLs are not ChatGPT installation links.
+Download one skill archive:
+
+- [Quant Stock Technical](downloads/quant-stock-technical.zip)
+- [Stock Scenario Story](downloads/stock-scenario-story.zip)
+
+In an eligible ChatGPT workspace, open **Plugins → Skills → Create → Upload from your computer**, then upload the archive. GitHub repository URLs are not ChatGPT installation links.
 
 ## Use in Codex
 
