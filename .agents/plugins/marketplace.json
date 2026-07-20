@@ -1,0 +1,20 @@
+{
+  "name": "quant-stock-technical",
+  "interface": {
+    "displayName": "Quant Stock Technical"
+  },
+  "plugins": [
+    {
+      "name": "quant-stock-technical",
+      "source": {
+        "source": "local",
+        "path": "./plugins/quant-stock-technical"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Finance"
+    }
+  ]
+}

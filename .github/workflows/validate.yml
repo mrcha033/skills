@@ -1,0 +1,23 @@
+name: validate
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  self-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate JSON manifests
+        run: |
+          python -m json.tool .agents/plugins/marketplace.json >/dev/null
+          python -m json.tool plugins/quant-stock-technical/.codex-plugin/plugin.json >/dev/null
+      - name: Run deterministic calculator self-test
+        run: python -B plugins/quant-stock-technical/skills/quant-stock-technical/scripts/analyze_stock.py --self-test
