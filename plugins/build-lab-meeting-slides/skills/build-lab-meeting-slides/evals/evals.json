@@ -1,0 +1,53 @@
+{
+  "skill_name": "build-lab-meeting-slides",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Use the supplied two-slide Yonsei S3 lab-meeting template to turn my research update into a polished six-slide deck. Keep the template's cover, top rule, left rail, logo lockup, title geometry, Arial typography, and speaker-note behavior. The final PPTX must remain editable; do not normalize the final through LibreOffice.",
+      "expected_output": "A six-slide editable PPTX and QA bundle produced by exact clone/edit: source slide 1 routes to the cover, source slide 2 is duplicated for five content slides, inherited targets are rewritten, and any new native content stays inside the mapped body zone.",
+      "files": [
+        "assets/lab-meeting-template.pptx"
+      ],
+      "expectations": [
+        "The project uses schema_version 2, authoring_mode template-native, and template.mode exact-clone-edit.",
+        "The template is inspected and hash-pinned before authoring, with a generated template profile, frame map, and starter PPTX.",
+        "The frame map routes output slide 1 to source slide 1 and output slides 2 through 6 to source slide 2 using duplicate-slide reuse.",
+        "The final authoring builder imports the prepared starter and exports the same presentation; it does not create a fresh presentation or fresh slides.",
+        "New native editable elements are bounded by the inherited content zone and do not overlap inherited chrome.",
+        "LibreOffice is used only as a compatibility probe, never as the default final-source promotion path.",
+        "Mechanical QA and two-pass full-slide visual review both pass with current deck, render, and source-manifest hashes."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Build a 12-slide lab meeting from this two-slide template and my source deck. Use one cover, then organize the body as context, method, three mechanism slides, two evidence slides, limitations, next steps, and appendix. Preserve the lab template exactly while giving each content slide one clear visual anchor and role-appropriate notes.",
+      "expected_output": "A coherent 12-slide template-native deck whose approved content frame is deliberately reused, with explicit source-slide routing rationale, bounded editable mechanisms, complete coverage, and shorter notes for structural slides than for mechanism/evidence slides.",
+      "files": [
+        "assets/lab-meeting-template.pptx"
+      ],
+      "expectations": [
+        "Every output slide has a sequential slide number, title claim, narrative job, visual anchor, evidence references, notes reference, and template_frame object with routing rationale.",
+        "Only approved source frames are duplicated; the longer output does not require or invent additional template layouts.",
+        "Each content slide has at least one native editable body implementation inside the declared safe zone rather than an empty placeholder shell.",
+        "Cover, divider, closing, and appendix notes use their structural ranges, while mechanism and evidence slides use the 90 to 190 word range unless explicitly overridden.",
+        "The coverage matrix and claims ledger account for all required topics and every evidence reference.",
+        "Template fidelity QA verifies inherited chrome and title geometry across the full 12-slide output."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I can prototype the dense system diagram faster in HTML. Let me iterate on that composition, but deliver the final lab-meeting deck as an editable PPTX that still obeys the attached template. Do not flatten the whole slide into screenshots or replace the master/layout structure.",
+      "expected_output": "An HTML-assisted-native workflow: HTML is used only for disposable composition exploration, the accepted diagram is rebuilt as native editable PowerPoint objects inside the cloned template body zone, and the final PPTX retains inherited master/layout structure and passes template-fidelity QA.",
+      "files": [
+        "assets/lab-meeting-template.pptx"
+      ],
+      "expectations": [
+        "The route is explicitly labeled html-assisted-native and the HTML prototype is never treated as the final source of truth.",
+        "The accepted composition is reconstructed as native editable text, shapes, lines, and connectors in the prepared template starter.",
+        "The workflow rejects direct HTML to PPTX round-trip as the default because it would lose master, layout, placeholder, notes, or editability semantics.",
+        "Any raster fallback is explicit, scoped, and marked partial or non-editable rather than silently used for the whole slide.",
+        "The resulting PPTX preserves the supplied template chrome and passes both mechanical template-fidelity checks and full-slide visual review."
+      ]
+    }
+  ]
+}

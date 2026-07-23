@@ -1,6 +1,6 @@
 # MrCha Skills
 
-A public, multi-topic collection of portable Agent Skills by `mrcha033`, packaged as three independently installable marketplace plugins for Codex and Claude Code.
+A public, multi-topic collection of portable Agent Skills by `mrcha033`, packaged as four independently installable marketplace plugins for Codex and Claude Code.
 
 Each directory under `skills/` remains a self-contained skill built around `SKILL.md`. Each marketplace plugin contains exactly one matching skill; none adds MCP servers, hooks, or external authentication.
 
@@ -11,6 +11,7 @@ Each directory under `skills/` remains a self-contained skill built around `SKIL
 ```bash
 codex plugin marketplace add mrcha033/skills
 codex plugin add advisor-review@mrcha-skills
+codex plugin add build-lab-meeting-slides@mrcha-skills
 codex plugin add quant-stock-technical@mrcha-skills
 codex plugin add stock-scenario-story@mrcha-skills
 ```
@@ -22,6 +23,7 @@ Install only the plugins you want. Start a new Codex task after installation, th
 ```bash
 claude plugin marketplace add mrcha033/skills
 claude plugin install advisor-review@mrcha-skills
+claude plugin install build-lab-meeting-slides@mrcha-skills
 claude plugin install quant-stock-technical@mrcha-skills
 claude plugin install stock-scenario-story@mrcha-skills
 ```
@@ -52,6 +54,12 @@ Replace `advisor-review` with either stock plugin name, or install multiple indi
 
 `advisor-review` asks an independent Codex reviewer to challenge a plan, diagnose a stalled approach, assess a pivot, or audit completed work. It always runs an isolated, ephemeral `codex exec` process so routing, model selection, sandboxing, schema validation, and failure behavior remain identical across parent models.
 
+## Presentation skills
+
+### Build Lab Meeting Slides
+
+`build-lab-meeting-slides` builds editable lab-meeting and research decks from a supplied PowerPoint template. It preserves the inherited template system, keeps HTML as a disposable prototype route, and adds visual-contract and SHA-pinned user-acceptance gates so structural QA is not mistaken for visual acceptance.
+
 ## Finance skills
 
 ### Quant Stock Technical
@@ -69,6 +77,7 @@ Download one skill archive:
 - [Quant Stock Technical](downloads/quant-stock-technical.zip)
 - [Stock Scenario Story](downloads/stock-scenario-story.zip)
 - [Advisor Review](downloads/advisor-review.zip)
+- [Build Lab Meeting Slides](downloads/build-lab-meeting-slides.zip)
 
 In an eligible ChatGPT workspace, open **Plugins → Skills → Create → Upload from your computer**, then upload the archive. GitHub repository URLs are not ChatGPT installation links.
 
@@ -83,6 +92,7 @@ git clone https://github.com/mrcha033/skills.git mrcha-skills
 cp -R mrcha-skills/skills/quant-stock-technical ~/.codex/skills/
 cp -R mrcha-skills/skills/stock-scenario-story ~/.codex/skills/
 cp -R mrcha-skills/skills/advisor-review ~/.codex/skills/
+cp -R mrcha-skills/skills/build-lab-meeting-slides ~/.codex/skills/
 ```
 
 Start a new Codex task after copying. Invoke `$advisor-review` explicitly when you want an independent review. For the paired finance workflow, invoke `$quant-stock-technical` first and pass its unmodified JSON result to `$stock-scenario-story`.

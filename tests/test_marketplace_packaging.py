@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate three independently installable plugins in both marketplaces."""
+"""Validate independently installable plugins in both marketplaces."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ PLUGINS = ROOT / "plugins"
 SOURCE_SKILLS = ROOT / "skills"
 EXPECTED_PLUGINS = {
     "advisor-review",
+    "build-lab-meeting-slides",
     "quant-stock-technical",
     "stock-scenario-story",
 }
@@ -40,7 +41,7 @@ def main() -> None:
     claude_entries = {entry["name"]: entry for entry in claude_market["plugins"]}
     assert set(codex_entries) == EXPECTED_PLUGINS
     assert set(claude_entries) == EXPECTED_PLUGINS
-    assert len(codex_market["plugins"]) == len(claude_market["plugins"]) == 3
+    assert len(codex_market["plugins"]) == len(claude_market["plugins"]) == 4
     assert not (PLUGINS / "mrcha-skills").exists(), "aggregate plugin must not remain installable"
 
     for plugin_name in EXPECTED_PLUGINS:
@@ -73,7 +74,7 @@ def main() -> None:
                 f"{plugin_name}/{relative} content drift"
             )
 
-    print("three-plugin dual marketplace packaging: PASS")
+    print("four-plugin dual marketplace packaging: PASS")
 
 
 if __name__ == "__main__":

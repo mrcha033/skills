@@ -25,6 +25,26 @@
       ]
     },
     {
+      "name": "build-lab-meeting-slides",
+      "displayName": "Build Lab Meeting Slides",
+      "source": "./plugins/build-lab-meeting-slides",
+      "description": "Build editable lab-meeting PowerPoint decks while preserving a supplied PPTX template and enforcing visual-quality regression gates.",
+      "version": "0.1.0",
+      "author": {
+        "name": "mrcha033"
+      },
+      "homepage": "https://github.com/mrcha033/skills",
+      "repository": "https://github.com/mrcha033/skills",
+      "category": "productivity",
+      "tags": [
+        "presentations",
+        "powerpoint",
+        "lab-meeting",
+        "template-native",
+        "research"
+      ]
+    },
+    {
       "name": "quant-stock-technical",
       "displayName": "Quant Stock Technical",
       "source": "./plugins/quant-stock-technical",

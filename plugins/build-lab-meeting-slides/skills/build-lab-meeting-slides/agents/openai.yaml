@@ -1,0 +1,4 @@
+interface:
+  display_name: "Build Lab Meeting Slides"
+  short_description: "Build polished decks inside the supplied PPTX template"
+  default_prompt: "Use $build-lab-meeting-slides to build a polished, editable lab-meeting deck from my sources while preserving my PPTX template through exact source-slide cloning, native edits, and template-fidelity QA."

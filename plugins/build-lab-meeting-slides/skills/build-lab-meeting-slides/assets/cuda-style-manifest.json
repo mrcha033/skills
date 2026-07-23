@@ -1,0 +1,26 @@
+{
+  "source": "cuda-visual-language-source.pptx",
+  "purpose": "optional CUDA mechanism reference only; never mix with a user template without explicit approval",
+  "fonts": {"body": "Arial", "code": "Courier New"},
+  "minimum_body_pt": 16,
+  "colors": {
+    "navy": "#001233",
+    "structure": "#012345",
+    "dark_blue": "#002855",
+    "blue": "#0353A4",
+    "royal": "#0000B3",
+    "hardware_blue": "#78BAFD",
+    "pale_blue": "#BCDCFE",
+    "palest_blue": "#D2E1FE",
+    "lavender": "#C2C2FF",
+    "pale_lavender": "#E0E0FF",
+    "memory_gray": "#DDE0E6",
+    "mid_gray": "#BBC1CD",
+    "cyan": "#33CCCC",
+    "data_cyan": "#00B0F0",
+    "violet": "#6666FF",
+    "red": "#FF0000",
+    "white": "#FFFFFF",
+    "muted": "#5C677D"
+  }
+}
