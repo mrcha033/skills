@@ -12,13 +12,11 @@ PLUGINS = ROOT / "plugins"
 SOURCE_SKILLS = ROOT / "skills"
 EXPECTED_PLUGINS = {
     "advisor-review",
-    "build-lab-meeting-slides",
     "quant-stock-technical",
     "stock-scenario-story",
 }
 EXPECTED_VERSIONS = {
     "advisor-review": "0.1.1",
-    "build-lab-meeting-slides": "0.1.0",
     "quant-stock-technical": "0.1.0",
     "stock-scenario-story": "0.1.0",
 }
@@ -47,7 +45,7 @@ def main() -> None:
     claude_entries = {entry["name"]: entry for entry in claude_market["plugins"]}
     assert set(codex_entries) == EXPECTED_PLUGINS
     assert set(claude_entries) == EXPECTED_PLUGINS
-    assert len(codex_market["plugins"]) == len(claude_market["plugins"]) == 4
+    assert len(codex_market["plugins"]) == len(claude_market["plugins"]) == 3
     assert not (PLUGINS / "mrcha-skills").exists(), "aggregate plugin must not remain installable"
 
     for plugin_name in EXPECTED_PLUGINS:
@@ -85,7 +83,7 @@ def main() -> None:
                 f"{plugin_name}/{relative} content drift"
             )
 
-    print("four-plugin dual marketplace packaging: PASS")
+    print("three-plugin dual marketplace packaging: PASS")
 
 
 if __name__ == "__main__":
