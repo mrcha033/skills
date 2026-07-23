@@ -57,6 +57,12 @@ def main() -> None:
     instructions = SKILL_PATH.read_text(encoding="utf-8")
     assert "Always runs the bundled script" in instructions
     assert "Do not replace the runner with `spawn_agent`" in instructions
+    assert "fixes the reviewer model to `gpt-5.6-sol`" in instructions
+    assert "Honor an explicit user request" in instructions
+    assert "Select `max` only" in instructions
+    assert "Otherwise select `xhigh`" in instructions
+    assert "Select `high` for every other request" in instructions
+    assert "advisor-run-1.0" in instructions
     print("advisor integration: PASS")
 
 

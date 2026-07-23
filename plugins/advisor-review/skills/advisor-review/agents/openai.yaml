@@ -1,6 +1,6 @@
 interface:
   display_name: "Advisor Review"
-  short_description: "Isolated Codex CLI review at decision points"
-  default_prompt: "Use $advisor-review to run an isolated independent review before I proceed."
+  short_description: "Fixed Sol advisor with adaptive high-to-max effort"
+  default_prompt: "Use $advisor-review to choose high, xhigh, or max effort and run an isolated Sol review."
 policy:
   allow_implicit_invocation: false

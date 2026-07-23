@@ -18,6 +18,9 @@ import validate_advice as advice_validator
 
 
 DEFAULT_MODEL = "gpt-5.6-sol"
+DEFAULT_EFFORT = "high"
+ALLOWED_EFFORTS = ("high", "xhigh", "max")
+RUN_SCHEMA_VERSION = "advisor-run-1.0"
 PACKET_FIELDS = (
     "phase",
     "task",
@@ -122,16 +125,22 @@ def build_prompt(packet: dict[str, Any], rubric: str) -> str:
 
 def build_command(
     codex_bin: str,
-    model: str,
+    effort: str,
     work_dir: Path,
     schema_path: Path,
     output_path: Path,
 ) -> list[str]:
+    if effort not in ALLOWED_EFFORTS:
+        raise RunnerError(
+            f"effort must be one of: {', '.join(ALLOWED_EFFORTS)}"
+        )
     return [
         codex_bin,
         "exec",
         "--model",
-        model,
+        DEFAULT_MODEL,
+        "--config",
+        f'model_reasoning_effort="{effort}"',
         "--sandbox",
         "read-only",
         "--ephemeral",
@@ -154,7 +163,7 @@ def build_command(
 def run_advisor(
     packet: dict[str, Any],
     *,
-    model: str,
+    effort: str,
     codex_bin: str,
     timeout: int,
     rubric: str,
@@ -171,7 +180,7 @@ def run_advisor(
             encoding="utf-8",
         )
         command = build_command(
-            codex_bin, model, temp_dir, schema_path, output_path
+            codex_bin, effort, temp_dir, schema_path, output_path
         )
         environment = os.environ.copy()
         environment["NO_COLOR"] = "1"
@@ -207,6 +216,19 @@ def run_advisor(
         return advice_validator.validate(advice)
 
 
+def build_receipt(advice: dict[str, Any], effort: str) -> dict[str, Any]:
+    if effort not in ALLOWED_EFFORTS:
+        raise RunnerError(
+            f"effort must be one of: {', '.join(ALLOWED_EFFORTS)}"
+        )
+    return {
+        "schema_version": RUN_SCHEMA_VERSION,
+        "advisor_model": DEFAULT_MODEL,
+        "advisor_effort": effort,
+        "advice": advice_validator.validate(advice),
+    }
+
+
 def self_test() -> None:
     raw = {
         "phase": "final",
@@ -229,13 +251,25 @@ def self_test() -> None:
         schema_path = temp_dir / "schema.json"
         output_path = temp_dir / "output.json"
         command = build_command(
-            "codex", "test-model", temp_dir, schema_path, output_path
+            "codex", "xhigh", temp_dir, schema_path, output_path
+        )
+        assert command[command.index("--model") + 1] == DEFAULT_MODEL
+        assert command[command.index("--config") + 1] == (
+            'model_reasoning_effort="xhigh"'
         )
         assert command[command.index("--sandbox") + 1] == "read-only"
         assert "--ephemeral" in command
         assert "--ignore-user-config" in command
         assert command[command.index("--disable") + 1] == "multi_agent"
         assert command[command.index("--cd") + 1] == str(temp_dir)
+        for allowed_effort in ALLOWED_EFFORTS:
+            routed = build_command(
+                "codex", allowed_effort, temp_dir, schema_path, output_path
+            )
+            assert routed[routed.index("--model") + 1] == DEFAULT_MODEL
+            assert routed[routed.index("--config") + 1] == (
+                f'model_reasoning_effort="{allowed_effort}"'
+            )
 
         valid_codex = temp_dir / "valid-codex"
         valid_codex.write_text(
@@ -254,12 +288,21 @@ def self_test() -> None:
         valid_codex.chmod(0o755)
         advice = run_advisor(
             packet,
-            model="test-model",
+            effort="high",
             codex_bin=str(valid_codex),
             timeout=10,
             rubric="# Test rubric",
         )
         assert advice["verdict"] == "proceed"
+        receipt = build_receipt(advice, "high")
+        assert receipt["schema_version"] == RUN_SCHEMA_VERSION
+        assert receipt["advisor_model"] == DEFAULT_MODEL
+        assert receipt["advisor_effort"] == "high"
+        assert receipt["advice"] == advice
+        for allowed_effort in ALLOWED_EFFORTS:
+            routed_receipt = build_receipt(advice, allowed_effort)
+            assert routed_receipt["advisor_model"] == DEFAULT_MODEL
+            assert routed_receipt["advisor_effort"] == allowed_effort
 
         invalid_codex = temp_dir / "invalid-codex"
         invalid_codex.write_text(
@@ -274,7 +317,7 @@ def self_test() -> None:
         try:
             run_advisor(
                 packet,
-                model="test-model",
+                effort="high",
                 codex_bin=str(invalid_codex),
                 timeout=10,
                 rubric="# Test rubric",
@@ -296,7 +339,7 @@ def self_test() -> None:
         try:
             run_advisor(
                 packet,
-                model="test-model",
+                effort="xhigh",
                 codex_bin=str(failing_codex),
                 timeout=10,
                 rubric="# Test rubric",
@@ -317,7 +360,7 @@ def self_test() -> None:
         try:
             run_advisor(
                 packet,
-                model="test-model",
+                effort="max",
                 codex_bin=str(timeout_codex),
                 timeout=1,
                 rubric="# Test rubric",
@@ -327,15 +370,31 @@ def self_test() -> None:
         else:
             raise AssertionError("reviewer timeout was accepted")
 
-    print(json.dumps({"self_test": "PASS", "backend": "codex-exec"}))
+    try:
+        build_command("codex", "medium", Path("."), Path("s"), Path("o"))
+    except RunnerError:
+        pass
+    else:
+        raise AssertionError("unsupported advisor effort was accepted")
+
+    print(json.dumps({
+        "self_test": "PASS",
+        "backend": "codex-exec",
+        "model": DEFAULT_MODEL,
+        "default_effort": DEFAULT_EFFORT,
+        "allowed_efforts": list(ALLOWED_EFFORTS),
+        "run_schema": RUN_SCHEMA_VERSION,
+    }))
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", default="-", help="Context packet JSON, or -")
     parser.add_argument(
-        "--reviewer-model",
-        default=os.environ.get("ADVISOR_REVIEW_MODEL", DEFAULT_MODEL),
+        "--effort",
+        choices=ALLOWED_EFFORTS,
+        default=DEFAULT_EFFORT,
+        help="Advisor reasoning effort; model is fixed to gpt-5.6-sol",
     )
     parser.add_argument("--codex-bin", default=shutil.which("codex") or "codex")
     parser.add_argument("--timeout", type=int, default=300)
@@ -350,12 +409,12 @@ def main() -> None:
     rubric = rubric_path.read_text(encoding="utf-8")
     advice = run_advisor(
         load_packet(args.input),
-        model=args.reviewer_model,
+        effort=args.effort,
         codex_bin=args.codex_bin,
         timeout=args.timeout,
         rubric=rubric,
     )
-    print(json.dumps(advice, ensure_ascii=False, indent=2))
+    print(json.dumps(build_receipt(advice, args.effort), ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
