@@ -16,6 +16,12 @@ EXPECTED_PLUGINS = {
     "quant-stock-technical",
     "stock-scenario-story",
 }
+EXPECTED_VERSIONS = {
+    "advisor-review": "0.1.1",
+    "build-lab-meeting-slides": "0.1.0",
+    "quant-stock-technical": "0.1.0",
+    "stock-scenario-story": "0.1.0",
+}
 
 
 def load_json(path: Path) -> dict:
@@ -55,7 +61,12 @@ def main() -> None:
             "authentication": "ON_INSTALL",
         }
         assert codex_plugin["name"] == claude_plugin["name"] == plugin_name
-        assert codex_plugin["version"] == claude_plugin["version"] == "0.1.0"
+        assert (
+            codex_plugin["version"]
+            == claude_plugin["version"]
+            == EXPECTED_VERSIONS[plugin_name]
+        )
+        assert claude_entries[plugin_name]["version"] == EXPECTED_VERSIONS[plugin_name]
         assert codex_plugin["skills"] == claude_plugin["skills"] == "./skills/"
 
         source = SOURCE_SKILLS / plugin_name

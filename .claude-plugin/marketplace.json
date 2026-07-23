@@ -11,7 +11,7 @@
       "displayName": "Advisor Review",
       "source": "./plugins/advisor-review",
       "description": "Run an isolated, read-only Codex CLI reviewer at consequential decision points.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": {
         "name": "mrcha033"
       },

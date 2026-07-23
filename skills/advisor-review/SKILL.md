@@ -1,6 +1,6 @@
 ---
 name: advisor-review
-description: Consult an independent, read-only reviewer at consequential decision points in multi-step Codex work. Use when the user explicitly asks for an advisor, second opinion, adversarial review, or invokes this skill; when task instructions require independent review; after repeated failures; before a major approach change; or before declaring complex work complete. Always runs the bundled script to start a separate, isolated Codex CLI process; it does not use native subagents or reproduce Claude's server-side Advisor tool.
+description: Consult an independent, read-only GPT-5.6 Sol reviewer at consequential decision points in multi-step Codex work. Use when the user explicitly asks for an advisor, second opinion, adversarial review, or invokes this skill; when task instructions require independent review; after repeated failures; before a major approach change; or before declaring complex work complete. Always runs the bundled script with Sol fixed and selects high, xhigh, or max reasoning effort from the request; it does not use native subagents or reproduce Claude's server-side Advisor tool.
 ---
 
 # Advisor Review
@@ -9,7 +9,7 @@ Run every review through `scripts/run_advisor.py`. Keep the primary agent respon
 
 ## Requirements
 
-Require shell execution, an authenticated local `codex` CLI, and access to the selected reviewer model. If any requirement is missing, report that independent review is unavailable.
+Require shell execution, an authenticated local `codex` CLI, and access to `gpt-5.6-sol`. If any requirement is missing, report that independent review is unavailable.
 
 Do not replace the runner with `spawn_agent` or same-agent reflection. A single script backend keeps context, isolation, model selection, output validation, timeout, and failure behavior consistent across parent models.
 
@@ -25,18 +25,23 @@ The runner is not a confidentiality boundary. Remove secrets before constructing
 2. Read `references/context-contract.md`.
 3. Build a bounded context packet with `scripts/build_context_packet.py`. Include every decision-critical requirement, constraint, observation, failure, validation result, and unresolved conflict.
 4. Read the phase questions and result contract in `references/review-rubric.md`.
-5. Run:
+5. Select reasoning effort in this order:
+   1. Honor an explicit user request for `high`, `xhigh`, or `max`.
+   2. Select `max` only when the user explicitly requests the deepest review, or when the decision is both irreversible or critical and still has substantial unresolved ambiguity.
+   3. Otherwise select `xhigh` when any of these are true: the work crosses multiple components, verified evidence conflicts, at least two materially different attempts failed, a major pivot is under review, or a high-impact completion claim needs deeper verification.
+   4. Select `high` for every other request. This is the default.
+6. Run:
 
    ```bash
    python3 scripts/run_advisor.py \
      --input context-packet.json \
-     --reviewer-model gpt-5.6-sol
+     --effort high
    ```
 
-   Set `ADVISOR_REVIEW_MODEL` or pass `--reviewer-model` to choose another installed model.
-6. Treat a runner error or timeout as a blocked review. Do not reconstruct or repair the advice manually.
-7. Compare the validated advice with primary evidence. Adopt, reject, or defer each consequential recommendation and state why. The advisor does not overrule verified facts or user instructions.
-8. For a `final` review, do not declare completion until relevant recommendations are resolved or explicitly documented as non-blocking.
+   Replace `high` with the selected `xhigh` or `max` value. Never pass another model or an effort below `high`.
+7. Confirm the returned receipt reports `advisor_model: gpt-5.6-sol` and the selected `advisor_effort`. Treat any mismatch, runner error, or timeout as a blocked review. Do not reconstruct or repair the advice manually.
+8. Compare the validated `advice` object with primary evidence. Adopt, reject, or defer each consequential recommendation and state why. The advisor does not overrule verified facts or user instructions.
+9. For a `final` review, do not declare completion until relevant recommendations are resolved or explicitly documented as non-blocking.
 
 ## Execution contract
 
@@ -44,13 +49,15 @@ The runner:
 
 - starts a separate `codex exec` process;
 - uses a blank temporary working directory;
-- selects the reviewer model explicitly;
+- fixes the reviewer model to `gpt-5.6-sol`;
+- sets reasoning effort explicitly to `high`, `xhigh`, or `max`;
 - runs an ephemeral session with user configuration ignored;
 - disables recursive multi-agent execution;
 - applies a read-only filesystem sandbox;
 - supplies only the bounded context packet and bundled rubric;
 - enforces the advice JSON Schema;
-- validates the final response before returning it.
+- validates the final response before returning it;
+- wraps the advice in an `advisor-run-1.0` receipt recording the actual model and effort.
 
 The isolated reviewer does not receive the parent transcript automatically. If the packet cannot preserve all decision-critical context, report the review as insufficient instead of claiming full-context coverage.
 
@@ -62,7 +69,7 @@ Use one review by default. Use a second only when new evidence materially change
 
 Report:
 
-- the phase and reviewer model;
+- the phase, fixed Sol model, and selected reasoning effort;
 - the advisor verdict;
 - which recommendations were adopted, rejected, or deferred;
 - evidence supporting the primary agent's final decision;

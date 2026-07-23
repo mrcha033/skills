@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "advisor-review",
   "displayName": "Advisor Review",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Run an isolated, read-only Codex CLI reviewer at consequential decision points.",
   "author": {
     "name": "mrcha033",

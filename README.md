@@ -52,7 +52,7 @@ Replace `advisor-review` with either stock plugin name, or install multiple indi
 
 ### Advisor Review
 
-`advisor-review` asks an independent Codex reviewer to challenge a plan, diagnose a stalled approach, assess a pivot, or audit completed work. It always runs an isolated, ephemeral `codex exec` process so routing, model selection, sandboxing, schema validation, and failure behavior remain identical across parent models.
+`advisor-review` asks an independent GPT-5.6 Sol reviewer to challenge a plan, diagnose a stalled approach, assess a pivot, or audit completed work. It always runs an isolated, ephemeral `codex exec` process, defaults to `high` reasoning, and selects only `high`, `xhigh`, or `max` effort from the request.
 
 ## Presentation skills
 
@@ -81,7 +81,7 @@ Download one skill archive:
 
 In an eligible ChatGPT workspace, open **Plugins → Skills → Create → Upload from your computer**, then upload the archive. GitHub repository URLs are not ChatGPT installation links.
 
-`advisor-review` requires shell access to an authenticated local Codex CLI. It needs no MCP server, separate API key, or native subagent primitive.
+`advisor-review` requires shell access to an authenticated local Codex CLI with GPT-5.6 Sol access. It needs no MCP server, separate API key, or native subagent primitive.
 
 ## Install as standalone Codex skills
 
