@@ -4,6 +4,12 @@ A public, multi-topic collection of portable Agent Skills by `mrcha033`.
 
 This repository contains skills, not plugins and not a plugin marketplace. Each directory under `skills/` is a self-contained skill built around `SKILL.md` and its supporting resources.
 
+## Agent workflow skills
+
+### Advisor Review
+
+`advisor-review` asks an independent Codex subagent to challenge a plan, diagnose a stalled approach, assess a pivot, or audit completed work. It uses bounded context and advice contracts, keeps the reviewer behaviorally read-only, and labels itself as an advisor-style approximation rather than Claude's native server-side Advisor tool.
+
 ## Finance skills
 
 ### Quant Stock Technical
@@ -20,8 +26,11 @@ Download one skill archive:
 
 - [Quant Stock Technical](downloads/quant-stock-technical.zip)
 - [Stock Scenario Story](downloads/stock-scenario-story.zip)
+- [Advisor Review](downloads/advisor-review.zip)
 
 In an eligible ChatGPT workspace, open **Plugins → Skills → Create → Upload from your computer**, then upload the archive. GitHub repository URLs are not ChatGPT installation links.
+
+`advisor-review` requires a host that exposes an independent subagent or delegation primitive. It is designed for Codex and reports itself unavailable instead of simulating independence on hosts without that capability.
 
 ## Use in Codex
 
@@ -31,9 +40,10 @@ Clone the repository and copy the desired skill directory into the local Codex s
 git clone https://github.com/mrcha033/skills.git mrcha-skills
 cp -R mrcha-skills/skills/quant-stock-technical ~/.codex/skills/
 cp -R mrcha-skills/skills/stock-scenario-story ~/.codex/skills/
+cp -R mrcha-skills/skills/advisor-review ~/.codex/skills/
 ```
 
-Start a new Codex task after copying. Invoke `$quant-stock-technical` first and pass its unmodified JSON result to `$stock-scenario-story`.
+Start a new Codex task after copying. Invoke `$advisor-review` explicitly when you want an independent review. For the paired finance workflow, invoke `$quant-stock-technical` first and pass its unmodified JSON result to `$stock-scenario-story`.
 
 ## Use in Claude Code
 
@@ -55,7 +65,10 @@ Also provide the market, ticker, and valid market tick size. The skill requires 
 python3 -B skills/quant-stock-technical/scripts/analyze_stock.py --self-test
 python3 -B skills/stock-scenario-story/scripts/validate_quant_handoff.py --self-test
 python3 -B skills/stock-scenario-story/scripts/validate_story_text.py --self-test
+python3 -B skills/advisor-review/scripts/build_context_packet.py --self-test
+python3 -B skills/advisor-review/scripts/validate_advice.py --self-test
 python3 -B tests/test_handoff_integration.py
+python3 -B tests/test_advisor_review.py
 ```
 
 The score is historical technical strength, not a probability of profit. Calculated price levels do not account for suitability, position sizing, fees, taxes, FX, slippage, broker rules, or fill probability.
