@@ -1,9 +1,9 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
-  "name": "mrcha-skills",
-  "displayName": "MrCha Skills",
-  "version": "0.1.2",
-  "description": "Portable advisor and stock-analysis workflows for Codex and Claude Code.",
+  "name": "quant-stock-technical",
+  "displayName": "Quant Stock Technical",
+  "version": "0.1.0",
+  "description": "Calculate deterministic, numbers-only stock technical analysis from completed OHLCV data.",
   "author": {
     "name": "mrcha033",
     "url": "https://github.com/mrcha033"
@@ -11,9 +11,9 @@
   "homepage": "https://github.com/mrcha033/skills",
   "repository": "https://github.com/mrcha033/skills",
   "keywords": [
-    "advisor",
+    "stocks",
     "technical-analysis",
-    "agent-skills"
+    "quantitative"
   ],
   "skills": "./skills/"
 }

@@ -1,17 +1,17 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
   "name": "mrcha-skills",
-  "description": "Portable Agent Skills by mrcha033.",
+  "description": "Portable Agent Skills by mrcha033, individually installable for Claude Code and Codex.",
   "owner": {
     "name": "mrcha033"
   },
   "plugins": [
     {
-      "name": "mrcha-skills",
-      "displayName": "MrCha Skills",
-      "source": "./plugins/mrcha-skills",
-      "description": "Advisor and stock-analysis workflows for Claude Code and Codex.",
-      "version": "0.1.2",
+      "name": "advisor-review",
+      "displayName": "Advisor Review",
+      "source": "./plugins/advisor-review",
+      "description": "Run an isolated, read-only Codex CLI reviewer at consequential decision points.",
+      "version": "0.1.0",
       "author": {
         "name": "mrcha033"
       },
@@ -20,8 +20,44 @@
       "category": "productivity",
       "tags": [
         "advisor",
+        "review",
+        "codex"
+      ]
+    },
+    {
+      "name": "quant-stock-technical",
+      "displayName": "Quant Stock Technical",
+      "source": "./plugins/quant-stock-technical",
+      "description": "Calculate deterministic, numbers-only stock technical analysis from completed OHLCV data.",
+      "version": "0.1.0",
+      "author": {
+        "name": "mrcha033"
+      },
+      "homepage": "https://github.com/mrcha033/skills",
+      "repository": "https://github.com/mrcha033/skills",
+      "category": "finance",
+      "tags": [
+        "stocks",
         "technical-analysis",
-        "agent-skills"
+        "quantitative"
+      ]
+    },
+    {
+      "name": "stock-scenario-story",
+      "displayName": "Stock Scenario Story",
+      "source": "./plugins/stock-scenario-story",
+      "description": "Research and narrate a sourced, numbers-free market story after a validated quant handoff.",
+      "version": "0.1.0",
+      "author": {
+        "name": "mrcha033"
+      },
+      "homepage": "https://github.com/mrcha033/skills",
+      "repository": "https://github.com/mrcha033/skills",
+      "category": "finance",
+      "tags": [
+        "stocks",
+        "research",
+        "scenario"
       ]
     }
   ]

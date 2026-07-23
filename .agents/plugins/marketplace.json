@@ -5,16 +5,40 @@
   },
   "plugins": [
     {
-      "name": "mrcha-skills",
+      "name": "advisor-review",
       "source": {
         "source": "local",
-        "path": "./plugins/mrcha-skills"
+        "path": "./plugins/advisor-review"
       },
       "policy": {
         "installation": "AVAILABLE",
         "authentication": "ON_INSTALL"
       },
       "category": "Productivity"
+    },
+    {
+      "name": "quant-stock-technical",
+      "source": {
+        "source": "local",
+        "path": "./plugins/quant-stock-technical"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Finance"
+    },
+    {
+      "name": "stock-scenario-story",
+      "source": {
+        "source": "local",
+        "path": "./plugins/stock-scenario-story"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Finance"
     }
   ]
 }

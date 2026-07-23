@@ -1,0 +1,33 @@
+{
+  "name": "advisor-review",
+  "version": "0.1.0",
+  "description": "Run an isolated, read-only Codex CLI reviewer at consequential decision points.",
+  "author": {
+    "name": "mrcha033",
+    "url": "https://github.com/mrcha033"
+  },
+  "homepage": "https://github.com/mrcha033/skills",
+  "repository": "https://github.com/mrcha033/skills",
+  "keywords": [
+    "advisor",
+    "review",
+    "second-opinion"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Advisor Review",
+    "shortDescription": "Independent review through an isolated Codex CLI",
+    "longDescription": "Challenge a plan, diagnose a stalled approach, assess a pivot, or audit completed work through a bounded, read-only Codex CLI review.",
+    "developerName": "mrcha033",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read-only review"
+    ],
+    "websiteURL": "https://github.com/mrcha033/skills",
+    "defaultPrompt": [
+      "Run an independent review of my current plan.",
+      "Audit this completed work before I declare success."
+    ]
+  }
+}

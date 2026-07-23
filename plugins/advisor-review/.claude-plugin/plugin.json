@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "advisor-review",
+  "displayName": "Advisor Review",
+  "version": "0.1.0",
+  "description": "Run an isolated, read-only Codex CLI reviewer at consequential decision points.",
+  "author": {
+    "name": "mrcha033",
+    "url": "https://github.com/mrcha033"
+  },
+  "homepage": "https://github.com/mrcha033/skills",
+  "repository": "https://github.com/mrcha033/skills",
+  "keywords": [
+    "advisor",
+    "review",
+    "second-opinion"
+  ],
+  "skills": "./skills/"
+}

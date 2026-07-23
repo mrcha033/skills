@@ -1,0 +1,33 @@
+{
+  "name": "quant-stock-technical",
+  "version": "0.1.0",
+  "description": "Calculate deterministic, numbers-only stock technical analysis from completed OHLCV data.",
+  "author": {
+    "name": "mrcha033",
+    "url": "https://github.com/mrcha033"
+  },
+  "homepage": "https://github.com/mrcha033/skills",
+  "repository": "https://github.com/mrcha033/skills",
+  "keywords": [
+    "stocks",
+    "technical-analysis",
+    "quantitative"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Quant Stock Technical",
+    "shortDescription": "Deterministic numeric stock technical analysis",
+    "longDescription": "Calculate reproducible technical opinions, price levels, risk, and a historical technical-strength score from completed adjusted daily OHLCV data.",
+    "developerName": "mrcha033",
+    "category": "Finance",
+    "capabilities": [
+      "Interactive",
+      "Deterministic analysis"
+    ],
+    "websiteURL": "https://github.com/mrcha033/skills",
+    "defaultPrompt": [
+      "Calculate a technical report from these completed OHLCV files.",
+      "Run the deterministic historical technical-strength model."
+    ]
+  }
+}
