@@ -30,5 +30,11 @@ jobs:
         run: python -B skills/stock-scenario-story/scripts/validate_quant_handoff.py --self-test
       - name: Run numbers-free story gate self-test
         run: python -B skills/stock-scenario-story/scripts/validate_story_text.py --self-test
+      - name: Run advisor context-packet self-test
+        run: python -B skills/advisor-review/scripts/build_context_packet.py --self-test
+      - name: Run advisor advice-schema self-test
+        run: python -B skills/advisor-review/scripts/validate_advice.py --self-test
       - name: Run paired-skill integration test
         run: python -B tests/test_handoff_integration.py
+      - name: Run advisor integration test
+        run: python -B tests/test_advisor_review.py
