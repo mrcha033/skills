@@ -44,7 +44,7 @@ def main() -> None:
     assert codex_market["plugins"][0]["source"]["path"] == "./plugins/mrcha-skills"
     assert claude_market["plugins"][0]["source"] == "./plugins/mrcha-skills"
     assert codex_plugin["name"] == claude_plugin["name"] == "mrcha-skills"
-    assert codex_plugin["version"] == claude_plugin["version"] == "0.1.0"
+    assert codex_plugin["version"] == claude_plugin["version"] == "0.1.1"
     assert codex_plugin["skills"] == claude_plugin["skills"] == "./skills/"
 
     packaged_names = {path.name for path in PACKAGED_SKILLS.iterdir() if path.is_dir()}

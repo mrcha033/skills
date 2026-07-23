@@ -46,6 +46,20 @@ Use a stronger reviewer only when the host explicitly exposes one. Because model
 
 Do not silently trade away constraints for model strength. If the packet cannot preserve the decisive context, use full-context mode.
 
+### CLI-isolated mode
+
+Use `scripts/run_advisor.py` when the parent model has shell access but no native subagent primitive. The runner launches a separate `codex exec` process with:
+
+- an explicitly selected reviewer model;
+- an ephemeral session;
+- a blank temporary working directory;
+- a read-only filesystem sandbox;
+- user configuration ignored;
+- recursive multi-agent disabled;
+- a required JSON output schema.
+
+This mode reuses the existing Codex CLI authentication and requires no MCP server or separately configured API key. It receives only this packet and the bundled rubric, so include every fact necessary for the decision. It is unavailable when the host cannot execute local commands or the Codex CLI is absent or unauthenticated.
+
 ## Phase-specific minimums
 
 - `plan`: task, constraints, proposal, known evidence.
