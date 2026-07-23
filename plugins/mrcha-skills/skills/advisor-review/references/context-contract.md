@@ -32,23 +32,9 @@ Use `scripts/build_context_packet.py` to normalize, redact, bound, and hash the 
 
 The builder performs best-effort redaction, but that is a backstop rather than permission to pass secrets into the packet.
 
-## Context modes
+## Isolated execution
 
-### Full-context mode
-
-Fork the complete available conversation when the host supports it. Some Codex hosts require full-history forks to inherit the primary model; honor that constraint and omit model overrides.
-
-This is the closest available approximation to automatic transcript transfer, but it remains a separate subagent task rather than a native in-request advisor call.
-
-### Strong-reviewer mode
-
-Use a stronger reviewer only when the host explicitly exposes one. Because model overrides may require a fresh or bounded-history fork, include the complete packet and enough recent turns to preserve immediate intent.
-
-Do not silently trade away constraints for model strength. If the packet cannot preserve the decisive context, use full-context mode.
-
-### CLI-isolated mode
-
-Use `scripts/run_advisor.py` when the parent model has shell access but no native subagent primitive. The runner launches a separate `codex exec` process with:
+Always pass the packet to `scripts/run_advisor.py`. The runner launches a separate `codex exec` process with:
 
 - an explicitly selected reviewer model;
 - an ephemeral session;
@@ -58,7 +44,9 @@ Use `scripts/run_advisor.py` when the parent model has shell access but no nativ
 - recursive multi-agent disabled;
 - a required JSON output schema.
 
-This mode reuses the existing Codex CLI authentication and requires no MCP server or separately configured API key. It receives only this packet and the bundled rubric, so include every fact necessary for the decision. It is unavailable when the host cannot execute local commands or the Codex CLI is absent or unauthenticated.
+The runner reuses existing Codex CLI authentication and requires no MCP server or separately configured API key. It receives only this packet and the bundled rubric, so include every fact necessary for the decision. Do not substitute a native subagent because that would create a second execution contract with different context inheritance and isolation semantics.
+
+The skill is unavailable when the host cannot execute local commands or the Codex CLI is absent or unauthenticated.
 
 ## Phase-specific minimums
 

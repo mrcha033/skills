@@ -28,7 +28,7 @@ Run `/reload-plugins` in an active Claude Code session. Bundled skills are avail
 
 ### Advisor Review
 
-`advisor-review` asks an independent Codex reviewer to challenge a plan, diagnose a stalled approach, assess a pivot, or audit completed work. It prefers native subagents and falls back to an isolated, ephemeral `codex exec` process when the parent model has shell access but no subagent primitive.
+`advisor-review` asks an independent Codex reviewer to challenge a plan, diagnose a stalled approach, assess a pivot, or audit completed work. It always runs an isolated, ephemeral `codex exec` process so routing, model selection, sandboxing, schema validation, and failure behavior remain identical across parent models.
 
 ## Finance skills
 
@@ -50,7 +50,7 @@ Download one skill archive:
 
 In an eligible ChatGPT workspace, open **Plugins → Skills → Create → Upload from your computer**, then upload the archive. GitHub repository URLs are not ChatGPT installation links.
 
-`advisor-review` requires either a native subagent primitive or shell access to an authenticated local Codex CLI. It needs no MCP server and reports itself unavailable instead of simulating independence when neither backend exists.
+`advisor-review` requires shell access to an authenticated local Codex CLI. It needs no MCP server, separate API key, or native subagent primitive.
 
 ## Install as standalone Codex skills
 

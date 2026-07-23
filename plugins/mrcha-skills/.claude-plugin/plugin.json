@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "mrcha-skills",
   "displayName": "MrCha Skills",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Portable advisor and stock-analysis workflows for Codex and Claude Code.",
   "author": {
     "name": "mrcha033",

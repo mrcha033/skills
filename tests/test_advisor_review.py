@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PACKET_PATH = ROOT / "skills/advisor-review/scripts/build_context_packet.py"
 ADVICE_PATH = ROOT / "skills/advisor-review/scripts/validate_advice.py"
+SKILL_PATH = ROOT / "skills/advisor-review/SKILL.md"
 
 
 def load_module(name: str, path: Path):
@@ -52,6 +53,10 @@ def main() -> None:
         }
     )
     assert advice["verdict"] == "proceed"
+
+    instructions = SKILL_PATH.read_text(encoding="utf-8")
+    assert "Always runs the bundled script" in instructions
+    assert "Do not replace the runner with `spawn_agent`" in instructions
     print("advisor integration: PASS")
 
 
