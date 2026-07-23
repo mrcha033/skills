@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "stock-scenario-story",
+  "displayName": "Stock Scenario Story",
+  "version": "0.1.0",
+  "description": "Research and narrate a sourced, numbers-free market story after a validated quant handoff.",
+  "author": {
+    "name": "mrcha033",
+    "url": "https://github.com/mrcha033"
+  },
+  "homepage": "https://github.com/mrcha033/skills",
+  "repository": "https://github.com/mrcha033/skills",
+  "keywords": [
+    "stocks",
+    "research",
+    "scenario-story"
+  ],
+  "skills": "./skills/"
+}

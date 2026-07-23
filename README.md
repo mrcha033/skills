@@ -1,8 +1,8 @@
 # MrCha Skills
 
-A public, multi-topic collection of portable Agent Skills by `mrcha033`, packaged as a marketplace for Codex and Claude Code.
+A public, multi-topic collection of portable Agent Skills by `mrcha033`, packaged as three independently installable marketplace plugins for Codex and Claude Code.
 
-Each directory under `skills/` remains a self-contained skill built around `SKILL.md`. The `mrcha-skills` plugin is a distribution bundle containing those skills; it does not add MCP servers, hooks, or external authentication.
+Each directory under `skills/` remains a self-contained skill built around `SKILL.md`. Each marketplace plugin contains exactly one matching skill; none adds MCP servers, hooks, or external authentication.
 
 ## Install from the marketplace
 
@@ -10,19 +10,41 @@ Each directory under `skills/` remains a self-contained skill built around `SKIL
 
 ```bash
 codex plugin marketplace add mrcha033/skills
-codex plugin add mrcha-skills@mrcha-skills
+codex plugin add advisor-review@mrcha-skills
+codex plugin add quant-stock-technical@mrcha-skills
+codex plugin add stock-scenario-story@mrcha-skills
 ```
 
-Start a new Codex task after installation, then select `mrcha-skills` or one of its bundled skills.
+Install only the plugins you want. Start a new Codex task after installation, then invoke the matching skill, such as `$advisor-review`.
 
 ### Claude Code
 
 ```bash
 claude plugin marketplace add mrcha033/skills
-claude plugin install mrcha-skills@mrcha-skills
+claude plugin install advisor-review@mrcha-skills
+claude plugin install quant-stock-technical@mrcha-skills
+claude plugin install stock-scenario-story@mrcha-skills
 ```
 
-Run `/reload-plugins` in an active Claude Code session. Bundled skills are available under the `mrcha-skills` namespace, such as `/mrcha-skills:advisor-review`.
+Install only the plugins you want. Run `/reload-plugins` in an active Claude Code session. Skills use their plugin namespace, such as `/advisor-review:advisor-review`.
+
+### Migrate from the former bundle
+
+First refresh the marketplace and install the individual plugins you want. Then remove the former all-in-one `mrcha-skills` plugin:
+
+```bash
+# Codex
+codex plugin marketplace upgrade mrcha-skills
+codex plugin add advisor-review@mrcha-skills
+codex plugin remove mrcha-skills@mrcha-skills
+
+# Claude Code
+claude plugin marketplace update mrcha-skills
+claude plugin install advisor-review@mrcha-skills
+claude plugin uninstall mrcha-skills@mrcha-skills
+```
+
+Replace `advisor-review` with either stock plugin name, or install multiple individual plugins before removing the bundle.
 
 ## Agent workflow skills
 
@@ -67,7 +89,7 @@ Start a new Codex task after copying. Invoke `$advisor-review` explicitly when y
 
 ## Standalone Claude Code skills
 
-The core skill folders also follow the Agent Skills layout. Copy a desired folder into `~/.claude/skills/` or a project's `.claude/skills/` directory when you do not want the marketplace bundle.
+The core skill folders also follow the Agent Skills layout. Copy a desired folder into `~/.claude/skills/` or a project's `.claude/skills/` directory when you do not want marketplace installation.
 
 ## Input
 

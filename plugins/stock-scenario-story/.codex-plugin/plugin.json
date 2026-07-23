@@ -1,0 +1,33 @@
+{
+  "name": "stock-scenario-story",
+  "version": "0.1.0",
+  "description": "Research and narrate a sourced, numbers-free market story after a validated quant handoff.",
+  "author": {
+    "name": "mrcha033",
+    "url": "https://github.com/mrcha033"
+  },
+  "homepage": "https://github.com/mrcha033/skills",
+  "repository": "https://github.com/mrcha033/skills",
+  "keywords": [
+    "stocks",
+    "research",
+    "scenario-story"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Stock Scenario Story",
+    "shortDescription": "Evidence-grounded stories after a quant handoff",
+    "longDescription": "Validate a Quant Stock Technical result, research point-in-time company and market evidence, and narrate a sourced, numbers-free scenario story.",
+    "developerName": "mrcha033",
+    "category": "Finance",
+    "capabilities": [
+      "Interactive",
+      "Web research"
+    ],
+    "websiteURL": "https://github.com/mrcha033/skills",
+    "defaultPrompt": [
+      "Turn this validated quant result into a sourced scenario story.",
+      "Research the strongest evidence for and against this market narrative."
+    ]
+  }
+}
