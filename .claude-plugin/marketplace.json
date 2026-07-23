@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "mrcha-skills",
+  "description": "Portable Agent Skills by mrcha033.",
+  "owner": {
+    "name": "mrcha033"
+  },
+  "plugins": [
+    {
+      "name": "mrcha-skills",
+      "displayName": "MrCha Skills",
+      "source": "./plugins/mrcha-skills",
+      "description": "Advisor and stock-analysis workflows for Claude Code and Codex.",
+      "version": "0.1.0",
+      "author": {
+        "name": "mrcha033"
+      },
+      "homepage": "https://github.com/mrcha033/skills",
+      "repository": "https://github.com/mrcha033/skills",
+      "category": "productivity",
+      "tags": [
+        "advisor",
+        "technical-analysis",
+        "agent-skills"
+      ]
+    }
+  ]
+}

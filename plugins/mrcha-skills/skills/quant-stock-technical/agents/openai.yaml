@@ -1,0 +1,4 @@
+interface:
+  display_name: "Quant Stock Technical"
+  short_description: "Deterministic numeric stock technical analysis"
+  default_prompt: "Use $quant-stock-technical to calculate a reproducible stock technical score from completed daily OHLCV data."

@@ -1,8 +1,28 @@
 # MrCha Skills
 
-A public, multi-topic collection of portable Agent Skills by `mrcha033`.
+A public, multi-topic collection of portable Agent Skills by `mrcha033`, packaged as a marketplace for Codex and Claude Code.
 
-This repository contains skills, not plugins and not a plugin marketplace. Each directory under `skills/` is a self-contained skill built around `SKILL.md` and its supporting resources.
+Each directory under `skills/` remains a self-contained skill built around `SKILL.md`. The `mrcha-skills` plugin is a distribution bundle containing those skills; it does not add MCP servers, hooks, or external authentication.
+
+## Install from the marketplace
+
+### Codex
+
+```bash
+codex plugin marketplace add mrcha033/skills
+codex plugin add mrcha-skills@mrcha-skills
+```
+
+Start a new Codex task after installation, then select `mrcha-skills` or one of its bundled skills.
+
+### Claude Code
+
+```bash
+claude plugin marketplace add mrcha033/skills
+claude plugin install mrcha-skills@mrcha-skills
+```
+
+Run `/reload-plugins` in an active Claude Code session. Bundled skills are available under the `mrcha-skills` namespace, such as `/mrcha-skills:advisor-review`.
 
 ## Agent workflow skills
 
@@ -32,9 +52,9 @@ In an eligible ChatGPT workspace, open **Plugins → Skills → Create → Uploa
 
 `advisor-review` requires a host that exposes an independent subagent or delegation primitive. It is designed for Codex and reports itself unavailable instead of simulating independence on hosts without that capability.
 
-## Use in Codex
+## Install as standalone Codex skills
 
-Clone the repository and copy the desired skill directory into the local Codex skills directory:
+If marketplace installation is unavailable, clone the repository and copy only the desired skill directory:
 
 ```bash
 git clone https://github.com/mrcha033/skills.git mrcha-skills
@@ -45,9 +65,9 @@ cp -R mrcha-skills/skills/advisor-review ~/.codex/skills/
 
 Start a new Codex task after copying. Invoke `$advisor-review` explicitly when you want an independent review. For the paired finance workflow, invoke `$quant-stock-technical` first and pass its unmodified JSON result to `$stock-scenario-story`.
 
-## Use in Claude Code
+## Standalone Claude Code skills
 
-The core skill folders follow the Agent Skills layout. Copy a desired folder into `~/.claude/skills/` or a project's `.claude/skills/` directory. Platform-specific behavior may still require testing in the target product.
+The core skill folders also follow the Agent Skills layout. Copy a desired folder into `~/.claude/skills/` or a project's `.claude/skills/` directory when you do not want the marketplace bundle.
 
 ## Input
 
@@ -69,6 +89,8 @@ python3 -B skills/advisor-review/scripts/build_context_packet.py --self-test
 python3 -B skills/advisor-review/scripts/validate_advice.py --self-test
 python3 -B tests/test_handoff_integration.py
 python3 -B tests/test_advisor_review.py
+python3 -B tests/test_marketplace_packaging.py
+claude plugin validate . --strict
 ```
 
 The score is historical technical strength, not a probability of profit. Calculated price levels do not account for suitability, position sizing, fees, taxes, FX, slippage, broker rules, or fill probability.

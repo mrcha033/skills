@@ -38,3 +38,5 @@ jobs:
         run: python -B tests/test_handoff_integration.py
       - name: Run advisor integration test
         run: python -B tests/test_advisor_review.py
+      - name: Validate marketplace packaging
+        run: python -B tests/test_marketplace_packaging.py
