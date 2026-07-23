@@ -1,6 +1,6 @@
 interface:
   display_name: "Advisor Review"
-  short_description: "Independent read-only review at decision points"
-  default_prompt: "Use $advisor-review to get an independent review before I proceed."
+  short_description: "Isolated Codex CLI review at decision points"
+  default_prompt: "Use $advisor-review to run an isolated independent review before I proceed."
 policy:
   allow_implicit_invocation: false
