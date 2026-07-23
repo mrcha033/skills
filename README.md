@@ -28,7 +28,7 @@ Run `/reload-plugins` in an active Claude Code session. Bundled skills are avail
 
 ### Advisor Review
 
-`advisor-review` asks an independent Codex subagent to challenge a plan, diagnose a stalled approach, assess a pivot, or audit completed work. It uses bounded context and advice contracts, keeps the reviewer behaviorally read-only, and labels itself as an advisor-style approximation rather than Claude's native server-side Advisor tool.
+`advisor-review` asks an independent Codex reviewer to challenge a plan, diagnose a stalled approach, assess a pivot, or audit completed work. It prefers native subagents and falls back to an isolated, ephemeral `codex exec` process when the parent model has shell access but no subagent primitive.
 
 ## Finance skills
 
@@ -50,7 +50,7 @@ Download one skill archive:
 
 In an eligible ChatGPT workspace, open **Plugins → Skills → Create → Upload from your computer**, then upload the archive. GitHub repository URLs are not ChatGPT installation links.
 
-`advisor-review` requires a host that exposes an independent subagent or delegation primitive. It is designed for Codex and reports itself unavailable instead of simulating independence on hosts without that capability.
+`advisor-review` requires either a native subagent primitive or shell access to an authenticated local Codex CLI. It needs no MCP server and reports itself unavailable instead of simulating independence when neither backend exists.
 
 ## Install as standalone Codex skills
 
@@ -87,6 +87,7 @@ python3 -B skills/stock-scenario-story/scripts/validate_quant_handoff.py --self-
 python3 -B skills/stock-scenario-story/scripts/validate_story_text.py --self-test
 python3 -B skills/advisor-review/scripts/build_context_packet.py --self-test
 python3 -B skills/advisor-review/scripts/validate_advice.py --self-test
+python3 -B skills/advisor-review/scripts/run_advisor.py --self-test
 python3 -B tests/test_handoff_integration.py
 python3 -B tests/test_advisor_review.py
 python3 -B tests/test_marketplace_packaging.py
