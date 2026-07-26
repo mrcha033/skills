@@ -1,7 +1,7 @@
 {
   "name": "yonsei-club-argument-counsel",
-  "version": "0.1.0",
-  "description": "Turn positions on Yonsei student-governance agendas into current-rule-grounded arguments.",
+  "version": "0.2.0",
+  "description": "Turn positions on Yonsei student-governance agendas into current-rule-grounded arguments with adaptive official-source tracing.",
   "author": {
     "name": "mrcha033",
     "url": "https://github.com/mrcha033"
@@ -13,10 +13,10 @@
   "interface": {
     "displayName": "Yonsei Governance Argument Counsel",
     "shortDescription": "Ground Yonsei governance positions in current rules",
-    "longDescription": "Route an agenda to the General Student Council or General Student Club Union corpus, retrieve current provisions, test counterarguments, and draft meeting-ready language.",
+    "longDescription": "Trace current official publication paths, route an agenda to the General Student Council or General Student Club Union corpus, retrieve applicable provisions, test counterarguments, and draft meeting-ready language.",
     "developerName": "mrcha033",
     "category": "Education",
-    "capabilities": ["Rule-grounded argument", "Jurisdiction routing", "Meeting procedure"],
+    "capabilities": ["Adaptive official-source tracing", "Rule-grounded argument", "Jurisdiction routing", "Meeting procedure"],
     "websiteURL": "https://github.com/mrcha033/skills",
     "defaultPrompt": [
       "Ground my position on this Yonsei governance agenda.",

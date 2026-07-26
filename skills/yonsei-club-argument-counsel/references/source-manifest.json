@@ -3,9 +3,12 @@
   "checked_at": "2026-07-26",
   "official_archive_url": "https://dongari.yonsei.ac.kr/kr/notice/data.php",
   "student_council_official_profile_url": "https://www.instagram.com/yonsei_legislation/",
-  "student_council_linktree_url": "https://linktr.ee/yonsei_legislation",
+  "student_council_rules_publication_post_url": "https://www.instagram.com/yonsei_legislation/p/DI8hoYRTb7j/",
+  "student_council_rules_reaffirmation_post_url": "https://www.instagram.com/yonsei_legislation/p/DVQQ-FnE6DE/",
+  "student_council_rules_shortlink_url": "https://bit.ly/연세총학법제위_회세칙공개_2025",
+  "student_council_current_linktree_url": "https://linktr.ee/yonsei_legislation",
   "student_council_drive_url": "https://drive.google.com/drive/folders/1DF5tFWSziDtwFmfWABQe5L_5K8yoR8-P?usp=sharing",
-  "freshness_note": "The club-union archive currently pins the 2025-09-23 rules as its latest rules. The student-council corpus comes from the public Drive linked by the official Yonsei General Student Council Legislation Committee Instagram profile; remote attachment hashes must be rechecked before substantive use.",
+  "freshness_note": "The club-union archive currently pins the 2025-09-23 rules as its latest rules. The student-council Drive is published by the official Legislation Committee's 2025-04-27 rules post and reaffirmed in its 2026-02-27 recruitment post through the same named bit.ly shortlink. The current Linktree points to an interpretation-request folder and is not the rules-publication path. Verify the recorded publication chain and remote attachment hashes before substantive use.",
   "documents": [
     {
       "document_id": "RULE-2025-09-23",

@@ -5,9 +5,24 @@ import json
 import subprocess
 import sys
 import tempfile
+from datetime import date
 from pathlib import Path
 
-from _common import SKILL_DIR, load_jsonl, write_jsonl
+from _common import REFERENCES_DIR, SKILL_DIR, load_json, load_jsonl, write_jsonl
+from adaptive_source_discovery import (
+    AllowlistedRedirectHandler,
+    DisallowedRedirectError,
+    auth_is_terminal,
+    encoded_public_url,
+    evaluate_result,
+    extract_candidates,
+    failure_complete,
+    filter_candidates,
+    marker_in_url,
+    url_host_allowed,
+)
+from check_official_paths import archive_entry_ids, drive_item_ids
+from prepare_case import excluded_source_reviews
 
 
 def run(script: str, *arguments: str, expected: int = 0) -> subprocess.CompletedProcess[str]:
@@ -29,9 +44,287 @@ def main() -> int:
     checks: list[str] = []
     corpus = json.loads(run("validate_corpus.py").stdout)
     assert corpus["passed"] and corpus["articles"] >= 800
+    assert corpus["source_lineage"]["passed"]
     assert corpus["domains"]["club_union"] > 300
     assert corpus["domains"]["student_council"] > 400
     checks.append("corpus")
+    lineage = json.loads(run("validate_source_lineage.py").stdout)
+    assert lineage["passed"] and lineage["covered_documents"] == lineage["documents"] == 15
+    lineage_registry = load_json(REFERENCES_DIR / "source-lineages.json")
+    student_lineage = next(
+        row for row in lineage_registry["lineages"] if row["domain"] == "student_council"
+    )
+    excluded = student_lineage["excluded_artifacts"]
+    assert len(excluded) == 1
+    assert excluded[0]["file_id"] in student_lineage["catalog_expected_file_ids"]
+    assert excluded[0]["reason"] and excluded[0]["review_when"]
+    checks.append("source lineage")
+    synthetic = """
+    <html><head>
+      <meta property="og:description"
+            content="연세대학교 총학생회 회·세칙 공개 https://bit.ly/연세총학법제위_회세칙공개_2025">
+    </head><body>
+      <div data-id="1_wj2klJ67Erq2w1XnZXBOHxVJswElJrn"
+           data-tooltip="총학생회 Shared folder"></div>
+    </body></html>
+    """
+    candidates = extract_candidates(
+        synthetic,
+        "https://www.instagram.com/yonsei_legislation/p/example/",
+        "총학생회 회세칙",
+    )
+    candidate_urls = {candidate["url"] for candidate in candidates}
+    assert any("bit.ly/연세총학법제위_회세칙공개_2025" in url for url in candidate_urls)
+    assert any("1_wj2klJ67Erq2w1XnZXBOHxVJswElJrn" in url for url in candidate_urls)
+    assert marker_in_url(
+        "bit.ly/연세총학법제위_회세칙공개_2025",
+        "https://bit.ly/%EC%97%B0%EC%84%B8%EC%B4%9D%ED%95%99%EB%B2%95%EC%A0%9C%EC%9C%84_%ED%9A%8C%EC%84%B8%EC%B9%99%EA%B3%B5%EA%B0%9C_2025",
+    )
+    assert marker_in_url(
+        "dongari.yonsei.ac.kr",
+        "https://dongari.yonsei.ac.kr/kr/notice/data.php",
+    )
+    assert not marker_in_url(
+        "dongari.yonsei.ac.kr",
+        "https://evil.example/?next=dongari.yonsei.ac.kr",
+    )
+    assert marker_in_url("idx=97", "https://example.test/data.php?idx=97")
+    assert not marker_in_url("idx=97", "https://example.test/data.php?idx=970")
+    assert url_host_allowed(
+        "https://drive.google.com/drive/folders/example",
+        ["drive.google.com"],
+    )
+    assert not url_host_allowed(
+        "https://evil.example/?next=drive.google.com",
+        ["drive.google.com"],
+    )
+    assert not url_host_allowed("http://drive.google.com/", ["drive.google.com"])
+    assert not url_host_allowed("https://drive.google.com/", [])
+    filtered_candidates, rejected_hosts = filter_candidates(
+        [
+            {
+                "url": "http://linktr.ee/yonseidongari",
+                "label": "official link",
+                "kind": "anchor",
+                "score": 1,
+            },
+            {
+                "url": "https://evil.example/?next=linktr.ee",
+                "label": "bundled script lead",
+                "kind": "raw_url",
+                "score": 100,
+            },
+        ],
+        ["linktr.ee"],
+    )
+    assert [row["url"] for row in filtered_candidates] == [
+        "https://linktr.ee/yonseidongari"
+    ]
+    assert rejected_hosts == {"evil.example": 1}
+    redirect_handler = AllowlistedRedirectHandler(["drive.google.com"])
+    try:
+        redirect_handler.redirect_request(
+            type("RequestStub", (), {"full_url": "https://drive.google.com/start"})(),
+            None,
+            302,
+            "Found",
+            {},
+            "https://evil.example/private",
+        )
+    except DisallowedRedirectError:
+        pass
+    else:
+        raise AssertionError("off-allowlist redirect was not rejected")
+    catalog_candidates = [
+        {
+            "url": "https://drive.google.com/open?id=1Gy0HFKKb-RfK-GpGE1hklhbGsXdiyU6b",
+            "label": "의결기구에 관한 세칙",
+            "kind": "drive_item",
+        },
+        {
+            "url": "https://dongari.yonsei.ac.kr/kr/notice/data.php?bgu=view&idx=97",
+            "label": "연세대학교 총동아리연합회칙(25.09.23.)",
+            "kind": "anchor",
+        },
+        {
+            "url": "https://dongari.yonsei.ac.kr/kr/notice/data.php?bgu=view&idx=83",
+            "label": "총동아리연합회 선거 및 동아리 총투표 시행에 관한 세칙",
+            "kind": "anchor",
+        },
+    ]
+    assert drive_item_ids(catalog_candidates) == {
+        "1Gy0HFKKb-RfK-GpGE1hklhbGsXdiyU6b"
+    }
+    assert archive_entry_ids(
+        catalog_candidates,
+        "(회칙|세칙|규정집)",
+        ["dongari.yonsei.ac.kr"],
+    ) == {"idx=83", "idx=97"}
+    encoded = encoded_public_url("https://bit.ly/연세총학법제위_회세칙공개_2025")
+    assert encoded.isascii()
+    assert "%EC%97%B0%EC%84%B8" in encoded
+    accepted = evaluate_result(
+        {"ok": True, "verdict": "strong_ok", "final_url": "https://example.test/"},
+        synthetic + "<script>window.recaptcha='incidental library string';</script>",
+        ["회·세칙 공개"],
+        False,
+        [],
+    )
+    assert accepted["accepted"]
+    assert accepted["challenge_markers_observed"] == ["recaptcha"]
+    assert accepted["blocking_challenge_markers"] == []
+    weak = evaluate_result(
+        {"ok": True, "verdict": "weak_ok", "final_url": "https://example.test/"},
+        synthetic,
+        ["회·세칙 공개"],
+        False,
+        [],
+    )
+    assert not weak["accepted"]
+    assert not failure_complete({"ok": True}, weak)
+    pending = {
+        "ok": False,
+        "grid_exhausted": False,
+        "untried_routes": ["playwright_mcp"],
+        "must_invoke_playwright_mcp": True,
+    }
+    assert not failure_complete(pending, {"accepted": False})
+    terminal = {
+        "ok": False,
+        "grid_exhausted": True,
+        "untried_routes": [],
+        "must_invoke_playwright_mcp": False,
+    }
+    assert failure_complete(terminal, {"accepted": False})
+    auth_metadata = {"trace": [{"status": 401}]}
+    assert auth_is_terminal(auth_metadata, "sign in to continue", {"required_text_matches": []})
+    with tempfile.TemporaryDirectory(prefix="yonsei-no-insane-") as temporary:
+        located = json.loads(
+            run(
+                "adaptive_source_discovery.py",
+                "--locate-only",
+                "--engine-dir",
+                str(Path(temporary) / "missing"),
+            ).stdout
+        )
+        assert located["passed"] and located["degraded"]
+        assert located["runtime"]["stdlib_ready"]
+    checks.append("adaptive discovery failure gate")
+    local_refresh = json.loads(run("refresh_sources.py", "--check", "--local-only").stdout)
+    assert local_refresh["passed"]
+    assert local_refresh["integrity_passed"]
+    assert local_refresh["catalog_current"] is None
+    assert local_refresh["lineage_current"] is None
+    assert not local_refresh["substantive_use_allowed"]
+    checks.append("freshness abstention gate")
+    with tempfile.TemporaryDirectory(prefix="yonsei-source-gap-test-") as temporary:
+        blocked_case = Path(temporary) / "case"
+        blocked = json.loads(
+            run(
+                "prepare_case.py",
+                "--agenda",
+                "중앙운영위원회 폭력 사건 징계 및 피해자 보호",
+                "--position",
+                "반폭력 자치규약을 적용해 제재해야 한다",
+                "--body",
+                "중앙운영위원회",
+                "--domain",
+                "student_council",
+                "--meeting-date",
+                "2026-07-28",
+                "--output",
+                str(blocked_case),
+                expected=2,
+            ).stdout
+        )
+        assert blocked["blocked"]
+        assert any(
+            row["source_id"] == "1Ctjw1h8M_AN9gIAo1ycB64olARczPOfS"
+            for row in blocked["required_source_reviews"]
+        )
+        blocked_state = load_json(blocked_case / "state.json")
+        assert blocked_state["status"] == "SOURCE_REVIEW_REQUIRED"
+        assert blocked_state["source_gap_review"]["unresolved_count"] == 1
+        blocked_validation = json.loads(
+            run(
+                "validate_argument_ledger.py",
+                "--case",
+                str(blocked_case),
+                expected=2,
+            ).stdout
+        )
+        assert any(
+            "unresolved triggered source review" in error
+            for error in blocked_validation["hard_errors"]
+        )
+    checks.append("excluded-source agenda trigger")
+    with tempfile.TemporaryDirectory(prefix="yonsei-historical-gap-test-") as temporary:
+        historical_case = Path(temporary) / "case"
+        historical = json.loads(
+            run(
+                "prepare_case.py",
+                "--agenda",
+                "동아리대표자회의 의결 절차",
+                "--position",
+                "당시 유효한 회칙을 적용해야 한다",
+                "--body",
+                "동아리대표자회의",
+                "--domain",
+                "club_union",
+                "--meeting-date",
+                "2025-06-01",
+                "--output",
+                str(historical_case),
+                expected=2,
+            ).stdout
+        )
+        assert historical["blocked"]
+        assert any(
+            row["source_id"] == "idx=81" and row["matched_date_range"]
+            for row in historical["required_source_reviews"]
+        )
+    checks.append("historical-version agenda trigger")
+    for historical_day in ("2025-09-22", "2025-09-23", "2025-09-24"):
+        boundary_reviews = excluded_source_reviews(
+            "club_union",
+            "동아리대표자회의 의결 절차",
+            "당시 유효한 회칙을 적용해야 한다",
+            date.fromisoformat(historical_day),
+        )
+        assert any(row["source_id"] == "idx=81" for row in boundary_reviews)
+    current_boundary_reviews = excluded_source_reviews(
+        "club_union",
+        "동아리대표자회의 의결 절차",
+        "현행 회칙을 적용해야 한다",
+        date.fromisoformat("2025-09-25"),
+    )
+    assert not any(row["source_id"] == "idx=81" for row in current_boundary_reviews)
+    checks.append("historical-version date boundaries")
+    with tempfile.TemporaryDirectory(prefix="yonsei-root-rule-gap-test-") as temporary:
+        root_gap_case = Path(temporary) / "case"
+        root_gap = json.loads(
+            run(
+                "prepare_case.py",
+                "--agenda",
+                "중앙운영위원회 의결 절차",
+                "--position",
+                "당시 유효한 총학생회칙을 적용해야 한다",
+                "--body",
+                "중앙운영위원회",
+                "--domain",
+                "student_council",
+                "--meeting-date",
+                "2025-01-01",
+                "--output",
+                str(root_gap_case),
+                expected=2,
+            ).stdout
+        )
+        assert any(
+            row["source_kind"] == "historical_corpus_gap"
+            for row in root_gap["required_source_reviews"]
+        )
+    checks.append("historical root-rule gap")
     search = json.loads(
         run(
             "search_authorities.py",

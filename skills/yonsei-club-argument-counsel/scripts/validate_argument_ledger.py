@@ -119,6 +119,25 @@ def main() -> int:
     sources = {row.get("id"): row for row in source_rows if row.get("id")}
     hard_errors: list[str] = []
     process_errors: list[str] = []
+    source_gap_path = args.case / "artifacts" / "source_gap_reviews.json"
+    if source_gap_path.exists():
+        source_gap = load_json(source_gap_path)
+        for review in source_gap.get("reviews", []):
+            label = review.get("source_id") or review.get("title") or "unknown exclusion"
+            if review.get("status") != "resolved":
+                hard_errors.append(f"unresolved triggered source review: {label}")
+                continue
+            if not str(review.get("resolution") or "").strip():
+                hard_errors.append(f"resolved source review lacks resolution: {label}")
+            resolution_ids = review.get("source_ids") or []
+            if not resolution_ids:
+                hard_errors.append(f"resolved source review lacks source_ids: {label}")
+            missing_resolution_ids = sorted(set(resolution_ids) - sources.keys())
+            if missing_resolution_ids:
+                hard_errors.append(
+                    f"source review {label} references unregistered sources: "
+                    f"{missing_resolution_ids}"
+                )
     results: list[dict] = []
     seen: set[str] = set()
     for number, proposition in enumerate(ledger, 1):

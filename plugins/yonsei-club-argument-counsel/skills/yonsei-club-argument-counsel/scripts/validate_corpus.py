@@ -13,6 +13,7 @@ from _common import (
     sha256_file,
     validate_pdf_bytes,
 )
+from validate_source_lineage import LINEAGES_PATH, validate as validate_source_lineage
 
 
 def main() -> int:
@@ -23,6 +24,9 @@ def main() -> int:
     documents = manifest.get("documents", [])
     if manifest.get("schema_version") != 2:
         errors.append("unsupported manifest schema_version")
+    lineage = validate_source_lineage(manifest, load_json(LINEAGES_PATH))
+    errors.extend(f"source lineage: {error}" for error in lineage["errors"])
+    warnings.extend(f"source lineage: {warning}" for warning in lineage["warnings"])
     identifiers = [row.get("id") for row in rows]
     if len(identifiers) != len(set(identifiers)):
         errors.append("article index contains duplicate IDs")
@@ -107,6 +111,7 @@ def main() -> int:
             domain: sum(1 for row in rows if row.get("domain") == domain)
             for domain in ("club_union", "student_council")
         },
+        "source_lineage": lineage,
         "errors": errors,
         "warnings": sorted(set(warnings)),
     }

@@ -11,7 +11,9 @@ from pathlib import Path
 from _common import (
     DOMAINS,
     INDEX_PATH,
+    REFERENCES_DIR,
     effective_on,
+    load_json,
     load_jsonl,
     resolve_domain,
     utc_now,
@@ -19,6 +21,65 @@ from _common import (
     write_jsonl,
 )
 from search_authorities import score_rows
+
+
+def excluded_source_reviews(
+    domain: str,
+    agenda: str,
+    position: str,
+    meeting_date: date,
+) -> list[dict]:
+    registry = load_json(REFERENCES_DIR / "source-lineages.json")
+    haystack = f"{agenda} {position}".lower()
+    reviews: list[dict] = []
+    for lineage in registry.get("lineages", []):
+        if lineage.get("domain") != domain:
+            continue
+        sources = [
+            ("drive_artifact", row, row.get("file_id"))
+            for row in lineage.get("excluded_artifacts", [])
+        ]
+        sources.extend(
+            ("archive_entry", row, row.get("entry_id"))
+            for row in lineage.get("excluded_catalog_entries", [])
+        )
+        for source_kind, row, source_id in sources:
+            terms = [
+                term for term in row.get("trigger_terms", []) if term.lower() in haystack
+            ]
+            effective_from = (
+                date.fromisoformat(row["effective_from"])
+                if row.get("effective_from")
+                else None
+            )
+            effective_to = (
+                date.fromisoformat(row["effective_to"])
+                if row.get("effective_to")
+                else None
+            )
+            date_triggered = bool(
+                (effective_from or effective_to)
+                and (effective_from is None or effective_from <= meeting_date)
+                and (effective_to is None or meeting_date <= effective_to)
+            )
+            if not terms and not date_triggered:
+                continue
+            reviews.append(
+                {
+                    "source_kind": source_kind,
+                    "source_id": source_id,
+                    "title": row.get("title"),
+                    "matched_terms": terms,
+                    "matched_date_range": date_triggered,
+                    "meeting_date": meeting_date.isoformat(),
+                    "reason": row.get("reason"),
+                    "required_action": row.get("review_when"),
+                    "status": "unresolved",
+                    "resolution": None,
+                    "source_ids": [],
+                }
+            )
+    return reviews
 
 
 def main() -> int:
@@ -63,11 +124,43 @@ def main() -> int:
         sys.stderr.write(created.stderr)
         return created.returncode
     case_dir = Path(created.stdout.strip())
+    source_reviews = excluded_source_reviews(
+        domain,
+        args.agenda,
+        args.position,
+        date_value,
+    )
     rows = [
         row
         for row in load_jsonl(args.index)
         if row.get("domain") == domain and effective_on(row, date_value)
     ]
+    if not any(
+        row.get("target") == "rule"
+        and str(row.get("status") or "").startswith("current")
+        for row in rows
+    ):
+        source_reviews.append(
+            {
+                "source_kind": "historical_corpus_gap",
+                "source_id": f"{domain}:root-rule:{args.meeting_date}",
+                "title": "Applicable domain root rule is absent from the corpus",
+                "matched_terms": [],
+                "matched_date_range": True,
+                "meeting_date": args.meeting_date,
+                "reason": (
+                    "No current-status root rule in the packaged corpus is effective "
+                    "on the requested meeting date."
+                ),
+                "required_action": (
+                    "Retrieve and index the domain's root rule effective on this date "
+                    "before relying on subordinate bylaws."
+                ),
+                "status": "unresolved",
+                "resolution": None,
+                "source_ids": [],
+            }
+        )
     routes = {
         "supporting": f"{args.agenda} {args.position}",
         "adverse": f"{args.agenda} 반대 예외 제한 무효 부결 철회",
@@ -169,6 +262,14 @@ def main() -> int:
             "warning": "Candidates are not conclusions. Build and validate the proposition ledger before drafting.",
         },
     )
+    write_json(
+        case_dir / "artifacts" / "source_gap_reviews.json",
+        {
+            "prepared_at": utc_now(),
+            "governance_domain": domain,
+            "reviews": source_reviews,
+        },
+    )
     write_jsonl(
         case_dir / "sources" / "sources.jsonl",
         sorted(registered.values(), key=lambda row: row["id"]),
@@ -176,13 +277,21 @@ def main() -> int:
     state_path = case_dir / "state.json"
     state = json.loads(state_path.read_text(encoding="utf-8"))
     state["updated_at"] = utc_now()
-    state["status"] = "CANDIDATES_PREPARED"
-    state["current_phase"] = "source_detail"
+    state["status"] = (
+        "SOURCE_REVIEW_REQUIRED" if source_reviews else "CANDIDATES_PREPARED"
+    )
+    state["current_phase"] = (
+        "source_gap_review" if source_reviews else "source_detail"
+    )
     state["progress"]["authority_search"] = "completed"
-    state["progress"]["source_detail"] = "completed"
-    state["progress"]["counter_search"] = "in_progress"
+    state["progress"]["source_detail"] = "blocked" if source_reviews else "completed"
+    state["progress"]["counter_search"] = "blocked" if source_reviews else "in_progress"
     state["candidate_source_count"] = len(registered)
     state["governance_domain"] = domain
+    state["source_gap_review"] = {
+        "passed": not source_reviews,
+        "unresolved_count": len(source_reviews),
+    }
     write_json(state_path, state)
     print(
         json.dumps(
@@ -191,13 +300,21 @@ def main() -> int:
                 "governance_domain": domain,
                 "candidate_source_count": len(registered),
                 "routes": {name: len(items) for name, items in discoveries.items()},
-                "next": "Review candidates, perform proposition-level counter-search, and populate argument_ledger.jsonl.",
+                "blocked": bool(source_reviews),
+                "required_source_reviews": source_reviews,
+                "next": (
+                    "Retrieve, inspect, and register every triggered excluded source; "
+                    "then mark source_gap_reviews.json resolved before argument validation."
+                    if source_reviews
+                    else "Review candidates, perform proposition-level counter-search, "
+                    "and populate argument_ledger.jsonl."
+                ),
             },
             ensure_ascii=False,
             indent=2,
         )
     )
-    return 0
+    return 2 if source_reviews else 0
 
 
 if __name__ == "__main__":
