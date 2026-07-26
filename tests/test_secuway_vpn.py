@@ -162,9 +162,26 @@ def main() -> None:
     arm64_versions = (
         TOOL / "experiments" / "windows-arm64" / "versions.env"
     ).read_text(encoding="utf-8")
+    arm64_vcpkg = json.loads(
+        (
+            TOOL / "experiments" / "windows-arm64" / "vcpkg.json"
+        ).read_text(encoding="utf-8")
+    )
+    arm64_cmake = (
+        TOOL / "experiments" / "windows-arm64" / "CMakeLists.txt"
+    ).read_text(encoding="utf-8")
     assert "CRYPTOPP_VERSION=8.9.0" in x64_build
     assert "-static-libgcc -static-libstdc++" in x64_build
     assert "CRYPTOPP_VERSION=8_9_0" in arm64_versions
+    assert arm64_vcpkg["overrides"] == [
+        {
+            "name": "cryptopp",
+            "version": "8.9.0",
+            "port-version": 2,
+        }
+    ]
+    assert "find_package(cryptopp 8.9.0 EXACT CONFIG REQUIRED)" in arm64_cmake
+    assert '"${CRYPTOPP_INCLUDE_ROOT}/cryptopp"' in arm64_cmake
     assert "LLVM_MINGW_VERSION=20260616" in arm64_versions
     assert "-shared -static" in arm64_build
 

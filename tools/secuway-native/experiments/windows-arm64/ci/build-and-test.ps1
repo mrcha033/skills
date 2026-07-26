@@ -148,6 +148,9 @@ Set-Content -Encoding Ascii -Path (Join-Path $DistRoot 'build-manifest.txt') -Va
     'target=windows-arm64-msvc'
     'openvpn_version=2.7.5-I001'
     'openssl_version=3.6.3'
+    'cryptopp_version=8.9.0'
+    'cryptopp_vcpkg_port_version=2'
+    'cryptopp_vcpkg_git_tree=7a43c1863687809d90c65c768b70eb0add5aacc6'
     "openvpn_msi_sha256=$MsiSha256"
     "vcpkg_commit=$VcpkgCommit"
     "provider_source_sha256=$ProviderSourceHash"

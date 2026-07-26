@@ -27,10 +27,16 @@ if(NOT EXISTS "${PROVIDER_SMOKE_SOURCE}")
 endif()
 
 find_package(OpenSSL 3.6.3 EXACT REQUIRED COMPONENTS Crypto)
-find_package(cryptopp CONFIG REQUIRED)
+find_package(cryptopp 8.9.0 EXACT CONFIG REQUIRED)
+find_path(
+    CRYPTOPP_INCLUDE_ROOT
+    NAMES cryptopp/lea.h
+    REQUIRED
+)
 
 add_library(lea MODULE "${PROVIDER_SOURCE}" "${CMAKE_CURRENT_LIST_DIR}/lea.def")
 target_compile_features(lea PRIVATE cxx_std_17)
+target_include_directories(lea PRIVATE "${CRYPTOPP_INCLUDE_ROOT}/cryptopp")
 target_compile_definitions(lea PRIVATE
     CRYPTOPP_DISABLE_ASM
     WIN32_LEAN_AND_MEAN

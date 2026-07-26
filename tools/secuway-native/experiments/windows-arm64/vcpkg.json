@@ -9,5 +9,12 @@
         "tools"
       ]
     }
+  ],
+  "overrides": [
+    {
+      "name": "cryptopp",
+      "version": "8.9.0",
+      "port-version": 2
+    }
   ]
 }
