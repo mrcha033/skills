@@ -31,7 +31,7 @@ jobs:
           python -B scripts/build_release_packages.py
           --tag "$GITHUB_REF_NAME"
           --output-dir dist
-      - name: Publish immutable GitHub release
+      - name: Publish non-overwriting GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
