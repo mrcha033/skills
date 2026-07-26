@@ -185,8 +185,8 @@ update changes that source and only one version file:
    build and retain a fourteen-day preview containing every format.
 4. After the change reaches `main`, create and push the exact tag
    `skills-v<distributionVersion>`. The release workflow rejects a mismatched
-   tag, rebuilds all assets deterministically, and publishes one immutable
-   GitHub Release.
+   tag, rebuilds all assets deterministically, and refuses to overwrite an
+   existing versioned GitHub Release.
 
 Users installed through the Codex or Claude Code marketplace can refresh the
 marketplace and update normally. ChatGPT and Claude web uploads remain copied
