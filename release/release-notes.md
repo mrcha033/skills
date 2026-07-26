@@ -4,6 +4,10 @@ This release contains the versioned distribution packages declared in
 - Distribution 1.1.0 adds `quant-stock-polling-trader` as a separately
   installable, fail-closed KIS/Toss execution plugin with local-only credential
   and token checks.
+- Distribution 1.2.0 updates `quant-stock-technical` to 0.3.0 with a resumable,
+  read-only KIS Korean adjusted-EOD collector, KRX/KIS source snapshots,
+  KOSPI/KOSDAQ benchmarks, effective tick catalog generation, and immutable
+  bundle receipts.
 - `<name>-<version>.zip`: standalone Agent Skill upload for ChatGPT or Claude.
 - `<name>-<version>.skill`: byte-identical standalone archive with the Claude
   skill extension.
