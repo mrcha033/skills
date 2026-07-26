@@ -1,0 +1,193 @@
+name: secuway-windows-x64-provider
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "tools/secuway-native/src/lea_provider.cpp"
+      - "tools/secuway-native/tests/provider_smoke.c"
+      - "tools/secuway-native/portable/**"
+      - "tools/secuway-native/experiments/windows-x64/**"
+      - "tools/secuway-native/experiments/windows-ci/Install-Windows.ps1"
+      - "skills/secuway-vpn/**"
+      - ".github/workflows/secuway-windows-x64-provider.yml"
+  push:
+    paths:
+      - "tools/secuway-native/src/lea_provider.cpp"
+      - "tools/secuway-native/tests/provider_smoke.c"
+      - "tools/secuway-native/portable/**"
+      - "tools/secuway-native/experiments/windows-x64/**"
+      - "tools/secuway-native/experiments/windows-ci/Install-Windows.ps1"
+      - "skills/secuway-vpn/**"
+      - ".github/workflows/secuway-windows-x64-provider.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-provider:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Reproducible PE x64 build
+        run: ./tools/secuway-native/experiments/windows-x64/build.sh
+
+      - name: Official OpenVPN runtime and LEA KAT under Wine
+        run: ./tools/secuway-native/experiments/windows-x64/verify-wine.sh
+
+      - name: Match bundled x64 provider assets
+        run: |
+          cmp \
+            tools/secuway-native/experiments/windows-x64/artifacts/lea.dll \
+            skills/secuway-vpn/assets/windows-amd64/lea.dll
+          cmp \
+            tools/secuway-native/experiments/windows-x64/artifacts/provider_smoke.exe \
+            skills/secuway-vpn/assets/windows-amd64/provider_smoke.exe
+
+      - name: Upload x64 provider and evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: secuway-lea-windows-amd64
+          path: tools/secuway-native/experiments/windows-x64/artifacts/*
+          if-no-files-found: error
+          retention-days: 7
+
+  native-install:
+    needs: build-provider
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: tools/secuway-native/portable/go.mod
+          cache-dependency-path: tools/secuway-native/portable/go.sum
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: secuway-lea-windows-amd64
+          path: provider
+
+      - name: Install pinned official OpenVPN
+        shell: pwsh
+        run: |
+          $msi = Join-Path $env:RUNNER_TEMP "OpenVPN-2.7.5-I001-amd64.msi"
+          Invoke-WebRequest `
+            -Uri "https://swupdate.openvpn.org/community/releases/OpenVPN-2.7.5-I001-amd64.msi" `
+            -OutFile $msi
+          $expected = "20a9b2831cc3be26c250caf60891c230f3bf3e1e7bd6e17b4e182f166026377a"
+          $actual = (Get-FileHash -Algorithm SHA256 $msi).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) {
+            throw "Official OpenVPN MSI hash mismatch: $actual"
+          }
+          $signature = Get-AuthenticodeSignature -LiteralPath $msi
+          if ($signature.Status -ne "Valid") {
+            throw "Official OpenVPN MSI signature is not valid"
+          }
+          $process = Start-Process msiexec.exe `
+            -ArgumentList @("/i", "`"$msi`"", "/qn", "/norestart") `
+            -Wait `
+            -PassThru
+          if ($process.ExitCode -notin @(0, 3010)) {
+            throw "OpenVPN MSI install failed with code $($process.ExitCode)"
+          }
+
+      - name: Build native CLI and validate one-time install
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path ./build -Force | Out-Null
+          Push-Location ./tools/secuway-native/portable
+          try {
+            go test ./... -count=1
+            go build -buildvcs=false -trimpath `
+              -o ../../../build/secuway-windows-amd64.exe `
+              ./cmd/secuway
+          }
+          finally {
+            Pop-Location
+          }
+          $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+          $setup = (
+            Resolve-Path ./skills/secuway-vpn/scripts/Setup-Windows.ps1
+          ).Path
+          $targetBin = Join-Path $env:RUNNER_TEMP "secuway-user-bin"
+          $serviceBefore = (
+            Get-Service -Name OpenVPNServiceInteractive
+          ).Status.ToString()
+          $userPathBefore = [Environment]::GetEnvironmentVariable("Path", "User")
+          $installed = $false
+          try {
+            & pwsh -NoLogo -NoProfile -File $setup `
+              -Action Install `
+              -TargetSid $sid `
+              -TargetBin $targetBin
+            if ($LASTEXITCODE -ne 0) {
+              throw "Secuway Windows setup failed with code $LASTEXITCODE"
+            }
+            $installed = $true
+            $statusOutput = & pwsh -NoLogo -NoProfile -File $setup `
+              -Action Status `
+              -TargetSid $sid `
+              -TargetBin $targetBin
+            if ($LASTEXITCODE -ne 0) {
+              throw "Secuway Windows status failed with code $LASTEXITCODE"
+            }
+            $status = $statusOutput |
+              Where-Object { "$_".TrimStart().StartsWith("{") } |
+              Select-Object -Last 1 |
+              ConvertFrom-Json
+            if ($status.status -ne "READY" -or $status.secrets_printed -ne $false) {
+              throw "Unexpected install status: $($status | ConvertTo-Json -Compress)"
+            }
+            & (Join-Path $targetBin "secuway.exe") doctor
+            if ($LASTEXITCODE -ne 0) {
+              throw "Native secuway doctor failed"
+            }
+            $openvpnKey = Get-Item "HKLM:\SOFTWARE\OpenVPN"
+            $openvpn = [string]$openvpnKey.GetValue("exe_path")
+            if (-not $openvpn) {
+              $openvpn = Join-Path ([string]$openvpnKey.GetValue("")) "bin\openvpn.exe"
+            }
+            $moduleDirectory = Join-Path ([string]$openvpnKey.GetValue("")) "ssl\modules"
+            $oldModules = $env:OPENSSL_MODULES
+            $oldPath = $env:PATH
+            try {
+              $env:OPENSSL_MODULES = $moduleDirectory
+              $env:PATH = "$(Split-Path -Parent $openvpn);$oldPath"
+              & ./provider/provider_smoke.exe
+              if ($LASTEXITCODE -ne 0) {
+                throw "Native Windows provider KAT failed"
+              }
+            }
+            finally {
+              $env:OPENSSL_MODULES = $oldModules
+              $env:PATH = $oldPath
+            }
+          }
+          finally {
+            if ($installed) {
+              & pwsh -NoLogo -NoProfile -File $setup `
+                -Action Uninstall `
+                -TargetSid $sid `
+                -TargetBin $targetBin
+              if ($LASTEXITCODE -ne 0) {
+                throw "Secuway Windows uninstall failed with code $LASTEXITCODE"
+              }
+            }
+          }
+          $serviceAfter = (
+            Get-Service -Name OpenVPNServiceInteractive
+          ).Status.ToString()
+          if ($serviceAfter -ne $serviceBefore) {
+            throw "Interactive Service state was not restored"
+          }
+          $userPathAfter = [Environment]::GetEnvironmentVariable("Path", "User")
+          if ($userPathAfter -ne $userPathBefore) {
+            throw "User PATH was not restored"
+          }
+          if (Test-Path -LiteralPath $targetBin) {
+            throw "User CLI directory was not removed"
+          }

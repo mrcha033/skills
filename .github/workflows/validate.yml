@@ -52,6 +52,10 @@ jobs:
         run: python -B skills/learnus-course-copilot/scripts/self_test.py
       - name: Run Kakao reply-reuse self-test
         run: python -B skills/katok-reply-reuse/scripts/rank_replies.py --self-test
+      - name: Validate Secuway VPN package and Windows assets
+        run: python -B tests/test_secuway_vpn.py
+      - name: Guard Secuway Windows privilege and CI boundaries
+        run: python -B tests/test_secuway_windows_security.py
       - name: Run Yonsei governance counsel self-test
         run: python -B skills/yonsei-central-student-governance-counsel/scripts/self_test.py
       - name: Run paired-skill integration test

@@ -1,0 +1,7 @@
+/build/
+/build-ci/
+/downloads/
+/downloads-ci/
+/dist/
+/dist-ci/
+/toolchain/

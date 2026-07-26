@@ -1,0 +1,119 @@
+name: secuway-windows-portable
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "tools/secuway-native/portable/**"
+      - "tools/secuway-native/experiments/windows-ci/**"
+      - "skills/secuway-vpn/**"
+      - "tests/test_secuway_vpn.py"
+      - ".github/workflows/secuway-windows-portable.yml"
+  push:
+    paths:
+      - "tools/secuway-native/portable/**"
+      - "tools/secuway-native/experiments/windows-ci/**"
+      - "skills/secuway-vpn/**"
+      - "tests/test_secuway_vpn.py"
+      - ".github/workflows/secuway-windows-portable.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  native-windows:
+    name: Windows ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            arch: amd64
+          - runner: windows-11-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: tools/secuway-native/portable/go.mod
+          cache-dependency-path: tools/secuway-native/portable/go.sum
+
+      - name: Parse Windows PowerShell entry points
+        shell: pwsh
+        run: |
+          $failed = $false
+          @(
+            Get-ChildItem ./tools/secuway-native/experiments/windows-ci/*.ps1
+            Get-ChildItem ./skills/secuway-vpn/scripts/*.ps1
+          ) |
+            ForEach-Object {
+              $tokens = $null
+              $errors = $null
+              [System.Management.Automation.Language.Parser]::ParseFile(
+                $_.FullName,
+                [ref]$tokens,
+                [ref]$errors
+              ) | Out-Null
+              if ($errors.Count -gt 0) {
+                $failed = $true
+                $errors | ForEach-Object { Write-Error $_.Message }
+              }
+            }
+          if ($failed) { exit 1 }
+
+      - name: Exercise the bundled setup status boundary
+        shell: pwsh
+        run: |
+          $setup = (
+            Resolve-Path "./skills/secuway-vpn/scripts/Setup-Windows.ps1"
+          ).Path
+          $stdout = Join-Path $env:RUNNER_TEMP "secuway-status-${{ matrix.arch }}.out"
+          $stderr = Join-Path $env:RUNNER_TEMP "secuway-status-${{ matrix.arch }}.err"
+          $statusProcess = Start-Process `
+            -FilePath (Get-Command pwsh -ErrorAction Stop).Source `
+            -ArgumentList @(
+              "-NoLogo",
+              "-NoProfile",
+              "-File",
+              "`"$setup`"",
+              "-Action",
+              "Status"
+            ) `
+            -RedirectStandardOutput $stdout `
+            -RedirectStandardError $stderr `
+            -Wait `
+            -PassThru
+          $exitCode = $statusProcess.ExitCode
+          if ($exitCode -notin @(0, 1)) {
+            throw "Setup status failed unexpectedly with code $exitCode"
+          }
+          $output = @(
+            Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue
+            Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue
+          )
+          $json = $output |
+            Where-Object { "$_".TrimStart().StartsWith("{") } |
+            Select-Object -Last 1 |
+            ConvertFrom-Json
+          if ($json.schema -ne "secuway-windows-install-status/v1" -or
+              $json.secrets_printed -ne $false) {
+            throw "Unexpected setup status contract"
+          }
+
+      - name: Native build, tests, DPAPI round trip, and status contract
+        shell: pwsh
+        run: >
+          ./tools/secuway-native/experiments/windows-ci/Test-Windows.ps1
+          -Phase Portable
+          -ExpectedArch ${{ matrix.arch }}
+
+      - name: Upload architecture-checked CLI
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: secuway-windows-${{ matrix.arch }}-cli
+          path: tools/secuway-native/build/windows-ci/${{ matrix.arch }}/secuway.exe
+          if-no-files-found: error
+          retention-days: 7

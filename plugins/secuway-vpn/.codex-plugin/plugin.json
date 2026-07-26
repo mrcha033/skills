@@ -1,0 +1,34 @@
+{
+  "name": "secuway-vpn",
+  "version": "0.1.0",
+  "description": "Install and operate a portable SecuwaySSL-compatible VPN runtime.",
+  "author": {
+    "name": "mrcha033",
+    "url": "https://github.com/mrcha033"
+  },
+  "homepage": "https://github.com/mrcha033/skills",
+  "repository": "https://github.com/mrcha033/skills",
+  "keywords": [
+    "vpn",
+    "secuway",
+    "openvpn",
+    "windows"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Secuway VPN",
+    "shortDescription": "Portable SecuwaySSL setup and connection",
+    "longDescription": "Diagnose, install, enroll, and operate a native SecuwaySSL-compatible OpenVPN runtime without caching passwords or OTP values.",
+    "developerName": "mrcha033",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Local system setup"
+    ],
+    "websiteURL": "https://github.com/mrcha033/skills",
+    "defaultPrompt": [
+      "Check whether Secuway VPN is ready on this host.",
+      "Install Windows Secuway VPN support and guide one-time enrollment."
+    ]
+  }
+}

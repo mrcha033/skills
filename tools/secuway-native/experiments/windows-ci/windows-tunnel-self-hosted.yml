@@ -1,0 +1,29 @@
+name: secuway-windows-tunnel
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tunnel-smoke:
+    # Intentionally requires a separately approved runner with campus VPN
+    # reachability and a pre-enrolled profile. No ID, password, OTP, profile,
+    # or private-key material is passed through Actions inputs or secrets.
+    runs-on: [self-hosted, windows, secuway-tunnel]
+    timeout-minutes: 10
+    environment: secuway-tunnel
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Interactive Service and tunnel smoke
+        shell: pwsh
+        run: >
+          ./tools/secuway-native/experiments/windows-ci/Invoke-InteractiveServiceSmoke.ps1
+          -Mode Tunnel
+          -ConfigPath $env:SECUWAY_TUNNEL_CONFIG
+          -ProbeHost $env:SECUWAY_TUNNEL_PROBE_HOST
+          -ProbePort ([int]$env:SECUWAY_TUNNEL_PROBE_PORT)
+          -RequireNonAdmin

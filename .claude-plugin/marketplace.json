@@ -125,6 +125,25 @@
         "broker-api",
         "polling"
       ]
+    },
+    {
+      "name": "secuway-vpn",
+      "displayName": "Secuway VPN",
+      "source": "./plugins/secuway-vpn",
+      "description": "Install and operate a portable SecuwaySSL-compatible VPN runtime with one-time enrollment.",
+      "version": "0.1.0",
+      "author": {
+        "name": "mrcha033"
+      },
+      "homepage": "https://github.com/mrcha033/skills",
+      "repository": "https://github.com/mrcha033/skills",
+      "category": "developer-tools",
+      "tags": [
+        "vpn",
+        "secuway",
+        "openvpn",
+        "windows"
+      ]
     }
   ]
 }

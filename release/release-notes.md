@@ -8,7 +8,10 @@ This release contains the versioned distribution packages declared in
   read-only KIS Korean adjusted-EOD collector, KRX/KIS source snapshots,
   KOSPI/KOSDAQ benchmarks, effective tick catalog generation, and immutable
   bundle receipts.
-- Distribution 1.3.0 updates `quant-stock-technical` to 0.4.0 with NYSE/NASDAQ
+- Distribution 1.3.0 adds `secuway-vpn` with native Windows amd64/arm64
+  assets, pinned official OpenVPN setup, one-time UAC provisioning, DPAPI
+  profile protection, and explicit live-tunnel evidence gates.
+- Distribution 1.4.0 updates `quant-stock-technical` to 0.4.0 with NYSE/NASDAQ
   adjusted-EOD acquisition and updates `quant-stock-polling-trader` to 0.2.0
   with hardened, inactive systemd user-unit generation for KR/US EOD and entry
   jobs.

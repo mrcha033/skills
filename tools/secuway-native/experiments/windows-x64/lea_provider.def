@@ -1,0 +1,3 @@
+LIBRARY "lea.dll"
+EXPORTS
+OSSL_provider_init
