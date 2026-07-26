@@ -10,8 +10,8 @@
       "name": "advisor-review",
       "displayName": "Advisor Review",
       "source": "./plugins/advisor-review",
-      "description": "Run an isolated, read-only Codex CLI reviewer at consequential decision points.",
-      "version": "0.1.1",
+      "description": "Run an evidence-linked Sol review with a validated parent follow-through gate.",
+      "version": "0.2.0",
       "author": {
         "name": "mrcha033"
       },

@@ -1,6 +1,6 @@
 interface:
   display_name: "Advisor Review"
-  short_description: "Fixed Sol advisor with adaptive high-to-max effort"
-  default_prompt: "Use $advisor-review to choose high, xhigh, or max effort and run an isolated Sol review."
+  short_description: "Evidence-linked Sol diagnosis with a follow-through gate"
+  default_prompt: "Use $advisor-review in this same task: build source-anchored evidence, run the fixed Sol reviewer, and validate every adopt/reject/defer decision before acting."
 policy:
-  allow_implicit_invocation: false
+  allow_implicit_invocation: true

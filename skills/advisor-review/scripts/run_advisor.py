@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""Run an isolated advisor review through a separate Codex CLI process."""
+"""Run an isolated, evidence-linked review through a separate Codex CLI process."""
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -20,59 +22,24 @@ import validate_advice as advice_validator
 DEFAULT_MODEL = "gpt-5.6-sol"
 DEFAULT_EFFORT = "high"
 ALLOWED_EFFORTS = ("high", "xhigh", "max")
-RUN_SCHEMA_VERSION = "advisor-run-1.0"
-PACKET_FIELDS = (
-    "phase",
-    "task",
-    "constraints",
-    "evidence",
-    "proposal",
-    "changes",
-    "validation",
-    "conflicts",
-)
-OUTPUT_SCHEMA = {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "type": "object",
-    "additionalProperties": False,
-    "required": [
-        "verdict",
-        "critical_risks",
-        "assumptions_to_test",
-        "recommended_next_steps",
-        "evidence_conflicts",
-    ],
-    "properties": {
-        "verdict": {
-            "type": "string",
-            "enum": ["proceed", "revise", "stop", "need_evidence"],
-        },
-        "critical_risks": {
-            "type": "array",
-            "maxItems": 8,
-            "items": {"type": "string", "minLength": 1, "maxLength": 2_000},
-        },
-        "assumptions_to_test": {
-            "type": "array",
-            "maxItems": 8,
-            "items": {"type": "string", "minLength": 1, "maxLength": 2_000},
-        },
-        "recommended_next_steps": {
-            "type": "array",
-            "maxItems": 8,
-            "items": {"type": "string", "minLength": 1, "maxLength": 2_000},
-        },
-        "evidence_conflicts": {
-            "type": "array",
-            "maxItems": 8,
-            "items": {"type": "string", "minLength": 1, "maxLength": 2_000},
-        },
-    },
-}
+RUN_SCHEMA_VERSION = "advisor-run-2.0"
+OUTPUT_SCHEMA = advice_validator.OUTPUT_SCHEMA
 
 
 class RunnerError(RuntimeError):
     """Raised when the isolated reviewer cannot return valid advice."""
+
+
+def prepare_isolated_codex_home(temp_dir: Path) -> Path:
+    isolated_home = temp_dir / "codex-home"
+    isolated_home.mkdir(mode=0o700)
+    host_home = Path(
+        os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))
+    ).expanduser()
+    host_auth = host_home / "auth.json"
+    if host_auth.is_file():
+        (isolated_home / "auth.json").symlink_to(host_auth)
+    return isolated_home
 
 
 def load_packet(path: str) -> dict[str, Any]:
@@ -86,35 +53,26 @@ def load_packet(path: str) -> dict[str, Any]:
 
 
 def validate_packet(packet: dict[str, Any]) -> dict[str, Any]:
-    required = {
-        "schema_version",
-        "context_hash",
-        *PACKET_FIELDS,
-    }
-    missing = required - packet.keys()
-    extra = packet.keys() - required
-    if missing:
-        raise RunnerError(f"context packet is missing: {', '.join(sorted(missing))}")
-    if extra:
-        raise RunnerError(
-            f"context packet has unexpected fields: {', '.join(sorted(extra))}"
-        )
-    raw = {field: packet[field] for field in PACKET_FIELDS}
-    rebuilt = packet_builder.build_packet(raw)
-    if packet != rebuilt:
-        raise RunnerError("context packet hash or normalized content does not match")
-    return rebuilt
+    try:
+        return packet_builder.validate_packet(packet)
+    except packet_builder.PacketError as exc:
+        raise RunnerError(str(exc)) from exc
 
 
 def build_prompt(packet: dict[str, Any], rubric: str) -> str:
     return (
-        "You are an independent advisor, not an implementer.\n"
-        f"Review phase: {packet['phase']}\n\n"
+        "You are an independent diagnostic reviewer, not the parent implementer.\n"
+        f"Review phase: {packet['phase']}\n"
+        f"Context mode: {packet['context_mode']}\n\n"
         "Read-only boundary:\n"
-        "- Do not call tools.\n"
+        "- Do not call tools. The complete bounded packet and any sanitized artifact "
+        "contents are embedded below.\n"
         "- Do not edit files, send messages, commit, push, or change external state.\n"
-        "- Do not invent evidence. Mark every inference as an inference.\n"
-        "- Use only the supplied context packet and rubric.\n"
+        "- Do not invent evidence or silently fill context gaps.\n"
+        "- Cite supplied context IDs in every diagnosis, finding, and recommendation.\n"
+        "- Separate observed facts, inferences, conflicts, and missing evidence.\n"
+        "- Prefer the smallest discriminating experiment with an explicit stop condition.\n"
+        "- Label every action read_only, reversible, or destructive.\n"
         "- Return only one JSON object matching the required output schema.\n\n"
         "REVIEW RUBRIC\n"
         f"{rubric.strip()}\n\n"
@@ -131,9 +89,7 @@ def build_command(
     output_path: Path,
 ) -> list[str]:
     if effort not in ALLOWED_EFFORTS:
-        raise RunnerError(
-            f"effort must be one of: {', '.join(ALLOWED_EFFORTS)}"
-        )
+        raise RunnerError(f"effort must be one of: {', '.join(ALLOWED_EFFORTS)}")
     return [
         codex_bin,
         "exec",
@@ -147,6 +103,12 @@ def build_command(
         "--ignore-user-config",
         "--disable",
         "multi_agent",
+        "--disable",
+        "plugins",
+        "--disable",
+        "remote_plugin",
+        "--disable",
+        "skill_search",
         "--skip-git-repo-check",
         "--cd",
         str(work_dir),
@@ -184,6 +146,7 @@ def run_advisor(
         )
         environment = os.environ.copy()
         environment["NO_COLOR"] = "1"
+        environment["CODEX_HOME"] = str(prepare_isolated_codex_home(temp_dir))
         try:
             result = subprocess.run(
                 command,
@@ -203,9 +166,19 @@ def run_advisor(
             detail = packet_builder.redact((result.stderr or result.stdout).strip())
             if len(detail) > 2_000:
                 detail = detail[-2_000:]
+            network_hint = ""
+            lowered_detail = detail.lower()
+            if (
+                "stream disconnected" in lowered_detail
+                or "error sending request" in lowered_detail
+            ):
+                network_hint = (
+                    " Parent execution may be blocking subprocess network access; "
+                    "do not weaken that boundary without authority."
+                )
             raise RunnerError(
                 f"Codex reviewer exited with {result.returncode}: "
-                f"{detail or 'no diagnostic output'}"
+                f"{detail or 'no diagnostic output'}{network_hint}"
             )
         if not output_path.is_file():
             raise RunnerError("Codex reviewer did not write a final response")
@@ -213,37 +186,137 @@ def run_advisor(
             advice = json.loads(output_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
             raise RunnerError(f"Codex reviewer returned invalid JSON: {exc}") from exc
-        return advice_validator.validate(advice)
-
-
-def build_receipt(advice: dict[str, Any], effort: str) -> dict[str, Any]:
-    if effort not in ALLOWED_EFFORTS:
-        raise RunnerError(
-            f"effort must be one of: {', '.join(ALLOWED_EFFORTS)}"
+        return advice_validator.validate(
+            advice,
+            known_refs=advice_validator.known_refs_from_packet(validated_packet),
         )
+
+
+def build_receipt(
+    advice: dict[str, Any],
+    *,
+    effort: str,
+    packet: dict[str, Any],
+    duration_ms: int,
+    prompt_hash: str,
+) -> dict[str, Any]:
+    if effort not in ALLOWED_EFFORTS:
+        raise RunnerError(f"effort must be one of: {', '.join(ALLOWED_EFFORTS)}")
+    validated_packet = validate_packet(packet)
+    validated_advice = advice_validator.validate(
+        advice,
+        known_refs=advice_validator.known_refs_from_packet(validated_packet),
+    )
     return {
         "schema_version": RUN_SCHEMA_VERSION,
-        "advisor_model": DEFAULT_MODEL,
-        "advisor_effort": effort,
-        "advice": advice_validator.validate(advice),
+        "context_hash": validated_packet["context_hash"],
+        "prompt_hash": prompt_hash,
+        "backend": "codex-exec",
+        "request": {
+            "requested_model": DEFAULT_MODEL,
+            "requested_effort": effort,
+            "observed_model": None,
+            "observed_effort": None,
+            "identity_verification": "unverified_by_codex_exec_output",
+        },
+        "isolation": {
+            "ephemeral": True,
+            "ignore_user_config": True,
+            "sandbox": "read-only",
+            "multi_agent": False,
+            "plugins": False,
+            "remote_plugin": False,
+            "skill_search": False,
+            "tools_requested": False,
+            "temporary_codex_home": True,
+            "host_auth_link": "auth_json_if_present",
+        },
+        "duration_ms": duration_ms,
+        "advice": validated_advice,
     }
+
+
+def _valid_advice() -> dict[str, Any]:
+    return {
+        "schema_version": advice_validator.SCHEMA_VERSION,
+        "verdict": "revise",
+        "diagnosis": {
+            "summary": "The proposed completion claim lacks remote endpoint evidence.",
+            "confidence": "high",
+            "evidence_refs": ["E1", "V1"],
+        },
+        "findings": [
+            {
+                "id": "F1",
+                "kind": "conflict",
+                "claim": "Local validation passed while the remote state is unverified.",
+                "evidence_refs": ["E1", "V1"],
+                "impact": "The current completion claim exceeds the proven endpoint.",
+            }
+        ],
+        "experiments": [
+            {
+                "id": "T1",
+                "priority": 1,
+                "action": "Read the remote branch SHA without changing external state.",
+                "distinguishes": "Local readiness from successful remote publication.",
+                "success_signal": "The remote branch matches the validated local commit.",
+                "failure_signal": "The remote branch is missing or points elsewhere.",
+                "stop_condition": "Stop after one authoritative SHA comparison.",
+                "risk": "read_only",
+            }
+        ],
+        "recommendations": [
+            {
+                "id": "R1",
+                "priority": 1,
+                "action": "Verify the remote branch SHA before declaring completion.",
+                "why": "Only the local validation result is currently supplied.",
+                "evidence_refs": ["E1", "V1"],
+                "risk": "read_only",
+            }
+        ],
+        "missing_evidence": [],
+        "do_not_do": ["Do not call local validation proof of remote publication."],
+    }
+
+
+def _self_test_packet() -> dict[str, Any]:
+    return packet_builder.build_packet(
+        {
+            "phase": "final",
+            "context_mode": "packet",
+            "task": "Publish the advisor review skill.",
+            "decision": "Decide whether the skill is ready for publication.",
+            "constraints": ["Do not modify external state during review."],
+            "evidence": [
+                {
+                    "source": "focused test output",
+                    "fact": "All deterministic tests passed locally.",
+                }
+            ],
+            "attempts": [],
+            "proposal": "Declare the script and package ready for publication.",
+            "changes": ["Added an isolated Codex CLI runner."],
+            "validation": [
+                {
+                    "check": "Run the focused integration test.",
+                    "result": "The test exited zero.",
+                }
+            ],
+            "conflicts": [],
+            "limitations": [],
+            "artifacts": [],
+        }
+    )
 
 
 def self_test() -> None:
-    raw = {
-        "phase": "final",
-        "task": "Publish the advisor review skill.",
-        "constraints": ["Do not modify external state."],
-        "evidence": ["Deterministic tests passed."],
-        "proposal": "Declare the script fallback ready.",
-        "changes": ["Added an isolated Codex CLI runner."],
-        "validation": ["Runner self-test is in progress."],
-        "conflicts": [],
-    }
-    packet = packet_builder.build_packet(raw)
+    packet = _self_test_packet()
     assert validate_packet(packet) == packet
     prompt = build_prompt(packet, "# Final\nReview the completion claim.")
     assert "Do not call tools." in prompt
+    assert "Cite supplied context IDs" in prompt
     assert packet["context_hash"] in prompt
 
     with tempfile.TemporaryDirectory(prefix="advisor-review-self-test-") as name:
@@ -260,49 +333,75 @@ def self_test() -> None:
         assert command[command.index("--sandbox") + 1] == "read-only"
         assert "--ephemeral" in command
         assert "--ignore-user-config" in command
-        assert command[command.index("--disable") + 1] == "multi_agent"
-        assert command[command.index("--cd") + 1] == str(temp_dir)
-        for allowed_effort in ALLOWED_EFFORTS:
-            routed = build_command(
-                "codex", allowed_effort, temp_dir, schema_path, output_path
-            )
-            assert routed[routed.index("--model") + 1] == DEFAULT_MODEL
-            assert routed[routed.index("--config") + 1] == (
-                f'model_reasoning_effort="{allowed_effort}"'
-            )
+        disabled = [
+            command[index + 1]
+            for index, value in enumerate(command)
+            if value == "--disable"
+        ]
+        assert disabled == [
+            "multi_agent",
+            "plugins",
+            "remote_plugin",
+            "skill_search",
+        ]
 
+        advice = _valid_advice()
         valid_codex = temp_dir / "valid-codex"
         valid_codex.write_text(
             "#!/usr/bin/env python3\n"
             "import json, pathlib, sys\n"
+            f"advice = {advice!r}\n"
             "output = pathlib.Path(sys.argv[sys.argv.index("
             "'--output-last-message') + 1])\n"
-            "output.write_text(json.dumps({"
-            "'verdict':'proceed','critical_risks':[],"
-            "'assumptions_to_test':[],"
-            "'recommended_next_steps':['Verify the published commit.'],"
-            "'evidence_conflicts':[]"
-            "}), encoding='utf-8')\n",
+            "output.write_text(json.dumps(advice), encoding='utf-8')\n",
             encoding="utf-8",
         )
         valid_codex.chmod(0o755)
-        advice = run_advisor(
+        returned = run_advisor(
             packet,
             effort="high",
             codex_bin=str(valid_codex),
             timeout=10,
             rubric="# Test rubric",
         )
-        assert advice["verdict"] == "proceed"
-        receipt = build_receipt(advice, "high")
+        assert returned["verdict"] == "revise"
+        receipt = build_receipt(
+            returned,
+            effort="high",
+            packet=packet,
+            duration_ms=1,
+            prompt_hash=hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+        )
         assert receipt["schema_version"] == RUN_SCHEMA_VERSION
-        assert receipt["advisor_model"] == DEFAULT_MODEL
-        assert receipt["advisor_effort"] == "high"
-        assert receipt["advice"] == advice
-        for allowed_effort in ALLOWED_EFFORTS:
-            routed_receipt = build_receipt(advice, allowed_effort)
-            assert routed_receipt["advisor_model"] == DEFAULT_MODEL
-            assert routed_receipt["advisor_effort"] == allowed_effort
+        assert receipt["request"]["requested_model"] == DEFAULT_MODEL
+        assert receipt["request"]["observed_model"] is None
+        assert receipt["request"]["identity_verification"].startswith("unverified")
+
+        generic_codex = temp_dir / "generic-codex"
+        bad = _valid_advice()
+        bad["findings"][0]["claim"] = "Be careful."
+        generic_codex.write_text(
+            "#!/usr/bin/env python3\n"
+            "import json, pathlib, sys\n"
+            f"advice = {bad!r}\n"
+            "output = pathlib.Path(sys.argv[sys.argv.index("
+            "'--output-last-message') + 1])\n"
+            "output.write_text(json.dumps(advice), encoding='utf-8')\n",
+            encoding="utf-8",
+        )
+        generic_codex.chmod(0o755)
+        try:
+            run_advisor(
+                packet,
+                effort="high",
+                codex_bin=str(generic_codex),
+                timeout=10,
+                rubric="# Test rubric",
+            )
+        except advice_validator.AdviceError as exc:
+            assert "generic advice" in str(exc)
+        else:
+            raise AssertionError("generic reviewer output was accepted")
 
         invalid_codex = temp_dir / "invalid-codex"
         invalid_codex.write_text(
@@ -349,6 +448,28 @@ def self_test() -> None:
         else:
             raise AssertionError("nonzero reviewer exit was accepted")
 
+        network_codex = temp_dir / "network-codex"
+        network_codex.write_text(
+            "#!/usr/bin/env python3\n"
+            "import sys\n"
+            "print('stream disconnected: error sending request', file=sys.stderr)\n"
+            "raise SystemExit(1)\n",
+            encoding="utf-8",
+        )
+        network_codex.chmod(0o755)
+        try:
+            run_advisor(
+                packet,
+                effort="high",
+                codex_bin=str(network_codex),
+                timeout=10,
+                rubric="# Test rubric",
+            )
+        except RunnerError as exc:
+            assert "blocking subprocess network access" in str(exc)
+        else:
+            raise AssertionError("network failure did not block the review")
+
         timeout_codex = temp_dir / "timeout-codex"
         timeout_codex.write_text(
             "#!/usr/bin/env python3\n"
@@ -377,14 +498,18 @@ def self_test() -> None:
     else:
         raise AssertionError("unsupported advisor effort was accepted")
 
-    print(json.dumps({
-        "self_test": "PASS",
-        "backend": "codex-exec",
-        "model": DEFAULT_MODEL,
-        "default_effort": DEFAULT_EFFORT,
-        "allowed_efforts": list(ALLOWED_EFFORTS),
-        "run_schema": RUN_SCHEMA_VERSION,
-    }))
+    print(
+        json.dumps(
+            {
+                "self_test": "PASS",
+                "backend": "codex-exec",
+                "requested_model": DEFAULT_MODEL,
+                "identity_verification": "unverified",
+                "allowed_efforts": list(ALLOWED_EFFORTS),
+                "run_schema": RUN_SCHEMA_VERSION,
+            }
+        )
+    )
 
 
 def main() -> None:
@@ -394,10 +519,11 @@ def main() -> None:
         "--effort",
         choices=ALLOWED_EFFORTS,
         default=DEFAULT_EFFORT,
-        help="Advisor reasoning effort; model is fixed to gpt-5.6-sol",
+        help="Requested advisor effort; model request is fixed to gpt-5.6-sol",
     )
     parser.add_argument("--codex-bin", default=shutil.which("codex") or "codex")
     parser.add_argument("--timeout", type=int, default=300)
+    parser.add_argument("--output", help="Optional path for the validated receipt")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
     if args.self_test:
@@ -405,16 +531,31 @@ def main() -> None:
         return
     if args.timeout < 1:
         raise RunnerError("--timeout must be at least 1 second")
+
+    packet = validate_packet(load_packet(args.input))
     rubric_path = Path(__file__).resolve().parents[1] / "references/review-rubric.md"
     rubric = rubric_path.read_text(encoding="utf-8")
+    prompt = build_prompt(packet, rubric)
+    started = time.monotonic()
     advice = run_advisor(
-        load_packet(args.input),
+        packet,
         effort=args.effort,
         codex_bin=args.codex_bin,
         timeout=args.timeout,
         rubric=rubric,
     )
-    print(json.dumps(build_receipt(advice, args.effort), ensure_ascii=False, indent=2))
+    duration_ms = max(0, round((time.monotonic() - started) * 1_000))
+    receipt = build_receipt(
+        advice,
+        effort=args.effort,
+        packet=packet,
+        duration_ms=duration_ms,
+        prompt_hash=hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+    )
+    rendered = json.dumps(receipt, ensure_ascii=False, indent=2) + "\n"
+    if args.output:
+        Path(args.output).write_text(rendered, encoding="utf-8")
+    sys.stdout.write(rendered)
 
 
 if __name__ == "__main__":
