@@ -8,7 +8,7 @@ import json
 import sys
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from typing import Any, ClassVar
 from urllib.error import HTTPError, URLError
@@ -34,11 +34,17 @@ class AmbiguousMutationError(TransportFailure):
     """Mutation may have reached the broker; caller must reconcile."""
 
 
+class AuthoritativeMutationRejection(BlockedError):
+    """Broker explicitly rejected a mutation before returning an order ID."""
+
+
 @dataclass(frozen=True)
 class HttpResponse:
     status: int
     headers: dict[str, str]
     body: Any
+    request_started_at: str | None = None
+    received_at: str | None = None
 
 
 class UrlLibTransport:
@@ -69,6 +75,7 @@ class UrlLibTransport:
                 "Content-Type", "application/x-www-form-urlencoded"
             )
         request = Request(url, data=data, headers=request_headers, method=method)
+        request_started_at = datetime.now(timezone.utc).isoformat()
         try:
             with urlopen(request, timeout=timeout_seconds) as response:
                 raw = response.read()
@@ -79,6 +86,8 @@ class UrlLibTransport:
                         key.lower(): value for key, value in response.headers.items()
                     },
                     body=body,
+                    request_started_at=request_started_at,
+                    received_at=datetime.now(timezone.utc).isoformat(),
                 )
         except HTTPError as exc:
             raw = exc.read()
@@ -90,6 +99,8 @@ class UrlLibTransport:
                 status=exc.code,
                 headers={key.lower(): value for key, value in exc.headers.items()},
                 body=body,
+                request_started_at=request_started_at,
+                received_at=datetime.now(timezone.utc).isoformat(),
             )
         except (URLError, TimeoutError) as exc:
             if mutation:
@@ -108,10 +119,15 @@ class QueueTransport:
         self.requests.append({"method": method, "url": url, **kwargs})
         if not self.responses:
             raise AssertionError("fixture transport exhausted")
+        request_started_at = datetime.now(timezone.utc).isoformat()
         response = self.responses.pop(0)
         if isinstance(response, BaseException):
             raise response
-        return response
+        return replace(
+            response,
+            request_started_at=response.request_started_at or request_started_at,
+            received_at=response.received_at or datetime.now(timezone.utc).isoformat(),
+        )
 
 
 class PacedTransport:
@@ -123,13 +139,32 @@ class PacedTransport:
         self.last_started: float | None = None
 
     def request(self, method: str, url: str, **kwargs: Any) -> HttpResponse:
+        deadline_at = kwargs.pop("deadline_at", None)
+        deadline = normalize_deadline(deadline_at)
         now = time.monotonic()
+        remaining = 0.0
         if self.last_started is not None:
             remaining = self.minimum_interval_seconds - (now - self.last_started)
-            if remaining > 0:
-                time.sleep(remaining)
+        if deadline is not None:
+            projected_start = datetime.now(timezone.utc) + timedelta(
+                seconds=max(remaining, 0.0)
+            )
+            if projected_start >= deadline:
+                raise BlockedError(
+                    "mutation pacing would cross the absolute submit deadline"
+                )
+        if remaining > 0:
+            time.sleep(remaining)
+        if deadline is not None and datetime.now(timezone.utc) >= deadline:
+            raise BlockedError("absolute submit deadline elapsed before HTTP send")
         self.last_started = time.monotonic()
-        return self.delegate.request(method, url, **kwargs)
+        request_started_at = datetime.now(timezone.utc).isoformat()
+        response = self.delegate.request(method, url, **kwargs)
+        return replace(
+            response,
+            request_started_at=response.request_started_at or request_started_at,
+            received_at=response.received_at or datetime.now(timezone.utc).isoformat(),
+        )
 
 
 class MinimumIntervalRateLimiter:
@@ -149,12 +184,24 @@ class MinimumIntervalRateLimiter:
         self.sleeper = sleeper
         self.last_started: float | None = None
 
-    def acquire(self) -> None:
+    def acquire(self, *, deadline_at: datetime | None = None) -> None:
+        deadline = normalize_deadline(deadline_at)
         now = self.monotonic()
+        remaining = 0.0
         if self.last_started is not None:
             remaining = self.minimum_interval_seconds - (now - self.last_started)
-            if remaining > 0:
-                self.sleeper(remaining)
+        if deadline is not None:
+            projected_start = datetime.now(timezone.utc) + timedelta(
+                seconds=max(remaining, 0.0)
+            )
+            if projected_start >= deadline:
+                raise BlockedError(
+                    "mutation pacing would cross the absolute submit deadline"
+                )
+        if remaining > 0:
+            self.sleeper(remaining)
+        if deadline is not None and datetime.now(timezone.utc) >= deadline:
+            raise BlockedError("absolute submit deadline elapsed before HTTP send")
         self.last_started = self.monotonic()
 
     def observe_headers(self, headers: dict[str, str]) -> None:
@@ -179,6 +226,14 @@ def require_mapping(value: Any, label: str) -> dict[str, Any]:
     return value
 
 
+def normalize_deadline(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if not isinstance(value, datetime) or value.tzinfo is None:
+        raise BlockedError("absolute submit deadline must be timezone-aware")
+    return value.astimezone(timezone.utc)
+
+
 def toss_result(response: HttpResponse, operation: str) -> Any:
     body = require_mapping(response.body, f"Toss {operation} response")
     if response.status < 200 or response.status >= 300:
@@ -188,6 +243,39 @@ def toss_result(response: HttpResponse, operation: str) -> Any:
     if "result" not in body:
         raise BlockedError(f"Toss {operation} response missing result")
     return body["result"]
+
+
+def toss_mutation_result(
+    response: HttpResponse,
+    operation: str,
+) -> dict[str, Any]:
+    """Return an acknowledged Toss mutation or classify it fail-closed."""
+    if response.status >= 500:
+        raise AmbiguousMutationError(
+            f"Toss {operation} may have been accepted: HTTP {response.status}"
+        )
+    if not isinstance(response.body, dict):
+        raise AmbiguousMutationError(
+            f"Toss {operation} returned a non-object mutation response"
+        )
+    body = response.body
+    if response.status < 200 or response.status >= 300:
+        error = body.get("error")
+        code = error.get("code") if isinstance(error, dict) else None
+        if 400 <= response.status < 500 and str(code or "").strip():
+            raise AuthoritativeMutationRejection(
+                f"Toss {operation} rejected: HTTP {response.status} {code}"
+            )
+        raise AmbiguousMutationError(
+            f"Toss {operation} returned no authoritative rejection: "
+            f"HTTP {response.status}"
+        )
+    result = body.get("result")
+    if not isinstance(result, dict):
+        raise AmbiguousMutationError(
+            f"Toss {operation} success response missing result object"
+        )
+    return result
 
 
 def kis_result(response: HttpResponse, operation: str) -> dict[str, Any]:
@@ -200,6 +288,59 @@ def kis_result(response: HttpResponse, operation: str) -> dict[str, Any]:
             f"{body.get('msg1', '')}".strip()
         )
     return body
+
+
+def kis_mutation_result(
+    response: HttpResponse,
+    operation: str,
+) -> dict[str, Any]:
+    """Return an acknowledged KIS mutation or classify it fail-closed."""
+    if response.status >= 500:
+        raise AmbiguousMutationError(
+            f"KIS {operation} may have been accepted: HTTP {response.status}"
+        )
+    if not isinstance(response.body, dict):
+        raise AmbiguousMutationError(
+            f"KIS {operation} returned a non-object mutation response"
+        )
+    body = response.body
+    if response.status != 200:
+        code = body.get("error_code", body.get("msg_cd"))
+        if 400 <= response.status < 500 and str(code or "").strip():
+            raise AuthoritativeMutationRejection(
+                f"KIS {operation} rejected: HTTP {response.status} {code}"
+            )
+        raise AmbiguousMutationError(
+            f"KIS {operation} returned no authoritative rejection: "
+            f"HTTP {response.status}"
+        )
+    result_code = str(body.get("rt_cd", "")).strip()
+    if result_code != "0":
+        message_code = str(body.get("msg_cd", "")).strip()
+        if result_code and message_code:
+            raise AuthoritativeMutationRejection(
+                f"KIS {operation} rejected: {message_code} "
+                f"{body.get('msg1', '')}".strip()
+            )
+        raise AmbiguousMutationError(
+            f"KIS {operation} response missing an authoritative result code"
+        )
+    output = body.get("output")
+    if not isinstance(output, dict):
+        raise AmbiguousMutationError(
+            f"KIS {operation} success response missing output object"
+        )
+    return output
+
+
+def mutation_order_id(value: Any, label: str) -> str:
+    """Require the acknowledgement identifier needed for reconciliation."""
+    if isinstance(value, bool):
+        raise AmbiguousMutationError(f"{label} is missing")
+    order_id = str(value or "").strip()
+    if not order_id:
+        raise AmbiguousMutationError(f"{label} is missing")
+    return order_id
 
 
 def decimal_string(value: Any, field: str) -> str:
@@ -241,7 +382,6 @@ def kis_market_timestamp(
     date_value: Any,
     time_value: Any,
     timezone_name: str,
-    received_at: datetime,
 ) -> str | None:
     """Parse a KIS market-local YYYYMMDD/HHMMSS timestamp, or fail closed."""
     compact_time = str(time_value or "").strip()
@@ -249,14 +389,12 @@ def kis_market_timestamp(
         return None
     compact_date = str(date_value or "").strip()
     zone = ZoneInfo(timezone_name)
-    if not compact_date:
-        compact_date = received_at.astimezone(zone).strftime("%Y%m%d")
     if len(compact_date) != 8 or not compact_date.isdigit():
         return None
     try:
-        parsed = datetime.strptime(
-            compact_date + compact_time, "%Y%m%d%H%M%S"
-        ).replace(tzinfo=zone)
+        parsed = datetime.strptime(compact_date + compact_time, "%Y%m%d%H%M%S").replace(
+            tzinfo=zone
+        )
     except ValueError:
         return None
     return parsed.isoformat()
@@ -311,12 +449,9 @@ class TossBroker:
         self.market_data_limiter = market_data_limiter or MinimumIntervalRateLimiter(
             self.MARKET_DATA_TPS
         )
-        self.order_limiter = order_limiter or MinimumIntervalRateLimiter(
-            self.ORDER_TPS
-        )
+        self.order_limiter = order_limiter or MinimumIntervalRateLimiter(self.ORDER_TPS)
         self.order_history_limiter = (
-            order_history_limiter
-            or MinimumIntervalRateLimiter(self.ORDER_HISTORY_TPS)
+            order_history_limiter or MinimumIntervalRateLimiter(self.ORDER_HISTORY_TPS)
         )
 
     @staticmethod
@@ -389,12 +524,19 @@ class TossBroker:
         limiter: MinimumIntervalRateLimiter,
         method: str,
         url: str,
+        *,
+        deadline_at: datetime | None = None,
         **kwargs: Any,
     ) -> HttpResponse:
-        limiter.acquire()
+        limiter.acquire(deadline_at=deadline_at)
+        request_started_at = datetime.now(timezone.utc).isoformat()
         response = self.transport.request(method, url, **kwargs)
         limiter.observe_headers(response.headers)
-        return response
+        return replace(
+            response,
+            request_started_at=response.request_started_at or request_started_at,
+            received_at=response.received_at or datetime.now(timezone.utc).isoformat(),
+        )
 
     def mutation_request_hash(
         self,
@@ -488,7 +630,12 @@ class TossBroker:
             "timeout_policy": "retry same clientOrderId and byte-equivalent body only within 600 seconds",
         }
 
-    def submit(self, intent: dict[str, Any]) -> dict[str, Any]:
+    def submit(
+        self,
+        intent: dict[str, Any],
+        *,
+        deadline_at: datetime | None = None,
+    ) -> dict[str, Any]:
         body = self.build_order_body(intent)
         request_hash = self.mutation_request_hash(
             "POST",
@@ -503,16 +650,20 @@ class TossBroker:
             json_body=body,
             timeout_seconds=10,
             mutation=True,
+            deadline_at=deadline_at,
         )
-        result = require_mapping(toss_result(response, "submit"), "Toss submit result")
-        order_id = result.get("orderId")
-        if not order_id:
-            raise BlockedError("Toss submit result missing orderId")
+        result = toss_mutation_result(response, "submit")
+        order_id = mutation_order_id(
+            result.get("orderId"),
+            "Toss submit result orderId",
+        )
         return {
-            "broker_order_id": str(order_id),
+            "broker_order_id": order_id,
             "client_order_id": result.get("clientOrderId"),
             "request_hash": request_hash,
-            "raw": result,
+            "submit_started_at": response.request_started_at,
+            "ack_received_at": response.received_at,
+            "raw": redact(result),
         }
 
     def quote(self, market: str, symbol: str) -> dict[str, Any]:
@@ -553,7 +704,7 @@ class TossBroker:
             "market": market,
             "symbol": normalized,
             "currency": matching[0].get("currency"),
-            "last_price": decimal_string(matching[0]["lastPrice"], "lastPrice"),
+            "last_price": decimal_string(matching[0].get("lastPrice"), "lastPrice"),
             "best_ask": format(min(asks), "f"),
             "best_bid": format(max(bids), "f"),
             "trade_timestamp": matching[0].get("timestamp"),
@@ -585,14 +736,16 @@ class TossBroker:
             timeout_seconds=10,
             mutation=True,
         )
-        result = require_mapping(toss_result(response, "cancel"), "Toss cancel result")
-        if not result.get("orderId"):
-            raise BlockedError("Toss cancel result missing operation orderId")
+        result = toss_mutation_result(response, "cancel")
+        operation_order_id = mutation_order_id(
+            result.get("orderId"),
+            "Toss cancel result operation orderId",
+        )
         return {
             "original_order_id": broker_order_id,
-            "operation_order_id": str(result["orderId"]),
+            "operation_order_id": operation_order_id,
             "request_hash": request_hash,
-            "raw": result,
+            "raw": redact(result),
         }
 
 
@@ -799,7 +952,13 @@ class KisBroker:
             "timeout_policy": "never resubmit automatically; reconcile orders, fills, and balances",
         }
 
-    def submit(self, intent: dict[str, Any], *, venue: str) -> dict[str, Any]:
+    def submit(
+        self,
+        intent: dict[str, Any],
+        *,
+        venue: str,
+        deadline_at: datetime | None = None,
+    ) -> dict[str, Any]:
         request = self.build_order_request(intent, venue=venue)
         response = self.transport.request(
             "POST",
@@ -808,18 +967,21 @@ class KisBroker:
             json_body=request["body"],
             timeout_seconds=10,
             mutation=True,
+            deadline_at=deadline_at,
         )
-        body = kis_result(response, "submit")
-        output = require_mapping(body.get("output"), "KIS submit output")
-        order_id = output.get("ODNO")
-        if not order_id:
-            raise BlockedError("KIS submit output missing ODNO")
+        output = kis_mutation_result(response, "submit")
+        order_id = mutation_order_id(
+            output.get("ODNO"),
+            "KIS submit output ODNO",
+        )
         return {
-            "broker_order_id": str(order_id),
+            "broker_order_id": order_id,
             "request_hash": request["request_hash"],
             "broker_time": output.get("ORD_TMD"),
             "organization": output.get("KRX_FWDG_ORD_ORGNO"),
-            "raw": output,
+            "submit_started_at": response.request_started_at,
+            "ack_received_at": response.received_at,
+            "raw": redact(output),
         }
 
     def quote(self, market: str, symbol: str, *, venue: str) -> dict[str, Any]:
@@ -853,31 +1015,58 @@ class KisBroker:
             )
             book_body = kis_result(book_response, "KR orderbook")
             book = require_mapping(book_body.get("output1"), "KIS KR orderbook output")
-            book_state = require_mapping(
-                book_body.get("output2"), "KIS KR orderbook state output"
-            )
             received_at = datetime.now(timezone.utc)
-            source_timestamp = kis_market_timestamp(
-                date_value="",
+            price_date = str(output.get("stck_bsop_date") or "").strip()
+            book_date = str(book.get("stck_bsop_date") or "").strip()
+            if any(
+                len(value) != 8 or not value.isdigit()
+                for value in (price_date, book_date)
+            ):
+                raise BlockedError(
+                    "KIS KR price and orderbook responses each require a valid "
+                    "broker-supplied stck_bsop_date"
+                )
+            if price_date != book_date:
+                raise BlockedError(
+                    "KIS KR price and orderbook stck_bsop_date values must match"
+                )
+            trade_timestamp = kis_market_timestamp(
+                date_value=price_date,
+                time_value=output.get("stck_cntg_hour"),
+                timezone_name="Asia/Seoul",
+            )
+            book_timestamp = kis_market_timestamp(
+                date_value=book_date,
                 time_value=book.get("aspr_acpt_hour"),
                 timezone_name="Asia/Seoul",
-                received_at=received_at,
             )
-            last = book_state.get("stck_prpr") or output.get("stck_prpr")
+            if trade_timestamp is None or book_timestamp is None:
+                raise BlockedError(
+                    "KIS KR quote response requires independent broker-supplied "
+                    "stck_cntg_hour and aspr_acpt_hour timestamps"
+                )
+            last = output.get("stck_prpr")
             if last is None:
-                raise BlockedError("KIS KR quote response missing last price")
+                raise BlockedError("KIS KR price response missing last price")
             return {
                 "market": "KR",
                 "symbol": symbol,
                 "currency": "KRW",
                 "last_price": decimal_string(last, "stck_prpr"),
-                "best_ask": decimal_string(book["askp1"], "askp1"),
-                "best_bid": decimal_string(book["bidp1"], "bidp1"),
-                "trade_timestamp": source_timestamp,
-                "book_timestamp": source_timestamp,
+                "best_ask": decimal_string(book.get("askp1"), "askp1"),
+                "best_bid": decimal_string(book.get("bidp1"), "bidp1"),
+                "trade_timestamp": trade_timestamp,
+                "book_timestamp": book_timestamp,
                 "received_at": received_at.isoformat(),
                 "source_timestamp_raw": {
-                    "aspr_acpt_hour": book.get("aspr_acpt_hour")
+                    "trade": {
+                        "stck_bsop_date": price_date,
+                        "stck_cntg_hour": output.get("stck_cntg_hour"),
+                    },
+                    "book": {
+                        "stck_bsop_date": book_date,
+                        "aspr_acpt_hour": book.get("aspr_acpt_hour"),
+                    },
                 },
                 "raw_status": "OK",
             }
@@ -889,16 +1078,6 @@ class KisBroker:
         if venue not in self.US_ORDER_VENUES:
             raise BlockedError("US venue must be NASD, NYSE, or AMEX")
         quote_venue = self.US_QUOTE_VENUE[venue]
-        tr_id = "HHDFS00000300"
-        price_response = self.transport.request(
-            "GET",
-            f"{self.base_url}/uapi/overseas-price/v1/quotations/price",
-            headers=self.headers(tr_id),
-            query={"AUTH": "", "EXCD": quote_venue, "SYMB": symbol},
-            timeout_seconds=5,
-        )
-        price_body = kis_result(price_response, "US price")
-        output = require_mapping(price_body.get("output"), "KIS US price output")
         book_tr = "HHDFS76200100"
         book_response = self.transport.request(
             "GET",
@@ -909,18 +1088,23 @@ class KisBroker:
         )
         book_body = kis_result(book_response, "US orderbook")
         book = require_mapping(book_body.get("output1"), "KIS US orderbook output")
-        last = book.get("last") or output.get("last") or output.get("last_price")
+        last = book.get("last")
         ask = book.get("pask1") or book.get("pask")
         bid = book.get("pbid1") or book.get("pbid")
         if last is None or ask is None or bid is None:
-            raise BlockedError("KIS US quote response missing last/bid/ask")
+            raise BlockedError(
+                "KIS US orderbook response missing same-source last/bid/ask"
+            )
         received_at = datetime.now(timezone.utc)
         source_timestamp = kis_market_timestamp(
             date_value=book.get("dymd"),
             time_value=book.get("dhms"),
             timezone_name="America/New_York",
-            received_at=received_at,
         )
+        if source_timestamp is None:
+            raise BlockedError(
+                "KIS US orderbook response requires broker-supplied dymd/dhms"
+            )
         return {
             "market": "US",
             "symbol": symbol,
@@ -1006,12 +1190,16 @@ class KisBroker:
             timeout_seconds=10,
             mutation=True,
         )
-        body = kis_result(response, "cancel")
-        output = require_mapping(body.get("output"), "KIS cancel output")
+        output = kis_mutation_result(response, "cancel")
+        operation_order_id = mutation_order_id(
+            output.get("ODNO"),
+            "KIS cancel output ODNO",
+        )
         return {
             "original_order_id": kwargs["broker_order_id"],
+            "operation_order_id": operation_order_id,
             "request_hash": request["request_hash"],
-            "raw": output,
+            "raw": redact(output),
         }
 
     @staticmethod
@@ -1313,6 +1501,8 @@ def self_test() -> None:
     ack = toss.submit(intent)
     assert ack["broker_order_id"] == "toss-order-1"
     assert ack["request_hash"] == preview["request_hash"]
+    assert ack["submit_started_at"]
+    assert ack["ack_received_at"]
     quote = toss.quote("US", "AAPL")
     assert quote["best_ask"] == "201.00"
     assert quote["best_bid"] == "200.00"
@@ -1332,6 +1522,88 @@ def self_test() -> None:
         pass
     else:
         raise AssertionError("Toss external token without expiration must be blocked")
+
+    def toss_with_response(response: HttpResponse) -> TossBroker:
+        return TossBroker(
+            client_id="test-client",
+            client_secret="test-secret",
+            account_seq=1,
+            transport=QueueTransport([response]),
+            access_token="test-token",
+            access_token_expires_at=now + timedelta(minutes=5),
+        )
+
+    for ambiguous_response in (
+        HttpResponse(503, {}, None),
+        HttpResponse(200, {}, {"result": {}}),
+    ):
+        try:
+            toss_with_response(ambiguous_response).submit(intent)
+        except AmbiguousMutationError:
+            pass
+        else:
+            raise AssertionError("Toss 5xx/missing-order-id mutation must be ambiguous")
+    try:
+        toss_with_response(
+            HttpResponse(
+                400,
+                {},
+                {"error": {"code": "INVALID_ORDER", "message": "rejected"}},
+            )
+        ).submit(intent)
+    except AuthoritativeMutationRejection:
+        pass
+    else:
+        raise AssertionError("explicit Toss rejection must be authoritative")
+    try:
+        toss_with_response(HttpResponse(200, {}, {"result": {}})).cancel(
+            "existing-order"
+        )
+    except AmbiguousMutationError:
+        pass
+    else:
+        raise AssertionError("Toss cancel missing operation ID must be ambiguous")
+    malformed_toss_quote = TossBroker(
+        client_id="test-client",
+        client_secret="test-secret",
+        account_seq=1,
+        transport=QueueTransport(
+            [
+                HttpResponse(
+                    200,
+                    {},
+                    {
+                        "result": [
+                            {
+                                "symbol": "AAPL",
+                                "timestamp": now.isoformat(),
+                                "currency": "USD",
+                            }
+                        ]
+                    },
+                ),
+                HttpResponse(
+                    200,
+                    {},
+                    {
+                        "result": {
+                            "timestamp": now.isoformat(),
+                            "asks": [{"price": "201"}],
+                            "bids": [{"price": "200"}],
+                        }
+                    },
+                ),
+            ]
+        ),
+        access_token="test-token",
+        access_token_expires_at=now + timedelta(minutes=5),
+    )
+    try:
+        malformed_toss_quote.quote("US", "AAPL")
+    except BlockedError as exc:
+        assert "lastPrice must be" in str(exc)
+    else:
+        raise AssertionError("missing Toss lastPrice must fail as BlockedError")
 
     kis_transport = QueueTransport(
         [
@@ -1359,8 +1631,100 @@ def self_test() -> None:
     kis_preview = kis.preview_submit(intent, venue="NASD")
     assert kis_preview["tr_id"] == "VTTT1002U"
     assert kis_preview["body"]["CANO"] == "[REDACTED]"
+    assert kis_preview["body"]["ACNT_PRDT_CD"] == "[REDACTED]"
     kis_ack = kis.submit(intent, venue="NASD")
     assert kis_ack["broker_order_id"] == "12345"
+    assert kis_ack["submit_started_at"]
+    assert kis_ack["ack_received_at"]
+
+    def kis_with_response(response: HttpResponse) -> KisBroker:
+        return KisBroker(
+            app_key="test-key",
+            app_secret="test-secret",
+            account_prefix="12345678",
+            account_product="01",
+            environment="paper",
+            transport=QueueTransport([response]),
+            access_token="test-token",
+        )
+
+    for ambiguous_response in (
+        HttpResponse(503, {}, {"rt_cd": "1", "msg_cd": "SERVER_ERROR"}),
+        HttpResponse(
+            200,
+            {},
+            {"rt_cd": "0", "msg_cd": "0", "msg1": "OK", "output": {}},
+        ),
+    ):
+        try:
+            kis_with_response(ambiguous_response).submit(intent, venue="NASD")
+        except AmbiguousMutationError:
+            pass
+        else:
+            raise AssertionError("KIS 5xx/missing-order-id mutation must be ambiguous")
+    try:
+        kis_with_response(
+            HttpResponse(
+                200,
+                {},
+                {
+                    "rt_cd": "1",
+                    "msg_cd": "ORDER_REJECTED",
+                    "msg1": "rejected",
+                },
+            )
+        ).submit(intent, venue="NASD")
+    except AuthoritativeMutationRejection:
+        pass
+    else:
+        raise AssertionError("explicit KIS rejection must be authoritative")
+    try:
+        kis_with_response(
+            HttpResponse(
+                200,
+                {},
+                {"rt_cd": "0", "msg_cd": "0", "msg1": "OK", "output": {}},
+            )
+        ).cancel(
+            market="US",
+            broker_order_id="12345",
+            symbol="AAPL",
+            quantity="1",
+            price="200",
+            venue="NASD",
+        )
+    except AmbiguousMutationError:
+        pass
+    else:
+        raise AssertionError("KIS cancel missing operation ID must be ambiguous")
+
+    deadline_delegate = QueueTransport(
+        [
+            HttpResponse(
+                200,
+                {},
+                {
+                    "rt_cd": "0",
+                    "msg_cd": "0",
+                    "msg1": "OK",
+                    "output": {"ODNO": "late"},
+                },
+            )
+        ]
+    )
+    paced = PacedTransport(deadline_delegate, minimum_interval_seconds=10)
+    paced.last_started = time.monotonic()
+    try:
+        paced.request(
+            "POST",
+            "https://example.invalid/order",
+            deadline_at=datetime.now(timezone.utc) + timedelta(seconds=1),
+        )
+    except BlockedError as exc:
+        assert "deadline" in str(exc)
+    else:
+        raise AssertionError("pacing past the submit deadline must be blocked")
+    assert deadline_delegate.requests == []
 
     sell_intent = {**intent, "side": "SELL"}
     assert kis.build_order_request(sell_intent, venue="NASD")["tr_id"] == "VTTT1001U"
@@ -1403,7 +1767,11 @@ def self_test() -> None:
                     "rt_cd": "0",
                     "msg_cd": "0",
                     "msg1": "OK",
-                    "output": {"stck_prpr": "70000"},
+                    "output": {
+                        "stck_prpr": "70000",
+                        "stck_bsop_date": "20260727",
+                        "stck_cntg_hour": "093000",
+                    },
                 },
             ),
             HttpResponse(
@@ -1416,6 +1784,7 @@ def self_test() -> None:
                     "output1": {
                         "askp1": "70100",
                         "bidp1": "69900",
+                        "stck_bsop_date": "20260727",
                         "aspr_acpt_hour": "093001",
                     },
                     "output2": {"stck_prpr": "70000"},
@@ -1433,11 +1802,156 @@ def self_test() -> None:
         access_token="test-token",
     )
     kr_quote = quote_kis.quote("KR", "005930", venue="NXT")
+    assert kr_quote["trade_timestamp"].endswith("T09:30:00+09:00")
     assert kr_quote["book_timestamp"].endswith("T09:30:01+09:00")
+    assert kr_quote["trade_timestamp"] != kr_quote["book_timestamp"]
     assert all(
         request["query"]["FID_COND_MRKT_DIV_CODE"] == "NX"
         for request in quote_transport.requests
     )
+
+    malformed_kr_quote = KisBroker(
+        app_key="test-key",
+        app_secret="test-secret",
+        account_prefix="12345678",
+        account_product="01",
+        environment="live",
+        transport=QueueTransport(
+            [
+                HttpResponse(
+                    200,
+                    {},
+                    {
+                        "rt_cd": "0",
+                        "msg_cd": "0",
+                        "msg1": "OK",
+                        "output": {
+                            "stck_prpr": "70000",
+                            "stck_bsop_date": "20260727",
+                            "stck_cntg_hour": "093000",
+                        },
+                    },
+                ),
+                HttpResponse(
+                    200,
+                    {},
+                    {
+                        "rt_cd": "0",
+                        "msg_cd": "0",
+                        "msg1": "OK",
+                        "output1": {
+                            "bidp1": "69900",
+                            "stck_bsop_date": "20260727",
+                            "aspr_acpt_hour": "093001",
+                        },
+                    },
+                ),
+            ]
+        ),
+        access_token="test-token",
+    )
+    try:
+        malformed_kr_quote.quote("KR", "005930", venue="KRX")
+    except BlockedError as exc:
+        assert "askp1 must be" in str(exc)
+    else:
+        raise AssertionError("missing KIS askp1 must fail as BlockedError")
+
+    undated_quote_kis = KisBroker(
+        app_key="test-key",
+        app_secret="test-secret",
+        account_prefix="12345678",
+        account_product="01",
+        environment="live",
+        transport=QueueTransport(
+            [
+                HttpResponse(
+                    200,
+                    {},
+                    {
+                        "rt_cd": "0",
+                        "msg_cd": "0",
+                        "msg1": "OK",
+                        "output": {
+                            "stck_prpr": "70000",
+                            "stck_cntg_hour": "093000",
+                        },
+                    },
+                ),
+                HttpResponse(
+                    200,
+                    {},
+                    {
+                        "rt_cd": "0",
+                        "msg_cd": "0",
+                        "msg1": "OK",
+                        "output1": {
+                            "askp1": "70100",
+                            "bidp1": "69900",
+                            "stck_bsop_date": "20260727",
+                            "aspr_acpt_hour": "093001",
+                        },
+                        "output2": {"stck_prpr": "70000"},
+                    },
+                ),
+            ]
+        ),
+        access_token="test-token",
+    )
+    try:
+        undated_quote_kis.quote("KR", "005930", venue="KRX")
+    except BlockedError as exc:
+        assert "each require a valid" in str(exc)
+    else:
+        raise AssertionError("KIS KR quote must not synthesize a trading date")
+
+    single_timestamp_kis = KisBroker(
+        app_key="test-key",
+        app_secret="test-secret",
+        account_prefix="12345678",
+        account_product="01",
+        environment="live",
+        transport=QueueTransport(
+            [
+                HttpResponse(
+                    200,
+                    {},
+                    {
+                        "rt_cd": "0",
+                        "msg_cd": "0",
+                        "msg1": "OK",
+                        "output": {
+                            "stck_prpr": "70000",
+                            "stck_bsop_date": "20260727",
+                        },
+                    },
+                ),
+                HttpResponse(
+                    200,
+                    {},
+                    {
+                        "rt_cd": "0",
+                        "msg_cd": "0",
+                        "msg1": "OK",
+                        "output1": {
+                            "askp1": "70100",
+                            "bidp1": "69900",
+                            "stck_bsop_date": "20260727",
+                            "aspr_acpt_hour": "093001",
+                        },
+                        "output2": {"stck_prpr": "70000"},
+                    },
+                ),
+            ]
+        ),
+        access_token="test-token",
+    )
+    try:
+        single_timestamp_kis.quote("KR", "005930", venue="KRX")
+    except BlockedError as exc:
+        assert "independent broker-supplied" in str(exc)
+    else:
+        raise AssertionError("KIS KR price and book timestamps must be independent")
 
     us_cancel = kis.build_cancel_request(
         market="US",
@@ -1452,16 +1966,113 @@ def self_test() -> None:
     assert us_cancel["body"]["OVRS_ORD_UNPR"] == "0"
     assert us_cancel["body"]["ORD_SVR_DVSN_CD"] == "0"
 
-    received = datetime(2026, 7, 27, 13, 30, 2, tzinfo=timezone.utc)
     assert (
         kis_market_timestamp(
             date_value="20260727",
             time_value="093001",
             timezone_name="America/New_York",
-            received_at=received,
         )
         == "2026-07-27T09:30:01-04:00"
     )
+    assert (
+        kis_market_timestamp(
+            date_value="",
+            time_value="093001",
+            timezone_name="America/New_York",
+        )
+        is None
+    )
+
+    for venue, expected_exchange_code, symbol in (
+        ("NASD", "NAS", "AAPL"),
+        ("NYSE", "NYS", "IBM"),
+    ):
+        us_quote_transport = QueueTransport(
+            [
+                HttpResponse(
+                    200,
+                    {},
+                    {
+                        "rt_cd": "0",
+                        "msg_cd": "0",
+                        "msg1": "OK",
+                        "output1": {
+                            "last": "200.25",
+                            "pask1": "200.30",
+                            "pbid1": "200.20",
+                            "dymd": "20260727",
+                            "dhms": "093001",
+                        },
+                    },
+                )
+            ]
+        )
+        us_quote_kis = KisBroker(
+            app_key="test-key",
+            app_secret="test-secret",
+            account_prefix="12345678",
+            account_product="01",
+            environment="live",
+            transport=us_quote_transport,
+            access_token="test-token",
+        )
+        us_quote = us_quote_kis.quote("US", symbol, venue=venue)
+        assert us_quote["last_price"] == "200.25"
+        assert us_quote["trade_timestamp"] == us_quote["book_timestamp"]
+        assert us_quote["trade_timestamp"].endswith("T09:30:01-04:00")
+        assert len(us_quote_transport.requests) == 1
+        assert us_quote_transport.requests[0]["query"]["EXCD"] == expected_exchange_code
+        assert us_quote_transport.requests[0]["url"].endswith(
+            "/uapi/overseas-price/v1/quotations/inquire-asking-price"
+        )
+
+    no_last_transport = QueueTransport(
+        [
+            HttpResponse(
+                200,
+                {},
+                {
+                    "rt_cd": "0",
+                    "msg_cd": "0",
+                    "msg1": "OK",
+                    "output1": {
+                        "pask1": "200.30",
+                        "pbid1": "200.20",
+                        "dymd": "20260727",
+                        "dhms": "093001",
+                    },
+                },
+            ),
+            HttpResponse(
+                200,
+                {},
+                {
+                    "rt_cd": "0",
+                    "msg_cd": "0",
+                    "msg1": "OK",
+                    "output": {"last": "199.00"},
+                },
+            ),
+        ]
+    )
+    no_last_kis = KisBroker(
+        app_key="test-key",
+        app_secret="test-secret",
+        account_prefix="12345678",
+        account_product="01",
+        environment="live",
+        transport=no_last_transport,
+        access_token="test-token",
+    )
+    try:
+        no_last_kis.quote("US", "AAPL", venue="NASD")
+    except BlockedError as exc:
+        assert "same-source last/bid/ask" in str(exc)
+    else:
+        raise AssertionError("KIS US quote must not borrow last from another endpoint")
+    assert len(no_last_transport.requests) == 1
+    assert len(no_last_transport.responses) == 1
+
     try:
         kis.quote("US", "AAPL", venue="NASD")
     except BlockedError as exc:

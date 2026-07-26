@@ -17,7 +17,7 @@ EXPECTED_PLUGINS = {
 }
 EXPECTED_VERSIONS = {
     "advisor-review": "0.1.1",
-    "quant-stock-technical": "0.1.0",
+    "quant-stock-technical": "0.2.0",
     "stock-scenario-story": "0.1.0",
 }
 
@@ -46,13 +46,17 @@ def main() -> None:
     assert set(codex_entries) == EXPECTED_PLUGINS
     assert set(claude_entries) == EXPECTED_PLUGINS
     assert len(codex_market["plugins"]) == len(claude_market["plugins"]) == 3
-    assert not (PLUGINS / "mrcha-skills").exists(), "aggregate plugin must not remain installable"
+    assert not (PLUGINS / "mrcha-skills").exists(), (
+        "aggregate plugin must not remain installable"
+    )
 
     for plugin_name in EXPECTED_PLUGINS:
         plugin = PLUGINS / plugin_name
         codex_plugin = load_json(plugin / ".codex-plugin/plugin.json")
         claude_plugin = load_json(plugin / ".claude-plugin/plugin.json")
-        assert codex_entries[plugin_name]["source"]["path"] == f"./plugins/{plugin_name}"
+        assert (
+            codex_entries[plugin_name]["source"]["path"] == f"./plugins/{plugin_name}"
+        )
         assert claude_entries[plugin_name]["source"] == f"./plugins/{plugin_name}"
         assert codex_entries[plugin_name]["policy"] == {
             "installation": "AVAILABLE",
@@ -79,9 +83,9 @@ def main() -> None:
         packaged_files = relative_files(packaged)
         assert source_files == packaged_files, f"{plugin_name} file inventory drift"
         for relative in source_files:
-            assert (source / relative).read_bytes() == (packaged / relative).read_bytes(), (
-                f"{plugin_name}/{relative} content drift"
-            )
+            assert (source / relative).read_bytes() == (
+                packaged / relative
+            ).read_bytes(), f"{plugin_name}/{relative} content drift"
         archive_path = ROOT / "downloads" / f"{plugin_name}.zip"
         assert archive_path.is_file(), f"missing download archive: {archive_path}"
         with zipfile.ZipFile(archive_path) as archive:
@@ -92,9 +96,10 @@ def main() -> None:
             }
             assert archive_files == source_files, f"{plugin_name} ZIP inventory drift"
             for relative in source_files:
-                assert archive.read(f"{plugin_name}/{relative.as_posix()}") == (
-                    source / relative
-                ).read_bytes(), f"{plugin_name}/{relative} ZIP content drift"
+                assert (
+                    archive.read(f"{plugin_name}/{relative.as_posix()}")
+                    == (source / relative).read_bytes()
+                ), f"{plugin_name}/{relative} ZIP content drift"
 
     print("three-plugin dual marketplace packaging: PASS")
 

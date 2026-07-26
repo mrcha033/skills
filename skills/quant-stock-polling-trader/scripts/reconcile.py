@@ -10,6 +10,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 from broker_adapters import TransportFailure
 from execution_core import (
@@ -19,13 +20,18 @@ from execution_core import (
     canonical_json,
     emit_json,
     load_json_object,
+    plan_orders as build_order_plan,
     sha256_json,
 )
+from plan_orders import fixture_inputs
 from run_session import (
+    create_trading_arm,
     create_broker,
     current_order,
     normalize_venue_map,
     parse_timestamp,
+    validate_account_authorization,
+    validate_broker_binding,
     validate_plan,
     venue_for,
 )
@@ -47,9 +53,15 @@ def reconcile(
     venues: dict[str, str],
     state_directory: Path,
     *,
+    arm: dict[str, Any] | None = None,
     broker: Any | None = None,
 ) -> dict[str, Any]:
     validate_plan(plan)
+    validate_broker_binding(plan, broker_name)
+    mode = arm.get("mode") if isinstance(arm, dict) else ""
+    validate_account_authorization(plan, broker_name, str(mode), arm)
+    for intent in plan["intents"]:
+        venue_for(venues, intent)
     state_directory.mkdir(parents=True, exist_ok=True)
     trading_date = (
         parse_timestamp(plan["entry_window"]["start"], "entry window start")
@@ -170,17 +182,27 @@ def reconcile(
                         }
                     )
                     continue
-                if next_state == record.state:
-                    ledger.append_event(
-                        record.intent_id, "RECONCILE_NO_CHANGE", snapshot
-                    )
-                    continue
                 if record.state == "CANCEL_PENDING" and next_state in {
                     "ACKNOWLEDGED",
+                    "CANCEL_PENDING",
                     "PARTIALLY_FILLED",
                 }:
                     ledger.append_event(
                         record.intent_id, "CANCEL_STILL_PENDING", snapshot
+                    )
+                    blocked.append(
+                        {
+                            "intent_id": record.intent_id,
+                            "reason": (
+                                "cancel remains pending while broker order is "
+                                f"{next_state.lower()}"
+                            ),
+                        }
+                    )
+                    continue
+                if next_state == record.state:
+                    ledger.append_event(
+                        record.intent_id, "RECONCILE_NO_CHANGE", snapshot
                     )
                     continue
                 ledger.transition(record.intent_id, next_state, {"snapshot": snapshot})
@@ -205,6 +227,7 @@ def reconcile(
         "schema": RECONCILIATION_SCHEMA,
         "plan_hash": plan["plan_hash"],
         "broker": broker_name,
+        "broker_account_identity_hash": plan["context"]["broker_account_identity_hash"],
         "reconciled_at": datetime.now(timezone.utc).isoformat(),
         "status": "BLOCKED" if blocked else "READY",
         "changes": changes,
@@ -216,84 +239,98 @@ def reconcile(
 
 
 def self_test() -> None:
-    intent = {
-        "intent_id": "1" * 32,
-        "client_order_id": "qta-" + "1" * 28,
-        "market": "US",
-        "symbol": "AAPL",
-        "currency": "USD",
-        "side": "BUY",
-        "order_type": "LIMIT",
-        "time_in_force": "DAY",
-        "quantity": "1",
-        "entry_trigger": "100",
-        "limit_price": "101",
-        "stop_price": "90",
-        "take_profit_price": "120",
-        "initial_state": "PLANNED",
-    }
-    unhashed = {
-        "schema": "qta-order-plan/v1",
-        "plan_status": "READY",
-        "execution_version": "open1h-exec-1.0.0",
-        "context": {
-            "broker": "kis",
-            "environment": "paper",
-            "account_alias": "paper",
-        },
-        "entry_window": {
-            "start": "2026-07-27T09:30:00-04:00",
-            "end": "2026-07-27T10:30:00-04:00",
-            "timezone": "America/New_York",
-            "poll_interval_seconds": 3,
-        },
-        "quote_policy": {
-            "max_age_seconds": 5,
-            "max_spread_bps": "25",
-            "max_gap_bps": "20",
-            "trigger_mode": "AT_OR_ABOVE",
-        },
-        "order_policy": {
-            "ttl_seconds": 30,
-            "allow_partial_fill": True,
-            "cancel_remainder_at_window_end": True,
-        },
-        "settled_cash_start": "200",
-        "borrowed_buying_power_excluded": "0",
-        "settled_cash_unreserved": "99",
-        "intents": [intent],
-        "skipped": [],
-    }
-    plan = {**unhashed, "plan_hash": sha256_json(unhashed)}
-    venues = {"US:AAPL": "NASD"}
-    with tempfile.TemporaryDirectory(prefix="qta-reconcile-") as directory:
-        ledger = Ledger(Path(directory) / "ledger.sqlite3")
-        ledger.create_intent(plan["plan_hash"], intent)
-        ledger.transition(intent["intent_id"], "WAIT_TRIGGER", {})
-        ledger.transition(intent["intent_id"], "RESERVED", {})
-        ledger.transition(
-            intent["intent_id"],
-            "SUBMITTING",
-            {"request_hash": "a" * 64},
-            request_hash="a" * 64,
-        )
-        ledger.transition(
-            intent["intent_id"], "UNKNOWN", {"reason": "accepted then timeout"}
-        )
-        ledger.close()
-
-        class NeverCalledBroker:
-            pass
-
-        receipt = reconcile(
+    plan = build_order_plan(*fixture_inputs())
+    intent = plan["intents"][0]
+    venues = {"KR:005930": "KRX"}
+    try:
+        reconcile(
             plan,
-            "kis-paper",
+            "toss",
             venues,
-            Path(directory),
-            broker=NeverCalledBroker(),
+            Path("/unused/reconcile-state"),
+            arm=None,
+            broker=object(),
         )
-        assert receipt["status"] == "BLOCKED"
-        assert receipt["intents"][0]["state"] == "MANUAL_BLOCK"
+    except BlockedError as exc:
+        assert "plan broker does not match selected adapter" in str(exc)
+    else:
+        raise AssertionError("reconcile must bind the adapter to the plan broker")
+    fixture_environment = {
+        "QTA_ACCOUNT_BINDING_KEY": "fixture-account-binding-key-0001",
+        "QTA_KIS_ACCOUNT_PREFIX": "00000000",
+        "QTA_KIS_ACCOUNT_PRODUCT": "01",
+    }
+    with patch.dict("os.environ", fixture_environment, clear=False):
+        arm = create_trading_arm(plan, "kis-paper", "paper")
+        with tempfile.TemporaryDirectory(prefix="qta-reconcile-") as directory:
+            ledger = Ledger(Path(directory) / "ledger.sqlite3")
+            ledger.create_intent(plan["plan_hash"], intent)
+            ledger.transition(intent["intent_id"], "WAIT_TRIGGER", {})
+            ledger.transition(intent["intent_id"], "RESERVED", {})
+            ledger.transition(
+                intent["intent_id"],
+                "SUBMITTING",
+                {"request_hash": "a" * 64},
+                request_hash="a" * 64,
+            )
+            ledger.transition(
+                intent["intent_id"], "UNKNOWN", {"reason": "accepted then timeout"}
+            )
+            ledger.close()
+
+            class NeverCalledBroker:
+                pass
+
+            receipt = reconcile(
+                plan,
+                "kis-paper",
+                venues,
+                Path(directory),
+                arm=arm,
+                broker=NeverCalledBroker(),
+            )
+            assert receipt["status"] == "BLOCKED"
+            assert receipt["intents"][0]["state"] == "MANUAL_BLOCK"
+
+        for pending_status in (
+            "ACKNOWLEDGED",
+            "CANCEL_PENDING",
+            "PARTIALLY_FILLED",
+        ):
+            with tempfile.TemporaryDirectory(prefix="qta-cancel-pending-") as directory:
+                ledger = Ledger(Path(directory) / "ledger.sqlite3")
+                ledger.create_intent(plan["plan_hash"], intent)
+                ledger.transition(intent["intent_id"], "WAIT_TRIGGER", {})
+                ledger.transition(intent["intent_id"], "RESERVED", {})
+                ledger.transition(
+                    intent["intent_id"],
+                    "SUBMITTING",
+                    {"request_hash": "b" * 64},
+                    request_hash="b" * 64,
+                )
+                ledger.transition(
+                    intent["intent_id"],
+                    "ACKNOWLEDGED",
+                    {"ack": {"broker_order_id": "fixture-order"}},
+                    broker_order_id="fixture-order",
+                )
+                ledger.transition(intent["intent_id"], "CANCEL_PENDING", {})
+                ledger.close()
+
+                class PendingCancelBroker:
+                    def get_order(self, **_: Any) -> dict[str, Any]:
+                        return {"normalized_status": pending_status}
+
+                receipt = reconcile(
+                    plan,
+                    "kis-paper",
+                    venues,
+                    Path(directory),
+                    arm=arm,
+                    broker=PendingCancelBroker(),
+                )
+                assert receipt["status"] == "BLOCKED"
+                assert receipt["intents"][0]["state"] == "CANCEL_PENDING"
     print(
         canonical_json(
             {
@@ -311,6 +348,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--broker", choices=("toss", "kis-paper", "kis-live"))
     parser.add_argument("--venue-map")
     parser.add_argument("--state-dir")
+    parser.add_argument("--arm")
     parser.add_argument("--output")
     parser.add_argument("--self-test", action="store_true")
     return parser.parse_args()
@@ -323,7 +361,7 @@ def main() -> int:
         return 0
     missing = [
         name
-        for name in ("plan", "broker", "venue_map", "state_dir")
+        for name in ("plan", "broker", "state_dir", "arm")
         if not getattr(args, name)
     ]
     if missing:
@@ -340,8 +378,13 @@ def main() -> int:
         receipt = reconcile(
             load_json_object(args.plan),
             args.broker,
-            normalize_venue_map(load_json_object(args.venue_map)),
+            (
+                normalize_venue_map(load_json_object(args.venue_map))
+                if args.venue_map
+                else {}
+            ),
             Path(args.state_dir).resolve(),
+            arm=load_json_object(args.arm),
         )
     except (BlockedError, OSError, ValueError, json.JSONDecodeError) as exc:
         emit_json(

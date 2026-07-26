@@ -19,6 +19,7 @@ POST /oauth2/token
 GET  /api/v1/accounts
 GET  /api/v1/prices
 GET  /api/v1/orderbook
+GET  /api/v1/stocks
 GET  /api/v1/holdings
 GET  /api/v1/buying-power
 GET  /api/v1/orders
@@ -29,12 +30,26 @@ POST /api/v1/orders/{orderId}/cancel
 POST /api/v1/conditional-orders
 ```
 
+`GET /api/v1/stocks` accepts one to 200 requested symbols and returns market,
+security type, common-share flag, listing status, currency, and Korean
+liquidation/suspension details. It does not enumerate the full catalog. Once
+this account has API access, query the frozen official-universe symbols in
+deterministic batches, persist the complete responses as a dated snapshot, and
+add a separate Toss-qualified universe contract. Until that snapshot path is
+implemented and verified, never reuse the KIS-qualified v2 `broker_symbol` for
+Toss.
+
 Send `Authorization: Bearer ...`; account operations also require
 `X-Tossinvest-Account: accountSeq`. Centralize token refresh because issuing a
 new token invalidates the prior token for that client. If
 `QTA_TOSS_ACCESS_TOKEN` supplies an external token, require its timezone-aware
 ISO-8601 expiry in `QTA_TOSS_ACCESS_TOKEN_EXPIRES_AT`; block when exactly one
 of the pair is present.
+
+Before any account-scoped request, HMAC the canonical Toss broker,
+shadow/live environment, and `accountSeq` with `QTA_ACCOUNT_BINDING_KEY`.
+Require the result to match the account snapshot, plan context, and arm
+artifact. Persist only the digest.
 
 Bind every Toss mutation request hash to the uppercase HTTP method, exact API
 path, account sequence header value, and canonical request body. An identical
@@ -45,6 +60,10 @@ client limits are 10, 3, and 5 TPS respectively; the conservative 3 TPS order
 limit remains safe during the documented 09:00–09:10 KST peak. Only lower a
 client limit when `X-RateLimit-Limit` reports a smaller current value. Do not
 blindly retry an order mutation after a 429 or timeout.
+
+After a mutation has been sent, an HTTP 5xx, malformed success body, or
+success body without an order ID is ambiguous and must enter `UNKNOWN`.
+Only an explicit structured Toss 4xx rejection is terminal `REJECTED`.
 
 Both price and order-book source timestamps are nullable in the schema. Require
 both during Toss polling, parse each as timezone-aware ISO-8601, and block the
@@ -92,6 +111,11 @@ POST  /oauth2/tokenP
 Use `authorization`, `appkey`, `appsecret`, `tr_id`, and `custtype: P`.
 Account requests contain `CANO` and `ACNT_PRDT_CD`.
 
+Before any account-scoped request, HMAC the canonical KIS broker, plan
+environment, `CANO`, and `ACNT_PRDT_CD` with `QTA_ACCOUNT_BINDING_KEY`.
+Require the result to match the account snapshot, plan context, and arm
+artifact. Persist only the digest.
+
 Core paths and current official TR IDs:
 
 ```text
@@ -131,6 +155,17 @@ US modify/cancel POST /uapi/overseas-stock/v1/trading/order-rvsecncl
 KIS does not expose the local deterministic intent ID as a broker search key in
 these order calls. Persist the request first. After an ambiguous submit,
 reconcile orders, fills, and balances; do not automatically resubmit.
+An HTTP 5xx, malformed success body, or successful response without `ODNO` is
+ambiguous. Only a structured nonzero `rt_cd` with a broker `msg_cd` is an
+authoritative rejection.
+
+The two documented KIS domestic REST quote responses do not currently provide
+a verified independent trading date, trade timestamp, and order-book
+timestamp contract. The adapter refuses to synthesize the date from local
+receipt time or reuse `aspr_acpt_hour` for both observations. Domestic KIS
+polling therefore remains fail-closed unless a contract-probed response
+supplies a consistent `stck_bsop_date`, `stck_cntg_hour`, and
+`aspr_acpt_hour`, or a separately verified timestamp-bearing source is added.
 
 Paper REST limits are lower than production limits and supported order types
 can be narrower. The official U.S. paper examples support limit orders; use
@@ -142,6 +177,11 @@ trigger decisions through a mutation-free production shadow session, and test
 the paper order request and response serialization separately with explicit
 fixtures or a bounded contract probe. A U.S. KIS paper polling session must
 return `BLOCKED` before fetching a quote.
+
+For live U.S. shadow polling, use the one `HHDFS76200100` response only when it
+contains last, bid, ask, `dymd`, and `dhms`. Assign its one source timestamp to
+those values because they come from that same response. Do not fall back to the
+separate price endpoint and label its value with the order-book timestamp.
 
 Keep KIS live promotion disabled until all of these blockers are implemented
 and fault-injected:

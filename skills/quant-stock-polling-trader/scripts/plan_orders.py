@@ -19,8 +19,10 @@ from execution_core import (
     SCREEN_SCHEMA,
     BlockedError,
     canonical_json,
+    canonical_screen_hash,
     emit_json,
     load_json_object,
+    market_session_from_source,
     plan_orders,
 )
 
@@ -52,7 +54,6 @@ def fixture_inputs() -> tuple[dict[str, Any], ...]:
         "screen_status": "READY",
         "method_version": "qta-1.0.0",
         "selector_version": "qta-screen-1.0.0",
-        "screen_hash": "a" * 64,
         "selected": {
             "KR": [
                 {
@@ -68,11 +69,15 @@ def fixture_inputs() -> tuple[dict[str, Any], ...]:
             "US": [],
         },
     }
+    screen["screen_hash"] = canonical_screen_hash(screen)
     account = {
         "schema": ACCOUNT_SCHEMA,
         "broker": "kis",
         "environment": "paper",
         "account_alias": "paper-kr",
+        "broker_account_identity_hash": (
+            "5fb0e7c56b21e275d437f5fc8835ab1a8673813af62257601ffc901224d594ab"
+        ),
         "market": "KR",
         "currency": "KRW",
         "as_of": "2026-07-27T08:50:00+09:00",
@@ -109,6 +114,13 @@ def fixture_inputs() -> tuple[dict[str, Any], ...]:
         "timezone": "Asia/Seoul",
         "entry_window_start": "2026-07-27T09:00:00+09:00",
         "entry_window_end": "2026-07-27T10:00:00+09:00",
+        "market_session": market_session_from_source(
+            Path(__file__).resolve().parents[1]
+            / "references"
+            / "fixtures"
+            / "kr-market-session-2026-07-27.json"
+        ),
+        "snapshot_max_age_seconds": 1800,
         "poll_interval_seconds": 2,
         "quote_max_age_seconds": 5,
         "max_spread_bps": "25",
