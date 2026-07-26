@@ -59,6 +59,54 @@
         "research",
         "scenario"
       ]
+    },
+    {
+      "name": "yonsei-club-argument-counsel",
+      "displayName": "Yonsei Governance Argument Counsel",
+      "source": "./plugins/yonsei-club-argument-counsel",
+      "description": "Turn positions on Yonsei student-governance agendas into current-rule-grounded arguments.",
+      "version": "0.1.0",
+      "author": {"name": "mrcha033"},
+      "homepage": "https://github.com/mrcha033/skills",
+      "repository": "https://github.com/mrcha033/skills",
+      "category": "education",
+      "tags": ["yonsei", "student-governance", "rules"]
+    },
+    {
+      "name": "agent-finish-line",
+      "displayName": "Agent Finish Line",
+      "source": "./plugins/agent-finish-line",
+      "description": "Drive agent work to a bounded shipped outcome instead of endless implementation or experiments.",
+      "version": "0.1.0",
+      "author": {"name": "mrcha033"},
+      "homepage": "https://github.com/mrcha033/skills",
+      "repository": "https://github.com/mrcha033/skills",
+      "category": "productivity",
+      "tags": ["execution", "scope", "delivery"]
+    },
+    {
+      "name": "learnus-course-copilot",
+      "displayName": "LearnUs Course Copilot",
+      "source": "./plugins/learnus-course-copilot",
+      "description": "Turn authorized, authenticated LearnUs course pages into materials, deadlines, and study actions.",
+      "version": "0.1.0",
+      "author": {"name": "mrcha033"},
+      "homepage": "https://github.com/mrcha033/skills",
+      "repository": "https://github.com/mrcha033/skills",
+      "category": "education",
+      "tags": ["learnus", "yonsei", "lms"]
+    },
+    {
+      "name": "katok-reply-reuse",
+      "displayName": "Kakao Reply Reuse",
+      "source": "./plugins/katok-reply-reuse",
+      "description": "Find and reuse the user's own past KakaoTalk replies instead of generating an AI-sounding rewrite.",
+      "version": "0.1.0",
+      "author": {"name": "mrcha033"},
+      "homepage": "https://github.com/mrcha033/skills",
+      "repository": "https://github.com/mrcha033/skills",
+      "category": "productivity",
+      "tags": ["kakaotalk", "reply", "retrieval"]
     }
   ]
 }

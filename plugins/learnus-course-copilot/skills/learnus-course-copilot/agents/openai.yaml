@@ -1,0 +1,4 @@
+interface:
+  display_name: "LearnUs Course Copilot"
+  short_description: "Turn authenticated LearnUs pages into study actions"
+  default_prompt: "Use $learnus-course-copilot to collect the materials and deadlines from this LearnUs page."
