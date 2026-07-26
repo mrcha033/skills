@@ -103,6 +103,12 @@ submit, or enable live orders.
 8. Return `BLOCKED` when a required value, capability, or reconciliation fact
    is missing. Never compensate with a guessed default.
 
+For deterministic Linux supervision, read `references/systemd-contract.md` and
+use `scripts/systemd_units.py generate`. It emits hardened user service/timer
+files and a hash receipt but never installs, enables, or starts them. Entry
+jobs permit KIS paper/paper and KIS live/shadow only; live mode remains
+blocked.
+
 Run all bundled self-tests after changing a script:
 
 ```bash
@@ -113,6 +119,7 @@ python3 scripts/broker_credentials.py self-test
 python3 scripts/plan_orders.py --self-test
 python3 scripts/run_session.py self-test
 python3 scripts/reconcile.py --self-test
+python3 scripts/systemd_units.py self-test
 ```
 
 ## Safety boundary

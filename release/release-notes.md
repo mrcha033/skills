@@ -11,8 +11,10 @@ This release contains the versioned distribution packages declared in
 - Distribution 1.3.0 adds `secuway-vpn` with native Windows amd64/arm64
   assets, pinned official OpenVPN setup, one-time UAC provisioning, DPAPI
   profile protection, and explicit live-tunnel evidence gates.
-- `quant-stock-polling-trader` remains a separately installable, fail-closed
-  KIS/Toss execution plugin with local-only credential and token checks.
+- Distribution 1.4.0 updates `quant-stock-technical` to 0.4.0 with NYSE/NASDAQ
+  adjusted-EOD acquisition and updates `quant-stock-polling-trader` to 0.2.0
+  with hardened, inactive systemd user-unit generation for KR/US EOD and entry
+  jobs.
 - `<name>-<version>.zip`: standalone Agent Skill upload for ChatGPT or Claude.
 - `<name>-<version>.skill`: byte-identical standalone archive with the Claude
   skill extension.

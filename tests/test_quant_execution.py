@@ -287,6 +287,10 @@ def main() -> None:
         "skills/quant-stock-technical/scripts/fetch_kis_kr_eod.py",
         "--self-test",
     )
+    run(
+        "skills/quant-stock-technical/scripts/fetch_kis_us_eod.py",
+        "--self-test",
+    )
     run("skills/quant-stock-technical/scripts/screen_universe.py", "--self-test")
     run(
         "skills/quant-stock-polling-trader/scripts/execution_core.py",
@@ -309,6 +313,10 @@ def main() -> None:
     run(
         "skills/quant-stock-polling-trader/scripts/reconcile.py",
         "--self-test",
+    )
+    run(
+        "skills/quant-stock-polling-trader/scripts/systemd_units.py",
+        "self-test",
     )
     sys.path.insert(0, str(TECHNICAL_SCRIPTS))
     import screen_universe
