@@ -248,11 +248,9 @@ function Install-UserCli {
         Copy-Item -LiteralPath $destination -Destination $backup
     }
     $oldPath = [Environment]::GetEnvironmentVariable("Path", "User")
-    if ($null -eq $oldPath) {
-        $oldPath = ""
-    }
+    $pathForEntries = if ($null -eq $oldPath) { "" } else { $oldPath }
     $entries = @(
-        $oldPath.Split(";") |
+        $pathForEntries.Split(";") |
             ForEach-Object { $_.Trim() } |
             Where-Object { $_ -ne "" }
     )
@@ -266,6 +264,7 @@ function Install-UserCli {
             }
     ).Count -gt 0
     $addedPath = -not $alreadyPresent
+    $newPath = $oldPath
 
     try {
         $temporary = "$destination.new-$([Guid]::NewGuid().ToString('N'))"
@@ -288,7 +287,15 @@ function Install-UserCli {
             }
         }
         if ($addedPath) {
-            $newPath = (@($entries) + @($DestinationDirectory)) -join ";"
+            if ([string]::IsNullOrEmpty($oldPath)) {
+                $newPath = $DestinationDirectory
+            }
+            elseif ($oldPath.EndsWith(";")) {
+                $newPath = "$oldPath$DestinationDirectory"
+            }
+            else {
+                $newPath = "$oldPath;$DestinationDirectory"
+            }
             [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
         }
         return [pscustomobject]@{
@@ -297,6 +304,7 @@ function Install-UserCli {
             ExistingState = $existingState
             Backup = $backup
             OldPath = $oldPath
+            NewPath = $newPath
             AddedPath = $addedPath
             InstalledHash = $sourceHash
         }
@@ -350,11 +358,35 @@ function Complete-UserCliInstall {
     )
 
     $pathAddedForState = $Change.AddedPath
+    $pathBeforeInstall = $null
+    $pathAfterInstall = $null
+    if ($Change.AddedPath) {
+        $pathBeforeInstall = $Change.OldPath
+        $pathAfterInstall = $Change.NewPath
+    }
     if ($Change.ExistingState) {
         $pathAddedForState = (
             [bool]$Change.ExistingState.path_added -or
             [bool]$Change.AddedPath
         )
+        if ([bool]$Change.ExistingState.path_added -and
+            -not [bool]$Change.AddedPath) {
+            $beforeProperty = (
+                $Change.ExistingState.PSObject.Properties[
+                    "path_before_install"
+                ]
+            )
+            $afterProperty = (
+                $Change.ExistingState.PSObject.Properties[
+                    "path_after_install"
+                ]
+            )
+            if (-not $beforeProperty -or -not $afterProperty) {
+                throw "Existing CLI state cannot safely restore the user PATH"
+            }
+            $pathBeforeInstall = $beforeProperty.Value
+            $pathAfterInstall = $afterProperty.Value
+        }
     }
     $state = [ordered]@{
         schema = "secuway-windows-cli-install/v1"
@@ -364,6 +396,8 @@ function Complete-UserCliInstall {
         cli_path = $Change.Destination
         installed_sha256 = $Change.InstalledHash
         path_added = $pathAddedForState
+        path_before_install = $pathBeforeInstall
+        path_after_install = $pathAfterInstall
         secrets_printed = $false
     }
     Write-AtomicJson -Path $Change.StatePath -Value $state
@@ -463,6 +497,15 @@ try {
 }
 catch {
     throw "TargetSid is not a valid Windows SID"
+}
+if (-not $Elevated) {
+    $currentSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    if (-not $TargetSid.Equals(
+            $currentSid,
+            [StringComparison]::OrdinalIgnoreCase
+        )) {
+        throw "TargetSid must identify the current user"
+    }
 }
 if (-not $TargetBin) {
     $TargetBin = Join-Path $env:LOCALAPPDATA "mrcha-skills\secuway\bin"
@@ -627,6 +670,22 @@ if (-not $cliPath.Equals(
         [string]$cliState.installed_sha256) {
     throw "Installed secuway.exe is missing or changed; refusing to remove it"
 }
+$restoreUserPath = $false
+$pathBeforeInstall = $null
+if ([bool]$cliState.path_added) {
+    $beforeProperty = $cliState.PSObject.Properties["path_before_install"]
+    $afterProperty = $cliState.PSObject.Properties["path_after_install"]
+    if (-not $beforeProperty -or -not $afterProperty -or
+        $null -eq $afterProperty.Value) {
+        throw "CLI state cannot safely restore the user PATH"
+    }
+    $currentUserPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    if (-not [object]::Equals($currentUserPath, $afterProperty.Value)) {
+        throw "User PATH changed since installation; refusing to overwrite it"
+    }
+    $pathBeforeInstall = $beforeProperty.Value
+    $restoreUserPath = $true
+}
 if (Test-IsAdministrator) {
     & $runtimeInstaller `
         -Action Uninstall `
@@ -644,25 +703,10 @@ else {
 }
 Remove-Item -LiteralPath $cliPath -Force
 Remove-Item -LiteralPath $statePath -Force
-if ([bool]$cliState.path_added) {
-    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-    if ($null -eq $userPath) {
-        $userPath = ""
-    }
-    $remaining = @(
-        $userPath.Split(";") |
-            ForEach-Object { $_.Trim() } |
-            Where-Object {
-                $_ -ne "" -and
-                -not $_.TrimEnd("\").Equals(
-                    $TargetBin.TrimEnd("\"),
-                    [StringComparison]::OrdinalIgnoreCase
-                )
-            }
-    )
+if ($restoreUserPath) {
     [Environment]::SetEnvironmentVariable(
         "Path",
-        ($remaining -join ";"),
+        $pathBeforeInstall,
         "User"
     )
 }

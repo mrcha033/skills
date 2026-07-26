@@ -41,6 +41,11 @@ def main() -> None:
         "\n    (Get-ChildItem -LiteralPath $TargetBin -Force).Count"
         not in setup
     )
+    assert "path_before_install = $pathBeforeInstall" in setup
+    assert "path_after_install = $pathAfterInstall" in setup
+    assert "User PATH changed since installation; refusing to overwrite it" in setup
+    assert "TargetSid must identify the current user" in setup
+    assert '($remaining -join ";")' not in setup
     assert runtime.rstrip().endswith("exit 0")
 
     engine = (TOOLS / "portable" / "internal" / "engine" / "engine.go").read_text()
