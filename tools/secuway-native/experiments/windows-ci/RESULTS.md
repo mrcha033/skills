@@ -2,66 +2,58 @@
 
 Date: 2026-07-27
 
-## Evidence obtained on macOS ARM64
+## Native GitHub Actions evidence
 
-| Check | Windows x64 | Windows ARM64 | Evidence level |
-| --- | --- | --- | --- |
-| Portable Go CLI | PASS | PASS | Cross-compiled PE |
-| Windows store test binary | PASS | PASS | Cross-compiled PE |
-| PE machine field | PASS, `0x8664` | PASS, `0xAA64` | Parsed and confirmed |
-| Go tests on the development host | N/A | N/A | PASS on Darwin ARM64 only |
-| PowerShell parser | PASS | PASS | PowerShell 7.6 parser, seven unique files |
-| PSScriptAnalyzer | PASS | PASS | Errors/warnings, console-output rule excluded |
-| GitHub Actions syntax | PASS | PASS | YAML parser and actionlint |
+| Check | Windows x64 | Windows ARM64 |
+| --- | --- | --- |
+| Native CLI build and runtime | PASS | PASS |
+| PE machine field | PASS, `0x8664` | PASS, `0xAA64` |
+| Bundled CLI reproducibility | PASS | PASS |
+| User-scoped DPAPI round trip | PASS | PASS |
+| Fresh-store status contract | PASS | PASS |
+| Official OpenVPN MSI hash/signature | PASS, installed MSI | PASS, administratively extracted MSI |
+| LEA provider PE/ABI | PASS, bundled provider | PASS, fresh MSVC build and bundled provider |
+| OpenSSL provider load | PASS, OpenSSL 3.6.3 | PASS, OpenSSL 3.6.3 |
+| LEA encrypt/decrypt KAT | PASS | PASS, both providers |
+| OpenVPN LEA cipher discovery | PASS, OpenVPN 2.7.5 | PASS, OpenVPN 2.7.5 |
+| LZO doctor | PASS | NOT RUN |
+| Full install/ACL/service/uninstall | PASS | NOT RUN |
 
-Commands that ran:
+Evidence links:
 
-```text
-go test ./...
-CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build ./cmd/secuway
-CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go test -c ./internal/store
-CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build ./cmd/secuway
-CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go test -c ./internal/store
-```
+- [Windows x64/ARM64 portable run 30215976274](https://github.com/mrcha033/skills/actions/runs/30215976274)
+- [Windows x64 provider and native install run 30215559503](https://github.com/mrcha033/skills/actions/runs/30215559503)
+- [Windows ARM64 provider run 30215976293](https://github.com/mrcha033/skills/actions/runs/30215976293)
+- [Windows ARM64 provider artifact](https://github.com/mrcha033/skills/actions/runs/30215976293/artifacts/8635917669)
 
-The generated binaries were identified as:
+The portable run executed the Go test suite, DPAPI test, CLI, status boundary,
+and PE checks natively on both Windows architectures. The x64 install run
+verified the official OpenVPN 2.7.5-I001 MSI hash and Authenticode signature,
+installed the architecture-matched LEA provider, passed the LEA/LZO doctor and
+KAT, enforced the user profile-directory ACL, started the Interactive Service,
+and restored its prior state and the exact user `PATH` during uninstall.
 
-```text
-PE32+ executable (console) x86-64, for MS Windows
-PE32+ executable (console) Aarch64, for MS Windows
-```
+The ARM64 run checked a fresh MSVC-built provider and the distributed provider
+independently. For both, it confirmed ARM64 PE files, the sole
+`OSSL_provider_init` export, the `libcrypto-3-arm64.dll` import, absence of an
+unbundled compiler-runtime dependency, OpenSSL 3.6.3 provider loading,
+LEA-128-CBC encrypt/decrypt KAT and round-trip, and OpenVPN 2.7.5-I001 cipher
+discovery.
 
-The seven unique PowerShell entry points parsed successfully; the two packaged
-installer copies are byte-identical. PSScriptAnalyzer passed after excluding
-only `PSAvoidUsingWriteHost`, because these are user-facing console programs.
-The four workflow files passed actionlint after allowing the
-current official `windows-11-arm` label and the intentionally custom
-`secuway-tunnel` label.
-
-## Evidence not yet obtained
+## Evidence still not obtained
 
 The following remain unvalidated and must not be reported as passing:
 
-- DPAPI save/load/delete runtime on Windows x64;
-- DPAPI save/load/delete runtime on Windows ARM64;
-- official OpenVPN Authenticode and registry checks on an installed target;
-- x64 or ARM64 `lea.dll` load by the matching Windows OpenVPN process;
-- LZO doctor on Windows;
 - UAC self-elevation and original-user SID ACL behavior;
-- non-admin Interactive Service named-pipe startup;
-- real Secuway login or tunnel;
+- ARM64 full install, ACL, service, uninstall, and `PATH` restoration;
+- actual non-admin Interactive Service named-pipe tunnel startup;
+- live Windows gateway-policy discovery;
+- real Secuway login or server-issued profile enrollment on Windows;
+- a real Windows VPN tunnel and `Initialization Sequence Completed`;
 - designated internal endpoint reachability.
 
-## Runner inventory
-
-- Five concrete local SSH aliases were inspected; none was identifiable as a
-  Windows host.
-- No local UTM, Parallels, VMware, VHDX, or QCOW2 Windows machine was found.
-- The connected `mrcha033/skills` repository has no self-hosted Actions runner.
-- GitHub-hosted `windows-latest` and `windows-11-arm` are encoded in the
-  repository workflows. Their first native run remains pending the initial
-  branch push.
-
-The next evidence-producing action is to place the workflow in an authorized
-repository and run both native jobs. Bundle doctor and tunnel validation remain
-separate later gates.
+The GitHub-hosted x64 runner was already administrative, so it did not exercise
+the one-UAC transition from a non-admin outer process or cross-user caller
+resolution. The self-hosted tunnel workflow remains manual, environment-gated,
+and undispatched. Provider loading, doctor output, and cached enrollment state
+are not evidence of a working VPN tunnel.
