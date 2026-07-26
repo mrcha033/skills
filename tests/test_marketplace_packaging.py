@@ -11,14 +11,27 @@ ROOT = Path(__file__).resolve().parents[1]
 PLUGINS = ROOT / "plugins"
 SOURCE_SKILLS = ROOT / "skills"
 EXPECTED_PLUGINS = {
+    "agent-finish-line",
+    "advisor-review",
+    "katok-reply-reuse",
+    "learnus-course-copilot",
+    "quant-stock-technical",
+    "stock-scenario-story",
+    "yonsei-central-student-governance-counsel",
+}
+EXPECTED_VERSIONS = {
+    "agent-finish-line": "0.1.0",
+    "advisor-review": "0.2.0",
+    "katok-reply-reuse": "0.1.0",
+    "learnus-course-copilot": "0.1.0",
+    "quant-stock-technical": "0.2.0",
+    "stock-scenario-story": "0.1.0",
+    "yonsei-central-student-governance-counsel": "0.3.0",
+}
+DOWNLOAD_ARCHIVES = {
     "advisor-review",
     "quant-stock-technical",
     "stock-scenario-story",
-}
-EXPECTED_VERSIONS = {
-    "advisor-review": "0.1.1",
-    "quant-stock-technical": "0.2.0",
-    "stock-scenario-story": "0.1.0",
 }
 
 
@@ -45,10 +58,12 @@ def main() -> None:
     claude_entries = {entry["name"]: entry for entry in claude_market["plugins"]}
     assert set(codex_entries) == EXPECTED_PLUGINS
     assert set(claude_entries) == EXPECTED_PLUGINS
-    assert len(codex_market["plugins"]) == len(claude_market["plugins"]) == 3
+    assert len(codex_market["plugins"]) == len(claude_market["plugins"]) == 7
     assert not (PLUGINS / "mrcha-skills").exists(), (
         "aggregate plugin must not remain installable"
     )
+    assert not (SOURCE_SKILLS / "yonsei-club-argument-counsel").exists()
+    assert not (PLUGINS / "yonsei-club-argument-counsel").exists()
 
     for plugin_name in EXPECTED_PLUGINS:
         plugin = PLUGINS / plugin_name
@@ -86,6 +101,9 @@ def main() -> None:
             assert (source / relative).read_bytes() == (
                 packaged / relative
             ).read_bytes(), f"{plugin_name}/{relative} content drift"
+
+        if plugin_name not in DOWNLOAD_ARCHIVES:
+            continue
         archive_path = ROOT / "downloads" / f"{plugin_name}.zip"
         assert archive_path.is_file(), f"missing download archive: {archive_path}"
         with zipfile.ZipFile(archive_path) as archive:
@@ -101,7 +119,7 @@ def main() -> None:
                     == (source / relative).read_bytes()
                 ), f"{plugin_name}/{relative} ZIP content drift"
 
-    print("three-plugin dual marketplace packaging: PASS")
+    print("seven-plugin dual marketplace packaging: PASS")
 
 
 if __name__ == "__main__":

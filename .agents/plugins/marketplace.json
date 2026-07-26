@@ -39,6 +39,54 @@
         "authentication": "ON_INSTALL"
       },
       "category": "Finance"
+    },
+    {
+      "name": "yonsei-central-student-governance-counsel",
+      "source": {
+        "source": "local",
+        "path": "./plugins/yonsei-central-student-governance-counsel"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Education"
+    },
+    {
+      "name": "agent-finish-line",
+      "source": {
+        "source": "local",
+        "path": "./plugins/agent-finish-line"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    },
+    {
+      "name": "learnus-course-copilot",
+      "source": {
+        "source": "local",
+        "path": "./plugins/learnus-course-copilot"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Education"
+    },
+    {
+      "name": "katok-reply-reuse",
+      "source": {
+        "source": "local",
+        "path": "./plugins/katok-reply-reuse"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
     }
   ]
 }

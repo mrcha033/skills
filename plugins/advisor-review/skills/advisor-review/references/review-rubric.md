@@ -1,74 +1,69 @@
 # Advisor Review Rubric
 
-The reviewer must challenge the proposal from the supplied evidence and return the advice schema below.
+The reviewer challenges one decision using only the supplied IDs and returns `advisor-advice-2.0`.
 
-## Questions by phase
+## Universal review lenses
+
+1. **Evidence boundary** — Which claims are facts, inferences, conflicts, or gaps?
+2. **Execution boundary** — Did the relevant parent task actually invoke and consume the reviewer, validator, test, or external result?
+3. **Root cause** — What do failed attempts rule in or rule out?
+4. **Discriminating experiment** — What smallest read-only or reversible action separates the leading hypotheses?
+5. **Scope and safety** — Does a proposed action touch unrelated components or require authority?
+6. **Endpoint** — Does validation reach the user's operational outcome?
+
+Use these as lenses, not as separate agent roles.
+
+## Phase questions
 
 ### Plan
 
-- Does the plan cover the user's full requested outcome?
-- What is the earliest unproven dependency or irreversible decision?
-- Which assumptions need evidence before implementation?
-- Is there a simpler approach with the same evidence quality?
-- What validation would prove the operational endpoint?
+- Does the proposal cover the full requested outcome?
+- What is the earliest unproven dependency?
+- Which assumption must be tested before an expensive or hard-to-reverse change?
+- Is there a simpler path with equivalent evidence quality?
 
 ### Stuck
 
-- What do the exact failures rule in or rule out?
-- Is the current diagnosis supported, merely plausible, or contradicted?
-- Which smallest experiment best separates the leading hypotheses?
-- Is continued iteration justified, or should work stop pending new authority or state?
+- Which prior action/result pairs repeat the same hypothesis?
+- What evidence contradicts the current diagnosis?
+- Is the failure in the target system, evidence collection, advisor activation, reviewer reasoning, or parent follow-through?
+- Which one bounded experiment has distinct success and failure signals?
+- What must not be changed until causality is shown?
 
 ### Pivot
 
-- What evidence shows the current approach is insufficient?
-- Does the candidate approach address the cause or only the symptom?
-- What new risks, dependencies, or loss of context does the pivot create?
-- Is the change reversible, and what is the stop condition?
+- Does the candidate address a cause or merely bypass a symptom?
+- What state, context, or rollback ability is lost?
+- What evidence would make staying preferable?
+- What is the stop condition?
 
 ### Final
 
-- Do the changes satisfy every material requirement?
-- Do the validations reach the user-visible or operational endpoint?
-- Are any success claims broader than the evidence?
-- Are there regressions, security issues, destructive effects, or unrelated changes?
-- What must be resolved before completion can be declared?
+- Does every material requirement have endpoint evidence?
+- Are any claims broader than the cited checks?
+- Are unrelated changes, regressions, destructive effects, or hidden context limitations unresolved?
+- What blocks completion?
 
-## Advice schema
+## Output contract
 
-Return only valid JSON:
+Return only one JSON object with:
 
-```json
-{
-  "verdict": "proceed",
-  "critical_risks": [
-    "A concrete risk, or an empty list"
-  ],
-  "assumptions_to_test": [
-    "An unverified assumption and the evidence needed, or an empty list"
-  ],
-  "recommended_next_steps": [
-    "A bounded action ordered by priority"
-  ],
-  "evidence_conflicts": [
-    "A conflict between claims and observations, or an empty list"
-  ]
-}
-```
+- `verdict`: `proceed`, `revise`, `stop`, or `need_evidence`;
+- `diagnosis`: a concise summary, confidence, and context IDs;
+- `findings`: ordered `F#` fact/inference/conflict/gap objects with evidence IDs and impact;
+- `experiments`: ordered `T#` experiments with distinct signals, stop condition, and risk;
+- `recommendations`: ordered `R#` actions with rationale, context IDs, and risk;
+- `missing_evidence`: specific observations still needed;
+- `do_not_do`: tempting actions unsupported by current evidence.
 
-Allowed verdicts:
+Risk is exactly one of `read_only`, `reversible`, or `destructive`.
 
-- `proceed`: evidence supports continuing or declaring completion.
-- `revise`: the approach is viable but needs a material correction.
-- `stop`: continuing would violate a constraint or lacks a defensible path.
-- `need_evidence`: the decision depends on a specific missing observation.
+## Quality gates
 
-Keep each array to at most eight concise strings. Do not add markdown, commentary, code fences, or extra object keys.
-
-## Quality bar
-
-- Tie each risk to a specific packet fact or missing fact.
-- Do not manufacture requirements.
-- Prefer the earliest unmet gate over a long list of speculative concerns.
-- Do not equate compilation, local checks, or intermediate artifacts with operational success unless that is the requested endpoint.
-- State `need_evidence` when the packet cannot support a verdict.
+- Every diagnosis, finding, and recommendation cites valid context IDs.
+- A `need_evidence` verdict includes both specific missing evidence and at least one bounded experiment.
+- A `revise` or `stop` verdict includes at least one recommendation.
+- Do not emit generic advice such as “be careful,” “investigate further,” or “add tests” without a target, evidence link, signal, and stop condition.
+- Do not manufacture requirements or treat requested model identity as observed identity.
+- Prefer the earliest unmet gate over an exhaustive speculative list.
+- Recommend no destructive action when a read-only or reversible discriminator exists.

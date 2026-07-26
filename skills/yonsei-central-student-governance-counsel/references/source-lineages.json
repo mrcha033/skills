@@ -1,0 +1,408 @@
+{
+  "schema_version": 1,
+  "checked_at": "2026-07-26",
+  "lineages": [
+    {
+      "lineage_id": "student-council-legislation-committee",
+      "domain": "student_council",
+      "authority_name": "연세대학교 총학생회 법제위원회",
+      "allowed_hosts": [
+        "www.instagram.com",
+        "linktr.ee",
+        "bit.ly",
+        "drive.google.com",
+        "drive.usercontent.google.com"
+      ],
+      "covered_document_ids": [
+        "SC-RULE-2025-09-11",
+        "SC-BYLAW-AUDIT-2025-09-08",
+        "SC-BYLAW-LEGISLATION-2025-03-31",
+        "SC-BYLAW-ELECTION-2025-03-16",
+        "SC-BYLAW-DELIBERATION-2025-03-31",
+        "SC-BYLAW-FINANCE-2022-10-10",
+        "SC-BYLAW-MEMBERSHIP-2021-03-01"
+      ],
+      "nodes": [
+        {
+          "node_id": "sc-official-profile",
+          "parent_id": null,
+          "role": "official_profile",
+          "url": "https://www.instagram.com/yonsei_legislation/",
+          "positive_evidence": "연세대학교 총학생회 법제위원회"
+        },
+        {
+          "node_id": "sc-rules-publication-post",
+          "parent_id": "sc-official-profile",
+          "role": "publication_post",
+          "url": "https://www.instagram.com/yonsei_legislation/p/DI8hoYRTb7j/",
+          "positive_evidence": "연세대학교 총학생회 회·세칙/자치기구 회·세칙 공개"
+        },
+        {
+          "node_id": "sc-current-profile-linktree",
+          "parent_id": "sc-official-profile",
+          "role": "non_rules_link_hub",
+          "url": "https://linktr.ee/yonsei_legislation",
+          "positive_evidence": "현재 프로필 링크는 해석사안 심리 요청서만 게시",
+          "reliance_allowed": false
+        },
+        {
+          "node_id": "sc-interpretation-request-folder",
+          "parent_id": "sc-current-profile-linktree",
+          "role": "non_rules_form_repository",
+          "url": "https://drive.google.com/drive/folders/1G8hfJ8-A5o7CfpvVE29Q9TXUF98x_G0y?usp=sharing",
+          "positive_evidence": "해석사안 심리 요청서",
+          "reliance_allowed": false
+        },
+        {
+          "node_id": "sc-rules-reaffirmation-post",
+          "parent_id": "sc-official-profile",
+          "role": "reaffirmation_post",
+          "url": "https://www.instagram.com/yonsei_legislation/p/DVQQ-FnE6DE/",
+          "positive_evidence": "https://bit.ly/연세총학법제위_회세칙공개_2025"
+        },
+        {
+          "node_id": "sc-rules-shortlink",
+          "parent_id": "sc-rules-publication-post",
+          "role": "redirect",
+          "url": "https://bit.ly/연세총학법제위_회세칙공개_2025",
+          "positive_evidence": "redirects to the public rules Drive"
+        },
+        {
+          "node_id": "sc-rules-drive",
+          "parent_id": "sc-rules-shortlink",
+          "role": "repository",
+          "url": "https://drive.google.com/drive/folders/1DF5tFWSziDtwFmfWABQe5L_5K8yoR8-P?usp=sharing",
+          "positive_evidence": "회·세칙 공개(2025)"
+        },
+        {
+          "node_id": "sc-rules-folder",
+          "parent_id": "sc-rules-drive",
+          "role": "document_folder",
+          "url": "https://drive.google.com/drive/folders/1_wj2klJ67Erq2w1XnZXBOHxVJswElJrn?usp=sharing",
+          "positive_evidence": "총학생회"
+        },
+        {
+          "node_id": "sc-bylaws-folder",
+          "parent_id": "sc-rules-folder",
+          "role": "document_folder",
+          "url": "https://drive.google.com/drive/folders/1HURyrBLrp6tNwu8HTk54q-by2pwz1fmZ?usp=sharing",
+          "positive_evidence": "세칙/자치규약"
+        }
+      ],
+      "artifact_file_ids": {
+        "SC-RULE-2025-09-11": "1IKU-7iQdCPDOxMHmjdbSNnDq96Qcs6ea",
+        "SC-BYLAW-AUDIT-2025-09-08": "1LgrpDCp9Cixqln-2OKJ7ybY_AHxMEpH_",
+        "SC-BYLAW-LEGISLATION-2025-03-31": "1RPyI1qGKxVh1eYL6de0y5nICLIubbc-k",
+        "SC-BYLAW-ELECTION-2025-03-16": "1-CtN692cbvH9SGy9szwh4nGR9_LIg6uS",
+        "SC-BYLAW-DELIBERATION-2025-03-31": "1Gy0HFKKb-RfK-GpGE1hklhbGsXdiyU6b",
+        "SC-BYLAW-FINANCE-2022-10-10": "1eEs0Xc30CgKQv5n9rvncjBVyUn7TYZMZ",
+        "SC-BYLAW-MEMBERSHIP-2021-03-01": "1gWuqbC7nmUsUF4E6JCcg21xNkSbGbzSM"
+      },
+      "catalog_expected_file_ids": [
+        "1IKU-7iQdCPDOxMHmjdbSNnDq96Qcs6ea",
+        "1LgrpDCp9Cixqln-2OKJ7ybY_AHxMEpH_",
+        "1RPyI1qGKxVh1eYL6de0y5nICLIubbc-k",
+        "1-CtN692cbvH9SGy9szwh4nGR9_LIg6uS",
+        "1Gy0HFKKb-RfK-GpGE1hklhbGsXdiyU6b",
+        "1eEs0Xc30CgKQv5n9rvncjBVyUn7TYZMZ",
+        "1gWuqbC7nmUsUF4E6JCcg21xNkSbGbzSM",
+        "1Ctjw1h8M_AN9gIAo1ycB64olARczPOfS"
+      ],
+      "excluded_artifacts": [
+        {
+          "file_id": "1Ctjw1h8M_AN9gIAo1ycB64olARczPOfS",
+          "title": "대학 내 공동체를 위한 반(反)-폭력 자치규약.pdf",
+          "reason": "The current skill corpus is article-indexed 회칙 and 세칙. This separately titled 자치규약 is not silently treated as a bylaw.",
+          "review_when": "Include and review this source when an agenda concerns violence, harassment, community safety, sanctions, victim protection, or when another controlling rule incorporates it.",
+          "trigger_terms": [
+            "폭력",
+            "성폭력",
+            "괴롭힘",
+            "성희롱",
+            "안전",
+            "피해자",
+            "가해자",
+            "징계",
+            "제재",
+            "인권",
+            "violence",
+            "harassment",
+            "sanction",
+            "victim"
+          ]
+        }
+      ],
+      "live_checks": [
+        {
+          "check_id": "sc-current-linktree-boundary",
+          "url": "https://linktr.ee/yonsei_legislation",
+          "selectors": [
+            "a[href]"
+          ],
+          "require_any_text": [
+            "해석사안 심리 요청서"
+          ],
+          "expect_candidate_contains": [
+            "1G8hfJ8-A5o7CfpvVE29Q9TXUF98x_G0y"
+          ]
+        },
+        {
+          "check_id": "sc-publication-post",
+          "url": "https://www.instagram.com/yonsei_legislation/p/DI8hoYRTb7j/",
+          "selectors": [
+            "meta[property=\"og:description\"]"
+          ],
+          "require_any_text": [
+            "회·세칙/자치기구 회·세칙 공개",
+            "연세총학법제위_회세칙공개_2025"
+          ],
+          "expect_candidate_contains": [
+            "bit.ly/연세총학법제위_회세칙공개_2025"
+          ]
+        },
+        {
+          "check_id": "sc-reaffirmation-post",
+          "url": "https://www.instagram.com/yonsei_legislation/p/DVQQ-FnE6DE/",
+          "selectors": [
+            "meta[property=\"og:description\"]"
+          ],
+          "require_any_text": [
+            "연세총학법제위_회세칙공개_2025",
+            "총학생회칙"
+          ],
+          "expect_candidate_contains": [
+            "bit.ly/연세총학법제위_회세칙공개_2025"
+          ]
+        },
+        {
+          "check_id": "sc-shortlink-redirect",
+          "url": "https://bit.ly/연세총학법제위_회세칙공개_2025",
+          "allow_weak": true,
+          "expect_final_url_contains": [
+            "1DF5tFWSziDtwFmfWABQe5L_5K8yoR8-P"
+          ]
+        },
+        {
+          "check_id": "sc-drive-root",
+          "url": "https://drive.google.com/drive/folders/1DF5tFWSziDtwFmfWABQe5L_5K8yoR8-P?usp=sharing",
+          "selectors": [
+            "body"
+          ],
+          "require_any_text": [
+            "회·세칙 공개(2025)"
+          ],
+          "expect_candidate_contains": [
+            "1_wj2klJ67Erq2w1XnZXBOHxVJswElJrn"
+          ]
+        },
+        {
+          "check_id": "sc-rules-folder",
+          "url": "https://drive.google.com/drive/folders/1_wj2klJ67Erq2w1XnZXBOHxVJswElJrn?usp=sharing",
+          "selectors": [
+            "body"
+          ],
+          "require_any_text": [
+            "총학생회칙"
+          ],
+          "expect_candidate_contains": [
+            "1IKU-7iQdCPDOxMHmjdbSNnDq96Qcs6ea",
+            "1HURyrBLrp6tNwu8HTk54q-by2pwz1fmZ"
+          ],
+          "catalog_exact_drive_item_ids": [
+            "1IKU-7iQdCPDOxMHmjdbSNnDq96Qcs6ea",
+            "1HURyrBLrp6tNwu8HTk54q-by2pwz1fmZ"
+          ]
+        },
+        {
+          "check_id": "sc-bylaws-folder",
+          "url": "https://drive.google.com/drive/folders/1HURyrBLrp6tNwu8HTk54q-by2pwz1fmZ?usp=sharing",
+          "selectors": [
+            "body"
+          ],
+          "require_any_text": [
+            "의결기구에 관한 세칙",
+            "법제위원회 운영에 관한 세칙"
+          ],
+          "expect_candidate_contains": [
+            "1Gy0HFKKb-RfK-GpGE1hklhbGsXdiyU6b",
+            "1RPyI1qGKxVh1eYL6de0y5nICLIubbc-k",
+            "1LgrpDCp9Cixqln-2OKJ7ybY_AHxMEpH_",
+            "1-CtN692cbvH9SGy9szwh4nGR9_LIg6uS",
+            "1eEs0Xc30CgKQv5n9rvncjBVyUn7TYZMZ",
+            "1gWuqbC7nmUsUF4E6JCcg21xNkSbGbzSM",
+            "1Ctjw1h8M_AN9gIAo1ycB64olARczPOfS"
+          ],
+          "catalog_exact_drive_item_ids": [
+            "1Gy0HFKKb-RfK-GpGE1hklhbGsXdiyU6b",
+            "1RPyI1qGKxVh1eYL6de0y5nICLIubbc-k",
+            "1LgrpDCp9Cixqln-2OKJ7ybY_AHxMEpH_",
+            "1-CtN692cbvH9SGy9szwh4nGR9_LIg6uS",
+            "1eEs0Xc30CgKQv5n9rvncjBVyUn7TYZMZ",
+            "1gWuqbC7nmUsUF4E6JCcg21xNkSbGbzSM",
+            "1Ctjw1h8M_AN9gIAo1ycB64olARczPOfS"
+          ]
+        }
+      ]
+    },
+    {
+      "lineage_id": "club-union-published-archive",
+      "domain": "club_union",
+      "authority_name": "연세대학교 총동아리연합회",
+      "allowed_hosts": [
+        "www.instagram.com",
+        "linktr.ee",
+        "dongari.yonsei.ac.kr"
+      ],
+      "covered_document_ids": [
+        "RULE-2025-09-23",
+        "BYLAW-ELECTION-2025-04-01-CORRECTED",
+        "BYLAW-RECORDS-2024-11-05",
+        "BYLAW-REVIEW-2023-03-07",
+        "BYLAW-PROCEDURE-2023-03-07",
+        "BYLAW-SPACE-2024-05-14",
+        "BYLAW-SUBSIDY-2024-09-10",
+        "REGULATION-SPACE-2024-06-11"
+      ],
+      "nodes": [
+        {
+          "node_id": "club-official-profile",
+          "parent_id": null,
+          "role": "official_profile",
+          "url": "https://www.instagram.com/yonsei_dongari/",
+          "positive_evidence": "연세대학교 총동아리연합회"
+        },
+        {
+          "node_id": "club-link-hub",
+          "parent_id": "club-official-profile",
+          "role": "link_hub",
+          "url": "https://linktr.ee/yonseidongari",
+          "positive_evidence": "연세대학교 총동아리연합회"
+        },
+        {
+          "node_id": "club-homepage",
+          "parent_id": "club-link-hub",
+          "role": "official_site",
+          "url": "https://dongari.yonsei.ac.kr/",
+          "positive_evidence": "연세대학교 총동아리연합회"
+        },
+        {
+          "node_id": "club-rules-archive",
+          "parent_id": "club-homepage",
+          "role": "repository",
+          "url": "https://dongari.yonsei.ac.kr/kr/notice/data.php",
+          "positive_evidence": "회칙 및 세칙"
+        }
+      ],
+      "artifact_file_ids": {},
+      "artifact_entry_ids": {
+        "RULE-2025-09-23": "idx=97",
+        "BYLAW-ELECTION-2025-04-01-CORRECTED": "idx=83",
+        "BYLAW-RECORDS-2024-11-05": "idx=74",
+        "BYLAW-REVIEW-2023-03-07": "idx=73",
+        "BYLAW-PROCEDURE-2023-03-07": "idx=73",
+        "BYLAW-SPACE-2024-05-14": "idx=74",
+        "BYLAW-SUBSIDY-2024-09-10": "idx=73",
+        "REGULATION-SPACE-2024-06-11": "idx=74"
+      },
+      "catalog_expected_entry_ids": [
+        "idx=97",
+        "idx=81",
+        "idx=83",
+        "idx=73",
+        "idx=74",
+        "idx=78",
+        "idx=80"
+      ],
+      "excluded_catalog_entries": [
+        {
+          "entry_id": "idx=81",
+          "title": "연세대학교 총동아리연합회칙(25.05.13)",
+          "reason": "Superseded by the current 2025-09-23 rules at idx=97.",
+          "review_when": "Review for an event governed by the 2025-05-13 version.",
+          "effective_from": "2025-05-13",
+          "effective_to": "2025-09-24"
+        },
+        {
+          "entry_id": "idx=78",
+          "title": "연세대학교 총동아리연합회 규정집 제1호",
+          "reason": "Historical compendium; current standalone rules and bylaws take priority.",
+          "review_when": "Review when a historical version or a provision absent from current standalone texts is material.",
+          "effective_to": "2025-05-12"
+        },
+        {
+          "entry_id": "idx=80",
+          "title": "각 분과위원회 회칙 및 세칙",
+          "reason": "Separate branch-committee rules outside the General Student Club Union corpus.",
+          "review_when": "Review when the agenda is controlled by a named branch committee's own rules.",
+          "trigger_terms": [
+            "분과위원회"
+          ]
+        }
+      ],
+      "live_checks": [
+        {
+          "check_id": "club-official-profile",
+          "url": "https://www.instagram.com/yonsei_dongari/",
+          "selectors": [
+            "meta[property=\"og:description\"]"
+          ],
+          "require_any_text": [
+            "연세대학교 총동아리연합회"
+          ]
+        },
+        {
+          "check_id": "club-link-hub",
+          "url": "https://linktr.ee/yonseidongari",
+          "selectors": [
+            "a[href]"
+          ],
+          "require_any_text": [
+            "연세대학교 총동아리연합회"
+          ],
+          "expect_candidate_contains": [
+            "dongari.yonsei.ac.kr"
+          ]
+        },
+        {
+          "check_id": "club-homepage-archive-edge",
+          "url": "https://dongari.yonsei.ac.kr/",
+          "selectors": [
+            "body"
+          ],
+          "require_any_text": [
+            "연세대학교 총동아리연합회"
+          ],
+          "expect_candidate_contains": [
+            "https://dongari.yonsei.ac.kr/kr/notice/data.php"
+          ]
+        },
+        {
+          "check_id": "club-rules-archive",
+          "url": "https://dongari.yonsei.ac.kr/kr/notice/data.php",
+          "selectors": [
+            "body"
+          ],
+          "require_any_text": [
+            "총동아리연합회칙(25.09.23.)"
+          ],
+          "expect_candidate_contains": [
+            "idx=97",
+            "idx=83",
+            "idx=74",
+            "idx=73"
+          ],
+          "catalog_title_pattern": "(회칙|세칙|규정집)",
+          "catalog_exact_archive_entry_ids": [
+            "idx=97",
+            "idx=81",
+            "idx=83",
+            "idx=73",
+            "idx=74",
+            "idx=78",
+            "idx=80"
+          ]
+        }
+      ]
+    }
+  ]
+}

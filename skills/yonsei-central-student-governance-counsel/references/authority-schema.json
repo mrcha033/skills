@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Authority record",
+  "type": "object",
+  "required": ["id", "document_id", "domain", "target", "article", "title", "full_text", "source_url", "content_verified"],
+  "properties": {
+    "id": {"type": "string"},
+    "document_id": {"type": "string"},
+    "domain": {"enum": ["club_union", "student_council"]},
+    "target": {"enum": ["rule", "bylaw", "regulation", "interpretation", "minutes", "decision", "notice", "agenda", "external_law", "user_evidence"]},
+    "article": {"type": "string"},
+    "title": {"type": "string"},
+    "full_text": {"type": "string"},
+    "source_url": {"type": "string"},
+    "page": {"type": ["integer", "null"]},
+    "effective_from": {"type": ["string", "null"]},
+    "effective_to": {"type": ["string", "null"]},
+    "status": {"type": "string"},
+    "quality": {"enum": ["A", "B", "C", "D", "E"]},
+    "content_verified": {"type": "boolean"},
+    "retrieved_at": {"type": "string"},
+    "content_sha256": {"type": "string"}
+  }
+}

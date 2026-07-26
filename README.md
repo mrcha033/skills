@@ -1,6 +1,6 @@
 # MrCha Skills
 
-A public, multi-topic collection of portable Agent Skills by `mrcha033`, packaged as three independently installable marketplace plugins for Codex and Claude Code.
+A public, multi-topic collection of portable Agent Skills by `mrcha033`, packaged as seven independently installable marketplace plugins for Codex and Claude Code.
 
 Each directory under `skills/` remains a self-contained skill built around `SKILL.md`. Each marketplace plugin contains exactly one matching skill; none adds MCP servers, hooks, or external authentication.
 
@@ -11,6 +11,10 @@ Each directory under `skills/` remains a self-contained skill built around `SKIL
 ```bash
 codex plugin marketplace add mrcha033/skills
 codex plugin add advisor-review@mrcha-skills
+codex plugin add agent-finish-line@mrcha-skills
+codex plugin add yonsei-central-student-governance-counsel@mrcha-skills
+codex plugin add learnus-course-copilot@mrcha-skills
+codex plugin add katok-reply-reuse@mrcha-skills
 codex plugin add quant-stock-technical@mrcha-skills
 codex plugin add stock-scenario-story@mrcha-skills
 ```
@@ -22,6 +26,10 @@ Install only the plugins you want. Start a new Codex task after installation, th
 ```bash
 claude plugin marketplace add mrcha033/skills
 claude plugin install advisor-review@mrcha-skills
+claude plugin install agent-finish-line@mrcha-skills
+claude plugin install yonsei-central-student-governance-counsel@mrcha-skills
+claude plugin install learnus-course-copilot@mrcha-skills
+claude plugin install katok-reply-reuse@mrcha-skills
 claude plugin install quant-stock-technical@mrcha-skills
 claude plugin install stock-scenario-story@mrcha-skills
 ```
@@ -44,13 +52,33 @@ claude plugin install advisor-review@mrcha-skills
 claude plugin uninstall mrcha-skills@mrcha-skills
 ```
 
-Replace `advisor-review` with either stock plugin name, or install multiple individual plugins before removing the bundle.
+Replace `advisor-review` with any plugin name above, or install multiple individual plugins before removing the bundle.
 
 ## Agent workflow skills
 
 ### Advisor Review
 
-`advisor-review` asks an independent GPT-5.6 Sol reviewer to challenge a plan, diagnose a stalled approach, assess a pivot, or audit completed work. It always runs an isolated, ephemeral `codex exec` process, defaults to `high` reasoning, and selects only `high`, `xhigh`, or `max` effort from the request.
+`advisor-review` asks an independent GPT-5.6 Sol route to challenge a plan, diagnose stalled work, assess a pivot, or audit completion. Version 0.2 adds same-task activation for explicit advisor language, source-anchored evidence and bounded artifacts, evidence-linked diagnostic output, and a required adopt/reject/defer decision record before the parent agent acts. The receipt distinguishes requested model/effort from serving-side identity, which the CLI currently leaves unverified.
+
+### Agent Finish Line
+
+`agent-finish-line` is an execution closer, not another verifier. It declares at most three required gates, blocks identical failed-state retries, routes optional improvements to a backlog, and ends with a shipped artifact or one concrete external blocker.
+
+## Yonsei and personal workflow skills
+
+### Yonsei Central Student Governance Counsel
+
+`yonsei-central-student-governance-counsel` covers Yonsei University's Sinchon and International Campus undergraduate General Student Council central bodies and General Student Club Union central bodies. It rejects explicitly out-of-scope institutions, campuses, and graduate bodies; requires body-specific rules for subordinate or autonomous bodies; traces authority-controlled publication paths with deterministic public access and Insane Search fallback; keeps the two rule hierarchies separate; and turns a user's desired position into a cited meeting brief, motion, objection, or amendment.
+
+The General Student Council corpus is sourced from the public Drive linked by the official Legislation Committee Instagram account. The packaged corpus contains the 2025-09-11 General Student Council Rules and six current published bylaws; the combined two-domain index contains 824 provisions.
+
+### LearnUs Course Copilot
+
+`learnus-course-copilot` uses an existing authenticated browser session instead of command-line credentials. It detects login boundaries, structures authorized course pages into materials, assignments, visible dates, and VOD entries, and refuses access-control or DRM bypass.
+
+### Kakao Reply Reuse
+
+`katok-reply-reuse` searches authorized user-authored KakaoTalk exemplars and returns exact reuse or explicit placeholder substitution with provenance. It abstains when no strong past reply exists and never sends automatically.
 
 ## Finance skills
 
@@ -96,6 +124,10 @@ cp -R mrcha-skills/skills/quant-stock-technical ~/.codex/skills/
 cp -R mrcha-skills/skills/quant-stock-polling-trader ~/.codex/skills/
 cp -R mrcha-skills/skills/stock-scenario-story ~/.codex/skills/
 cp -R mrcha-skills/skills/advisor-review ~/.codex/skills/
+cp -R mrcha-skills/skills/agent-finish-line ~/.codex/skills/
+cp -R mrcha-skills/skills/yonsei-central-student-governance-counsel ~/.codex/skills/
+cp -R mrcha-skills/skills/learnus-course-copilot ~/.codex/skills/
+cp -R mrcha-skills/skills/katok-reply-reuse ~/.codex/skills/
 ```
 
 Start a new Codex task after copying. Invoke `$advisor-review` explicitly when you want an independent review. For the paired finance workflow, invoke `$quant-stock-technical` first and pass its unmodified JSON result to `$stock-scenario-story`.
@@ -138,6 +170,12 @@ python3 -B skills/stock-scenario-story/scripts/validate_story_text.py --self-tes
 python3 -B skills/advisor-review/scripts/build_context_packet.py --self-test
 python3 -B skills/advisor-review/scripts/validate_advice.py --self-test
 python3 -B skills/advisor-review/scripts/run_advisor.py --self-test
+python3 -B skills/advisor-review/scripts/validate_decision.py --self-test
+python3 -B skills/advisor-review/scripts/evaluate_advisor_behavior.py --self-test
+python3 -B skills/agent-finish-line/scripts/self_test.py
+python3 -B skills/learnus-course-copilot/scripts/self_test.py
+python3 -B skills/katok-reply-reuse/scripts/rank_replies.py --self-test
+python3 -B skills/yonsei-central-student-governance-counsel/scripts/self_test.py
 python3 -B tests/test_handoff_integration.py
 python3 -B tests/test_advisor_review.py
 python3 -B tests/test_universe_builder.py

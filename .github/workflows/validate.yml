@@ -40,6 +40,18 @@ jobs:
         run: python -B skills/advisor-review/scripts/validate_advice.py --self-test
       - name: Run isolated advisor-runner self-test
         run: python -B skills/advisor-review/scripts/run_advisor.py --self-test
+      - name: Run advisor parent-decision gate self-test
+        run: python -B skills/advisor-review/scripts/validate_decision.py --self-test
+      - name: Run advisor behavior-gate self-test
+        run: python -B skills/advisor-review/scripts/evaluate_advisor_behavior.py --self-test
+      - name: Run agent finish-line self-test
+        run: python -B skills/agent-finish-line/scripts/self_test.py
+      - name: Run LearnUs snapshot self-test
+        run: python -B skills/learnus-course-copilot/scripts/self_test.py
+      - name: Run Kakao reply-reuse self-test
+        run: python -B skills/katok-reply-reuse/scripts/rank_replies.py --self-test
+      - name: Run Yonsei governance counsel self-test
+        run: python -B skills/yonsei-central-student-governance-counsel/scripts/self_test.py
       - name: Run paired-skill integration test
         run: python -B tests/test_handoff_integration.py
       - name: Run advisor integration test

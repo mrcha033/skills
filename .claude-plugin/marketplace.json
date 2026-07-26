@@ -10,8 +10,8 @@
       "name": "advisor-review",
       "displayName": "Advisor Review",
       "source": "./plugins/advisor-review",
-      "description": "Run an isolated, read-only Codex CLI reviewer at consequential decision points.",
-      "version": "0.1.1",
+      "description": "Run an evidence-linked Sol review with a validated parent follow-through gate.",
+      "version": "0.2.0",
       "author": {
         "name": "mrcha033"
       },
@@ -59,6 +59,54 @@
         "research",
         "scenario"
       ]
+    },
+    {
+      "name": "yonsei-central-student-governance-counsel",
+      "displayName": "Yonsei Central Student Governance Counsel",
+      "source": "./plugins/yonsei-central-student-governance-counsel",
+      "description": "Ground positions for Yonsei undergraduate central student-governance agendas in current official rules.",
+      "version": "0.3.0",
+      "author": {"name": "mrcha033"},
+      "homepage": "https://github.com/mrcha033/skills",
+      "repository": "https://github.com/mrcha033/skills",
+      "category": "education",
+      "tags": ["yonsei", "central-student-governance", "rules"]
+    },
+    {
+      "name": "agent-finish-line",
+      "displayName": "Agent Finish Line",
+      "source": "./plugins/agent-finish-line",
+      "description": "Drive agent work to a bounded shipped outcome instead of endless implementation or experiments.",
+      "version": "0.1.0",
+      "author": {"name": "mrcha033"},
+      "homepage": "https://github.com/mrcha033/skills",
+      "repository": "https://github.com/mrcha033/skills",
+      "category": "productivity",
+      "tags": ["execution", "scope", "delivery"]
+    },
+    {
+      "name": "learnus-course-copilot",
+      "displayName": "LearnUs Course Copilot",
+      "source": "./plugins/learnus-course-copilot",
+      "description": "Turn authorized, authenticated LearnUs course pages into materials, deadlines, and study actions.",
+      "version": "0.1.0",
+      "author": {"name": "mrcha033"},
+      "homepage": "https://github.com/mrcha033/skills",
+      "repository": "https://github.com/mrcha033/skills",
+      "category": "education",
+      "tags": ["learnus", "yonsei", "lms"]
+    },
+    {
+      "name": "katok-reply-reuse",
+      "displayName": "Kakao Reply Reuse",
+      "source": "./plugins/katok-reply-reuse",
+      "description": "Find and reuse the user's own past KakaoTalk replies instead of generating an AI-sounding rewrite.",
+      "version": "0.1.0",
+      "author": {"name": "mrcha033"},
+      "homepage": "https://github.com/mrcha033/skills",
+      "repository": "https://github.com/mrcha033/skills",
+      "category": "productivity",
+      "tags": ["kakaotalk", "reply", "retrieval"]
     }
   ]
 }

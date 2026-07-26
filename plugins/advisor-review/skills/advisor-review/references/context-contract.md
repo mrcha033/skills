@@ -1,56 +1,91 @@
 # Context Packet Contract
 
-Build one bounded JSON packet for every advisor call. The packet makes the review target explicit and is mandatory in both context modes.
+Every review uses one `advisor-context-2.0` packet. The packet is an evidence boundary, not a prose summary of the parent agent's intuition.
 
 ## Required shape
 
 ```json
 {
-  "schema_version": "advisor-context-1.0",
-  "phase": "plan",
-  "task": "What outcome the primary agent must achieve",
-  "constraints": ["Applicable user, system, repository, and safety constraints"],
-  "evidence": ["Verified observations with source or command context"],
-  "proposal": "The decision, plan, diagnosis, or completion claim under review",
-  "changes": ["Material changes already made; empty before implementation"],
-  "validation": ["Checks run and exact outcomes"],
-  "conflicts": ["Evidence conflicts or unresolved uncertainty"],
-  "context_hash": "sha256 of the canonical packet without this field"
+  "schema_version": "advisor-context-2.0",
+  "phase": "stuck",
+  "context_mode": "packet",
+  "task": "The complete user-visible outcome",
+  "decision": "The exact decision the advisor must challenge",
+  "constraints": [
+    {"id": "C1", "text": "A user, safety, repository, or scope constraint"}
+  ],
+  "evidence": [
+    {"id": "E1", "source": "command/file/session anchor", "fact": "Observed fact"}
+  ],
+  "attempts": [
+    {"id": "A1", "action": "Action already taken", "result": "Exact result"}
+  ],
+  "proposal": "Current diagnosis, plan, pivot, or completion claim",
+  "changes": [
+    {"id": "CH1", "text": "Material change already made"}
+  ],
+  "validation": [
+    {"id": "V1", "check": "Exact check", "result": "Exact outcome"}
+  ],
+  "conflicts": [
+    {"id": "K1", "text": "Observed conflict or unresolved hypothesis"}
+  ],
+  "limitations": [
+    {"id": "L1", "text": "Context that could not be obtained or verified"}
+  ],
+  "artifacts": [],
+  "packet_meta": {
+    "context_completeness": "complete",
+    "artifact_count": 0,
+    "artifact_chars": 0,
+    "artifact_truncations": []
+  },
+  "context_hash": "sha256 of every preceding field"
 }
 ```
 
-Use `scripts/build_context_packet.py` to normalize, redact, bound, and hash the packet. It accepts either an input JSON object or individual command-line fields.
+Use `scripts/build_context_packet.py`; do not hand-calculate IDs or hashes.
 
-## Evidence rules
+## Source and chronology rules
 
-- Put only observed facts in `evidence` and `validation`.
-- Label estimates, hypotheses, and memory-derived statements in `conflicts` or `proposal`.
-- Include exact failures and negative results when they affect the decision.
-- Prefer durable references such as file paths, commit IDs, test names, and URLs over narrative summaries.
-- Never include credentials, session cookies, private keys, authorization headers, or secret environment values.
-- Keep each list focused on facts that can change the verdict.
+- `evidence` contains only observed facts and an exact source. CLI form is `SOURCE :: OBSERVED FACT`.
+- `attempts` preserves order and uses `ACTION :: EXACT RESULT`.
+- `validation` uses `CHECK :: EXACT RESULT`.
+- Put hypotheses in `proposal` or `conflicts`, never in `evidence`.
+- Include failures, no-change results, and user corrections. They often discriminate better than successes.
+- Identify task/process boundaries. A receipt in another top-level task is not evidence that the parent consumed it.
+- Prefer a file plus line, command plus timestamp, commit SHA, test name, authoritative URL, or session plus record number over an unattributed narrative.
 
-The builder performs best-effort redaction, but that is a backstop rather than permission to pass secrets into the packet.
+## Context modes
 
-## Isolated execution
+### `packet`
 
-Always pass the packet to `scripts/run_advisor.py`. The runner launches a separate `codex exec` process with:
+Use when the source-anchored fields preserve every decision-critical fact. Artifacts are rejected in this mode.
 
-- an explicitly selected reviewer model;
-- an ephemeral session;
-- a blank temporary working directory;
-- a read-only filesystem sandbox;
-- user configuration ignored;
-- recursive multi-agent disabled;
-- a required JSON output schema.
+### `bundle`
 
-The runner reuses existing Codex CLI authentication and requires no MCP server or separately configured API key. It receives only this packet and the bundled rubric, so include every fact necessary for the decision. Do not substitute a native subagent because that would create a second execution contract with different context inheritance and isolation semantics.
+Use when a bounded sanitized artifact materially changes the diagnosis: a log window, event timeline, diff, configuration excerpt, or test output. Pass each UTF-8 file with `--artifact`.
 
-The skill is unavailable when the host cannot execute local commands or the Codex CLI is absent or unauthenticated.
+Artifacts are embedded into the prompt and limited to:
 
-## Phase-specific minimums
+- 8 artifacts;
+- 12,000 characters per artifact;
+- 64,000 included characters total.
 
-- `plan`: task, constraints, proposal, known evidence.
-- `stuck`: attempted approaches, exact failures, current diagnosis, evidence conflicts.
-- `pivot`: current approach, candidate approach, switching cost, rollback path.
-- `final`: material changes, validation results, remaining gaps, proposed completion claim.
+Oversized artifacts fail closed by default. `--allow-artifact-truncation` records exact truncation metadata and marks context partial; use it only when the omitted portion cannot change the decision.
+
+## Phase gates
+
+- Every phase: task, decision, proposal, at least one constraint, and at least one source-anchored evidence item.
+- `plan`: known dependency evidence and the proposed approach.
+- `stuck`: at least one attempted action/result and one unresolved conflict.
+- `pivot`: evidence from the current approach plus switching-cost or rollback uncertainty.
+- `final`: at least one material change and one exact validation result.
+
+The builder rejects a packet that misses a gate. Do not bypass it by changing the phase.
+
+## Confidentiality and completeness
+
+The builder performs best-effort token/secret redaction, but the parent must sanitize input first. Never attach credentials, cookies, private keys, authorization headers, or unrestricted session dumps.
+
+If required evidence cannot be safely included, add a `limitations` entry. The packet then records `context_completeness: partial`; the final report must disclose that limitation.
