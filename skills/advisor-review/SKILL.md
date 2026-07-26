@@ -1,78 +1,104 @@
 ---
 name: advisor-review
-description: Consult an independent, read-only GPT-5.6 Sol reviewer at consequential decision points in multi-step Codex work. Use when the user explicitly asks for an advisor, second opinion, adversarial review, or invokes this skill; when task instructions require independent review; after repeated failures; before a major approach change; or before declaring complex work complete. Always runs the bundled script with Sol fixed and selects high, xhigh, or max reasoning effort from the request; it does not use native subagents or reproduce Claude's server-side Advisor tool.
+description: Run a fixed GPT-5.6 Sol advisor-style review in the current task when the user invokes $advisor-review, says Advisor Review or @Advisor-Review, explicitly asks for an advisor/second opinion/adversarial review, or task instructions explicitly require independent review. Uses source-anchored evidence, bounded artifacts, and an adopt/reject/defer decision gate; do not substitute tool discovery, another task, or same-agent reflection.
 ---
 
 # Advisor Review
 
-Run every review through `scripts/run_advisor.py`. Keep the primary agent responsible for evidence gathering, implementation, and the final decision.
+Use the bundled scripts from this skill directory. An explicit invocation is a latch: run the reviewer in the **same parent task** before a substantive final answer or an action that follows or conflicts with the review. Read-only evidence collection may continue while constructing the packet.
+
+Do not search the global tool catalog for an advisor. Do not open a second user-visible task. The only child execution is the isolated `codex exec` process started by `scripts/run_advisor.py`.
 
 ## Requirements
 
-Require shell execution, an authenticated local `codex` CLI, and access to `gpt-5.6-sol`. If any requirement is missing, report that independent review is unavailable.
+Require shell execution, an authenticated local `codex` CLI, access to the requested `gpt-5.6-sol` model route, and outbound Codex API access from the parent shell. A parent sandbox that blocks subprocess networking also blocks the nested reviewer. If any requirement is missing, report that the independent review is blocked; do not weaken the sandbox without user or task authority.
 
-Do not replace the runner with `spawn_agent` or same-agent reflection. A single script backend keeps context, isolation, model selection, output validation, timeout, and failure behavior consistent across parent models.
+The runner is not a confidentiality boundary. Sanitize evidence and artifacts before building the packet.
 
-The runner is not a confidentiality boundary. Remove secrets before constructing the context packet.
+## Workflow
 
-## Review workflow
-
-1. Select exactly one review phase:
-   - `plan`: challenge the proposed approach before implementation.
-   - `stuck`: diagnose repeated failure or lack of progress.
-   - `pivot`: compare the current approach with a materially different one.
-   - `final`: audit completed changes and validation before declaring success.
-2. Read `references/context-contract.md`.
-3. Build a bounded context packet with `scripts/build_context_packet.py`. Include every decision-critical requirement, constraint, observation, failure, validation result, and unresolved conflict.
-4. Read the phase questions and result contract in `references/review-rubric.md`.
-5. Select reasoning effort in this order:
-   1. Honor an explicit user request for `high`, `xhigh`, or `max`.
-   2. Select `max` only when the user explicitly requests the deepest review, or when the decision is both irreversible or critical and still has substantial unresolved ambiguity.
-   3. Otherwise select `xhigh` when any of these are true: the work crosses multiple components, verified evidence conflicts, at least two materially different attempts failed, a major pivot is under review, or a high-impact completion claim needs deeper verification.
-   4. Select `high` for every other request. This is the default.
-6. Run:
+1. Announce that Advisor Review is being used and why.
+2. Select one phase:
+   - `plan`: challenge a proposed approach.
+   - `stuck`: diagnose failed or looping work.
+   - `pivot`: compare a materially different approach.
+   - `final`: audit completed work and its endpoint evidence.
+3. Read `references/context-contract.md`.
+4. Choose the context mode:
+   - `packet`: short source-anchored facts are sufficient.
+   - `bundle`: sanitized logs, timelines, diffs, or other bounded text artifacts materially affect the diagnosis.
+5. Build `advisor-context-2.0` with `scripts/build_context_packet.py`.
+   - For `stuck`, include actions and exact results in chronological order.
+   - Give every observed fact a concrete source.
+   - Include negative results, conflicting state, and context limitations.
+   - Never silently truncate decision-critical text. A builder failure is a blocked review.
+6. Read `references/review-rubric.md`.
+7. Select effort:
+   1. Honor an explicit request for `high`, `xhigh`, or `max`.
+   2. Use `max` only for an explicitly requested deepest review or a critical, hard-to-reverse decision with major unresolved ambiguity.
+   3. Use `xhigh` for cross-component failures, conflicting verified evidence, two or more failed approaches, major pivots, or high-impact completion claims.
+   4. Otherwise use `high`.
+8. Run exactly one isolated review by default and save its receipt:
 
    ```bash
    python3 scripts/run_advisor.py \
      --input context-packet.json \
-     --effort high
+     --effort xhigh \
+     --output advisor-receipt.json
    ```
 
-   Replace `high` with the selected `xhigh` or `max` value. Never pass another model or an effort below `high`.
-7. Confirm the returned receipt reports `advisor_model: gpt-5.6-sol` and the selected `advisor_effort`. Treat any mismatch, runner error, or timeout as a blocked review. Do not reconstruct or repair the advice manually.
-8. Compare the validated `advice` object with primary evidence. Adopt, reject, or defer each consequential recommendation and state why. The advisor does not overrule verified facts or user instructions.
-9. For a `final` review, do not declare completion until relevant recommendations are resolved or explicitly documented as non-blocking.
+   Keep the returned receipt in the invoking task. A receipt produced in another user-visible task is not a handoff.
 
-## Execution contract
+9. Check the receipt:
+   - `request.requested_model` must be `gpt-5.6-sol`.
+   - `request.requested_effort` must match the selected effort.
+   - `observed_model` and `observed_effort` may be `null`; the current CLI does not authoritatively expose serving-side identity. Never describe requested identity as verified actual identity.
+   - Any runner error, schema failure, timeout, or context-hash mismatch blocks the review.
+   - The isolated child uses a temporary `CODEX_HOME` with only the host authentication file linked when present. It also disables plugins, remote-plugin loading, skill search, and multi-agent execution so unrelated skill catalogs cannot consume the review context.
+10. Read `references/decision-contract.md`. Resolve every `R#` recommendation as `adopt`, `reject`, or `defer`, then run:
 
-The runner:
+    ```bash
+    python3 scripts/validate_decision.py \
+      --receipt advisor-receipt.json \
+      --decision advisor-decision.json
+    ```
 
-- starts a separate `codex exec` process;
-- uses a blank temporary working directory;
-- fixes the reviewer model to `gpt-5.6-sol`;
-- sets reasoning effort explicitly to `high`, `xhigh`, or `max`;
-- runs an ephemeral session with user configuration ignored;
-- disables recursive multi-agent execution;
-- applies a read-only filesystem sandbox;
-- supplies only the bounded context packet and bundled rubric;
-- enforces the advice JSON Schema;
-- validates the final response before returning it;
-- wraps the advice in an `advisor-run-1.0` receipt recording the actual model and effort.
+11. Do not act on advisor recommendations until the decision record validates. A destructive recommendation additionally requires confirmed user authority.
+12. Continue the parent task using the validated next action and stop condition.
 
-The isolated reviewer does not receive the parent transcript automatically. If the packet cannot preserve all decision-critical context, report the review as insufficient instead of claiming full-context coverage.
+## Stuck-work rules
 
-## Call budget
+- Diagnose before changing more state.
+- Distinguish the execution boundary: parent task, isolated reviewer process, and any other user-visible task are separate.
+- Do not let a separate task's receipt stand in for a same-task handoff.
+- Prefer one read-only or reversible experiment that separates competing hypotheses.
+- After a repeated user correction, do not repeat the same prescription without new evidence.
+- Do not broaden scope from one failing subsystem to plugins, services, repositories, or packages unless evidence connects them.
 
-Use one review by default. Use a second only when new evidence materially changes the decision or an independent re-check is justified by risk. Use a third only to reconcile a concrete conflict between the first two reviews. Never create an open-ended advisor loop.
+## Review budget
+
+Use one review by default. A second is allowed only when new evidence materially changes the decision or a high-risk final re-check is justified. A third is allowed only to reconcile a concrete conflict. Never create an open-ended review loop.
+
+## Skill-change behavior gate
+
+When modifying Advisor Review itself, run the deterministic tests and at least one sanitized behavior fixture:
+
+```bash
+python3 scripts/evaluate_advisor_behavior.py \
+  --fixture behavior-fixture.json \
+  --receipt advisor-receipt.json
+```
+
+Use paired old/new fixtures where practical. Judge detection, evidence linkage, bounded experiments, and risky-action rate—not prose similarity.
 
 ## Reporting
 
 Report:
 
-- the phase, fixed Sol model, and selected reasoning effort;
-- the advisor verdict;
-- which recommendations were adopted, rejected, or deferred;
-- evidence supporting the primary agent's final decision;
-- any unresolved risk or context limitation.
+- phase, context mode, requested Sol model, requested effort, and identity verification status;
+- advisor verdict and evidence-linked diagnosis;
+- each consequential recommendation's adopt/reject/defer disposition;
+- the selected next action and stop condition;
+- unresolved risks or context limitations.
 
 Call the result an **advisor-style independent review**, not Claude Advisor parity.

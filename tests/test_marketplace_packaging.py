@@ -21,7 +21,7 @@ EXPECTED_PLUGINS = {
 }
 EXPECTED_VERSIONS = {
     "agent-finish-line": "0.1.0",
-    "advisor-review": "0.1.1",
+    "advisor-review": "0.2.0",
     "katok-reply-reuse": "0.1.0",
     "learnus-course-copilot": "0.1.0",
     "quant-stock-technical": "0.1.0",

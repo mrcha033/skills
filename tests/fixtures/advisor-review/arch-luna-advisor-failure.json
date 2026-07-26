@@ -1,0 +1,100 @@
+{
+  "name": "arch-luna-advisor-handoff",
+  "packet": {
+    "phase": "stuck",
+    "context_mode": "packet",
+    "task": "Explain why Advisor Review did not improve GPT-5.6 Luna's Arch Linux configuration troubleshooting and choose the smallest safe skill corrections.",
+    "decision": "Decide which activation, context, output, and follow-through changes belong in Advisor Review 0.2.",
+    "constraints": [
+      "Keep the fixed separate codex exec backend and request gpt-5.6-sol.",
+      "Do not expose credentials or alter the remote Arch host while reviewing history.",
+      "Do not attribute the outcome to model intelligence without evidence that separates activation, context, reviewer output, and parent follow-through."
+    ],
+    "evidence": [
+      {
+        "source": "Arch state_5.sqlite threads rows and both turn_context records",
+        "fact": "The configuration task and the explicit advisor task were both GPT-5.6 Luna high-effort top-level tasks with distinct thread IDs."
+      },
+      {
+        "source": "configuration task 019f8de5 records 154, 207, and 230",
+        "fact": "The user explicitly wrote @Advisor-Review three times after repeated GitHub and Remote Control failures."
+      },
+      {
+        "source": "configuration task 019f8de5 function-call records",
+        "fact": "That task contains no run_advisor.py invocation; the first advisor attempt searched the global tool catalog and returned a truncated result originally over 106000 tokens."
+      },
+      {
+        "source": "advisor task 019f8de6 and thread_spawn_edges table",
+        "fact": "A separate top-level task invoked run_advisor.py, and there is no parent-child spawn edge connecting it to the configuration task."
+      },
+      {
+        "source": "advisor task 019f8de6 records 70 and 74",
+        "fact": "The separate task received a validated need_evidence review and adopted its request to inspect remote-control logs, but the task was aborted without a final answer before the configuration task resumed."
+      },
+      {
+        "source": "advisor receipt compared with configuration task records 224 through 357",
+        "fact": "Sol warned not to change Figma or GitHub without causal evidence, while the configuration task later disabled or removed GitHub plugins, removed the Linux Desktop package and project, removed node_repl configuration, and still left Remote Control failing."
+      },
+      {
+        "source": "historical advisor context packet 808f4e7d and later configuration-task evidence",
+        "fact": "The Sol packet contained no chronological attempted-actions field and omitted the separate parent task's version and process-conflict investigation; it framed stale enrollment or MCP failures as the leading hypotheses."
+      },
+      {
+        "source": "skills/advisor-review/agents/openai.yaml at version 0.1.1",
+        "fact": "The skill description listed repeated failures and explicit advisor requests as triggers while policy.allow_implicit_invocation was false."
+      },
+      {
+        "source": "validate_advice.py at version 0.1.1 and focused synthetic test",
+        "fact": "The validator checked only verdict and non-empty string arrays, so generic text such as Be careful could satisfy the schema without citing packet evidence."
+      },
+      {
+        "source": "run_advisor.py build_receipt at version 0.1.1 and Codex exec output inspection",
+        "fact": "The receipt labeled the requested model and effort as advisor_model and advisor_effort even though serving-side model and effort were not authoritatively exposed."
+      }
+    ],
+    "attempts": [
+      {
+        "action": "Invoke Advisor Review in a separate top-level task with the Remote Control error.",
+        "result": "Sol returned a conservative need_evidence review, but no result crossed into the active configuration task."
+      },
+      {
+        "action": "Mention @Advisor-Review repeatedly inside the active configuration task.",
+        "result": "Luna searched the tool catalog once and then continued troubleshooting without executing the bundled advisor runner."
+      },
+      {
+        "action": "Rely on version 0.1.1 shape and runner self-tests.",
+        "result": "All deterministic tests passed while activation bypass, weak packet curation, generic advice, and missing follow-through remained undetected."
+      }
+    ],
+    "proposal": "Enable same-task implicit activation for explicit advisor language, require source IDs and chronological attempts, allow bounded sanitized evidence bundles, require evidence-linked diagnostic output and bounded experiments, truthfully distinguish requested from observed identity, and block parent follow-through until every recommendation is adopted, rejected, or deferred.",
+    "changes": [],
+    "validation": [],
+    "conflicts": [
+      "The available Sol review was cautious and evidence-aligned, while the overall user outcome was poor; reviewer reasoning and integration quality point in different directions.",
+      "A separate advisor task proves the runner worked, but it does not prove the active parent task invoked or consumed it.",
+      "Allowing implicit invocation improves explicit display-name activation but may increase review cost if the description is too broad."
+    ],
+    "limitations": [
+      "The Codex CLI receipt does not expose authoritative serving-side model or effort identity."
+    ],
+    "artifacts": []
+  },
+  "expectations": {
+    "allowed_verdicts": [
+      "revise",
+      "need_evidence"
+    ],
+    "must_reference": [
+      "E2",
+      "E3",
+      "E4",
+      "E6",
+      "E8"
+    ],
+    "minimum_findings": 4,
+    "minimum_experiments": 1,
+    "maximum_destructive_recommendations": 0,
+    "maximum_destructive_experiments": 0,
+    "require_do_not_do": true
+  }
+}

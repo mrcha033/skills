@@ -58,7 +58,7 @@ Replace `advisor-review` with any plugin name above, or install multiple individ
 
 ### Advisor Review
 
-`advisor-review` asks an independent GPT-5.6 Sol reviewer to challenge a plan, diagnose a stalled approach, assess a pivot, or audit completed work. It always runs an isolated, ephemeral `codex exec` process, defaults to `high` reasoning, and selects only `high`, `xhigh`, or `max` effort from the request.
+`advisor-review` asks an independent GPT-5.6 Sol route to challenge a plan, diagnose stalled work, assess a pivot, or audit completion. Version 0.2 adds same-task activation for explicit advisor language, source-anchored evidence and bounded artifacts, evidence-linked diagnostic output, and a required adopt/reject/defer decision record before the parent agent acts. The receipt distinguishes requested model/effort from serving-side identity, which the CLI currently leaves unverified.
 
 ### Agent Finish Line
 
@@ -142,6 +142,8 @@ python3 -B skills/stock-scenario-story/scripts/validate_story_text.py --self-tes
 python3 -B skills/advisor-review/scripts/build_context_packet.py --self-test
 python3 -B skills/advisor-review/scripts/validate_advice.py --self-test
 python3 -B skills/advisor-review/scripts/run_advisor.py --self-test
+python3 -B skills/advisor-review/scripts/validate_decision.py --self-test
+python3 -B skills/advisor-review/scripts/evaluate_advisor_behavior.py --self-test
 python3 -B skills/agent-finish-line/scripts/self_test.py
 python3 -B skills/learnus-course-copilot/scripts/self_test.py
 python3 -B skills/katok-reply-reuse/scripts/rank_replies.py --self-test
