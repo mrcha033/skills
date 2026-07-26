@@ -598,7 +598,7 @@ function Install-SecuwayWindowsSupport {
         }
         if ($baseCreatedThisRun -and
             (Test-Path -LiteralPath $baseDirectory) -and
-            (Get-ChildItem -LiteralPath $baseDirectory -Force).Count -eq 0) {
+            @(Get-ChildItem -LiteralPath $baseDirectory -Force).Count -eq 0) {
             Remove-Item -LiteralPath $baseDirectory -Force -ErrorAction SilentlyContinue
         }
         if ($providerChanged -and (Test-Path -LiteralPath $providerDestination)) {
@@ -707,7 +707,7 @@ function Uninstall-SecuwayWindowsSupport {
         $baseDirectory = [IO.Path]::GetFullPath([string]$state.base_directory)
         if ([bool]$state.base_directory_created -and
             (Test-Path -LiteralPath $baseDirectory -PathType Container) -and
-            (Get-ChildItem -LiteralPath $baseDirectory -Force).Count -eq 0) {
+            @(Get-ChildItem -LiteralPath $baseDirectory -Force).Count -eq 0) {
             Remove-Item -LiteralPath $baseDirectory -Force
         }
 

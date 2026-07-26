@@ -67,12 +67,33 @@ jobs:
       - name: Exercise the bundled setup status boundary
         shell: pwsh
         run: |
-          $setup = "./skills/secuway-vpn/scripts/Setup-Windows.ps1"
-          $output = & pwsh -NoLogo -NoProfile -File $setup -Action Status 2>&1
-          $exitCode = $LASTEXITCODE
+          $setup = (
+            Resolve-Path "./skills/secuway-vpn/scripts/Setup-Windows.ps1"
+          ).Path
+          $stdout = Join-Path $env:RUNNER_TEMP "secuway-status-${{ matrix.arch }}.out"
+          $stderr = Join-Path $env:RUNNER_TEMP "secuway-status-${{ matrix.arch }}.err"
+          $statusProcess = Start-Process `
+            -FilePath (Get-Command pwsh -ErrorAction Stop).Source `
+            -ArgumentList @(
+              "-NoLogo",
+              "-NoProfile",
+              "-File",
+              "`"$setup`"",
+              "-Action",
+              "Status"
+            ) `
+            -RedirectStandardOutput $stdout `
+            -RedirectStandardError $stderr `
+            -Wait `
+            -PassThru
+          $exitCode = $statusProcess.ExitCode
           if ($exitCode -notin @(0, 1)) {
             throw "Setup status failed unexpectedly with code $exitCode"
           }
+          $output = @(
+            Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue
+            Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue
+          )
           $json = $output |
             Where-Object { "$_".TrimStart().StartsWith("{") } |
             Select-Object -Last 1 |

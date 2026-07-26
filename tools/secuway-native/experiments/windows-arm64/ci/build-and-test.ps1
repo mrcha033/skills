@@ -40,9 +40,21 @@ if (Test-Path $ExtractRoot) {
     Remove-Item -Recurse -Force $ExtractRoot
 }
 New-Item -ItemType Directory -Path $ExtractRoot | Out-Null
-& msiexec.exe /a $MsiPath /qn "TARGETDIR=$ExtractRoot"
-if ($LASTEXITCODE -ne 0) {
-    throw "msiexec administrative extraction failed with exit code $LASTEXITCODE"
+$MsiProcess = Start-Process `
+    -FilePath (Join-Path $env:SystemRoot 'System32\msiexec.exe') `
+    -ArgumentList @(
+        '/a',
+        "`"$MsiPath`"",
+        '/qn',
+        "TARGETDIR=`"$ExtractRoot`""
+    ) `
+    -Wait `
+    -PassThru
+if ($MsiProcess.ExitCode -ne 0) {
+    throw (
+        'msiexec administrative extraction failed with exit code ' +
+        $MsiProcess.ExitCode
+    )
 }
 
 if (-not (Test-Path $VcpkgRoot)) {

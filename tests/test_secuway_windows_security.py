@@ -33,6 +33,14 @@ def main() -> None:
     assert "if (-not [bool]$state.service_was_running)" in runtime
     assert "Stop-Service -Name $serviceName" in runtime
     assert "Start-Service -Name $serviceName -ErrorAction SilentlyContinue" in runtime
+    assert (
+        "\n            (Get-ChildItem -LiteralPath $baseDirectory -Force).Count"
+        not in runtime
+    )
+    assert (
+        "\n    (Get-ChildItem -LiteralPath $TargetBin -Force).Count"
+        not in setup
+    )
 
     engine = (TOOLS / "portable" / "internal" / "engine" / "engine.go").read_text()
     windows_engine = (

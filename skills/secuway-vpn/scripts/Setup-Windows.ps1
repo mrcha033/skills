@@ -667,7 +667,7 @@ if ([bool]$cliState.path_added) {
     )
 }
 if ((Test-Path -LiteralPath $TargetBin -PathType Container) -and
-    (Get-ChildItem -LiteralPath $TargetBin -Force).Count -eq 0) {
+    @(Get-ChildItem -LiteralPath $TargetBin -Force).Count -eq 0) {
     Remove-Item -LiteralPath $TargetBin -Force
 }
 Write-Host "PASS Secuway VPN Windows support removed"
