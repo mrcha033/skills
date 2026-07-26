@@ -1,0 +1,13 @@
+{
+  "name": "secuway-lea-provider-arm64",
+  "version-string": "0.1.0",
+  "dependencies": [
+    "cryptopp",
+    {
+      "name": "openssl",
+      "features": [
+        "tools"
+      ]
+    }
+  ]
+}

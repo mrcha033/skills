@@ -8,6 +8,11 @@ This release contains the versioned distribution packages declared in
   read-only KIS Korean adjusted-EOD collector, KRX/KIS source snapshots,
   KOSPI/KOSDAQ benchmarks, effective tick catalog generation, and immutable
   bundle receipts.
+- Distribution 1.3.0 adds `secuway-vpn` with native Windows amd64/arm64
+  assets, pinned official OpenVPN setup, one-time UAC provisioning, DPAPI
+  profile protection, and explicit live-tunnel evidence gates.
+- `quant-stock-polling-trader` remains a separately installable, fail-closed
+  KIS/Toss execution plugin with local-only credential and token checks.
 - `<name>-<version>.zip`: standalone Agent Skill upload for ChatGPT or Claude.
 - `<name>-<version>.skill`: byte-identical standalone archive with the Claude
   skill extension.

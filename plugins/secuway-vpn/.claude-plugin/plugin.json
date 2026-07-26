@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "secuway-vpn",
+  "displayName": "Secuway VPN",
+  "version": "0.1.0",
+  "description": "Install and operate a portable SecuwaySSL-compatible VPN runtime.",
+  "author": {
+    "name": "mrcha033",
+    "url": "https://github.com/mrcha033"
+  },
+  "homepage": "https://github.com/mrcha033/skills",
+  "repository": "https://github.com/mrcha033/skills",
+  "keywords": [
+    "vpn",
+    "secuway",
+    "openvpn",
+    "windows"
+  ],
+  "skills": "./skills/"
+}
