@@ -68,7 +68,7 @@ Replace `advisor-review` with any plugin name above, or install multiple individ
 
 ### Yonsei Governance Argument Counsel
 
-`yonsei-club-argument-counsel` now covers both the General Student Council and the General Student Club Union. It routes by meeting body, keeps the two rule hierarchies separate, retrieves current official provisions, runs adverse and procedure searches, and turns a user's desired position into a cited meeting brief, motion, objection, or amendment.
+`yonsei-club-argument-counsel` covers both the General Student Council and the General Student Club Union. It traces authority-controlled publication paths with deterministic public access and Insane Search fallback, refuses substantive reliance when freshness is incomplete, routes by meeting body, keeps the two rule hierarchies separate, retrieves current official provisions, runs adverse and procedure searches, and turns a user's desired position into a cited meeting brief, motion, objection, or amendment.
 
 The General Student Council corpus is sourced from the public Drive linked by the official Legislation Committee Instagram account. The packaged corpus contains the 2025-09-11 General Student Council Rules and six current published bylaws; the combined two-domain index contains 824 provisions.
 

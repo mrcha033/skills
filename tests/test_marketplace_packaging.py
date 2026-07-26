@@ -26,7 +26,7 @@ EXPECTED_VERSIONS = {
     "learnus-course-copilot": "0.1.0",
     "quant-stock-technical": "0.1.0",
     "stock-scenario-story": "0.1.0",
-    "yonsei-club-argument-counsel": "0.1.0",
+    "yonsei-club-argument-counsel": "0.2.0",
 }
 
 
