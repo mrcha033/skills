@@ -41,6 +41,7 @@ def main() -> None:
         "\n    (Get-ChildItem -LiteralPath $TargetBin -Force).Count"
         not in setup
     )
+    assert runtime.rstrip().endswith("exit 0")
 
     engine = (TOOLS / "portable" / "internal" / "engine" / "engine.go").read_text()
     windows_engine = (

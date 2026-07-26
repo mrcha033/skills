@@ -853,3 +853,5 @@ switch ($Action) {
             -UserSid $userSid
     }
 }
+
+exit 0
