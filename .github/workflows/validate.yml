@@ -24,6 +24,8 @@ jobs:
               assert text.startswith("---\n")
               assert f"name: {skill.name}\n" in text
           PY
+      - name: Validate distribution catalog synchronization
+        run: python -B scripts/sync_distribution.py --check
       - name: Run deterministic calculator self-test
         run: python -B skills/quant-stock-technical/scripts/analyze_stock.py --self-test
       - name: Run four-exchange universe builder self-test
@@ -64,3 +66,14 @@ jobs:
         run: python -B tests/test_quant_execution.py
       - name: Validate marketplace packaging
         run: python -B tests/test_marketplace_packaging.py
+      - name: Validate deterministic release packaging
+        run: python -B tests/test_release_packaging.py
+      - name: Build multi-surface release packages
+        run: python -B scripts/build_release_packages.py --output-dir dist
+      - name: Upload package preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: mrcha-skills-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14

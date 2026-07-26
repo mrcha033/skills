@@ -1,0 +1,46 @@
+name: release skill packages
+
+on:
+  push:
+    tags:
+      - "skills-v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate distribution synchronization
+        run: python -B scripts/sync_distribution.py --check
+      - name: Validate marketplace packaging
+        run: python -B tests/test_marketplace_packaging.py
+      - name: Validate deterministic release packaging
+        run: python -B tests/test_release_packaging.py
+      - name: Build tag-bound release assets
+        run: >-
+          python -B scripts/build_release_packages.py
+          --tag "$GITHUB_REF_NAME"
+          --output-dir dist
+      - name: Publish immutable GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists; refusing to overwrite it."
+            exit 1
+          fi
+          release_version="${GITHUB_REF_NAME#skills-v}"
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --verify-tag \
+            --title "MrCha Skills ${release_version}" \
+            --notes-file release/release-notes.md

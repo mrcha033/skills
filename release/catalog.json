@@ -1,0 +1,153 @@
+{
+  "schemaVersion": 1,
+  "distributionVersion": "1.0.0",
+  "releaseTagPrefix": "skills-v",
+  "guaranteeScope": "Package compatibility guarantees archive layout, manifest placement, and byte integrity. Runtime compatibility remains conditional on each skill's declared tools, authentication, network, and data requirements.",
+  "formats": {
+    "standaloneZip": {
+      "filename": "{name}-{version}.zip",
+      "targets": [
+        "ChatGPT skill upload",
+        "Claude skill upload"
+      ],
+      "layout": "One top-level {name}/ directory containing SKILL.md and the complete canonical skill."
+    },
+    "standaloneSkill": {
+      "filename": "{name}-{version}.skill",
+      "targets": [
+        "Claude skill upload"
+      ],
+      "layout": "Byte-identical ZIP payload to standaloneZip with the .skill extension."
+    },
+    "pluginZip": {
+      "filename": "{name}-plugin-{version}.zip",
+      "targets": [
+        "Codex custom plugin",
+        "Claude Code plugin"
+      ],
+      "layout": "Archive root contains .codex-plugin/plugin.json, .claude-plugin/plugin.json, and skills/{name}/."
+    }
+  },
+  "skills": [
+    {
+      "name": "advisor-review",
+      "version": "0.2.0",
+      "runtime": {
+        "codex": "supported",
+        "claudeCode": "conditional",
+        "chatgptWeb": "unsupported",
+        "claudeWeb": "unsupported"
+      },
+      "requirements": [
+        "Python 3",
+        "local shell execution",
+        "authenticated local Codex CLI",
+        "GPT-5.6 Sol model route",
+        "outbound Codex API access"
+      ],
+      "notes": "The package can be uploaded anywhere that accepts the archive layout, but the nested local Codex CLI process cannot run in a web-only skill sandbox."
+    },
+    {
+      "name": "agent-finish-line",
+      "version": "0.1.0",
+      "runtime": {
+        "codex": "supported",
+        "claudeCode": "supported",
+        "chatgptWeb": "conditional",
+        "claudeWeb": "conditional"
+      },
+      "requirements": [
+        "Python 3",
+        "writable task workspace",
+        "tools needed to complete the user's target action"
+      ],
+      "notes": "Web runtimes must expose a writable workspace and the action tools required by the finish contract."
+    },
+    {
+      "name": "katok-reply-reuse",
+      "version": "0.1.0",
+      "runtime": {
+        "codex": "conditional",
+        "claudeCode": "conditional",
+        "chatgptWeb": "unsupported",
+        "claudeWeb": "unsupported"
+      },
+      "requirements": [
+        "macOS KakaoTalk archive authorized by the user",
+        "katok CLI",
+        "KakaoTalk archive retrieval skill",
+        "Python 3"
+      ],
+      "notes": "A web-only runtime cannot access the user's local authorized KakaoTalk archive."
+    },
+    {
+      "name": "learnus-course-copilot",
+      "version": "0.1.0",
+      "runtime": {
+        "codex": "conditional",
+        "claudeCode": "conditional",
+        "chatgptWeb": "unsupported",
+        "claudeWeb": "unsupported"
+      },
+      "requirements": [
+        "user-controlled authenticated browser session",
+        "browser-control skill",
+        "Python 3"
+      ],
+      "notes": "The skill deliberately depends on an existing local browser login and does not accept copied credentials or cookies."
+    },
+    {
+      "name": "quant-stock-technical",
+      "version": "0.2.0",
+      "runtime": {
+        "codex": "supported",
+        "claudeCode": "supported",
+        "chatgptWeb": "conditional",
+        "claudeWeb": "conditional"
+      },
+      "requirements": [
+        "Python 3",
+        "user-provided finalized OHLCV and benchmark files"
+      ],
+      "notes": "Web runtimes must support bundled Python scripts and uploaded input files."
+    },
+    {
+      "name": "stock-scenario-story",
+      "version": "0.1.0",
+      "runtime": {
+        "codex": "conditional",
+        "claudeCode": "conditional",
+        "chatgptWeb": "conditional",
+        "claudeWeb": "conditional"
+      },
+      "requirements": [
+        "complete quant-stock-technical JSON handoff",
+        "Python 3",
+        "web research with point-of-use citations"
+      ],
+      "notes": "The skill is never standalone at runtime even though its upload archive is standalone."
+    },
+    {
+      "name": "yonsei-central-student-governance-counsel",
+      "version": "0.3.0",
+      "runtime": {
+        "codex": "conditional",
+        "claudeCode": "conditional",
+        "chatgptWeb": "conditional",
+        "claudeWeb": "conditional"
+      },
+      "requirements": [
+        "Python 3",
+        "outbound access to official publication paths",
+        "web or browser fallback for changed or blocked sources"
+      ],
+      "notes": "The packaged corpus is self-contained, but current-rule advice requires live source-lineage checks."
+    }
+  ],
+  "excludedSkills": [
+    {
+      "name": "quant-stock-polling-trader",
+      "reason": "Development-only local skill; live mutation remains disabled and it is not a marketplace plugin."
+    }
+  ]
+}
