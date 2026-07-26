@@ -1,4 +1,0 @@
-interface:
-  display_name: "Yonsei Governance Argument Counsel"
-  short_description: "Ground Yonsei governance positions in current rules"
-  default_prompt: "Use $yonsei-club-argument-counsel to ground my position on this Yonsei student-governance agenda with current rules, counterarguments, and meeting-ready language."

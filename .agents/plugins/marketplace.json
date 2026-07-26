@@ -41,10 +41,10 @@
       "category": "Finance"
     },
     {
-      "name": "yonsei-club-argument-counsel",
+      "name": "yonsei-central-student-governance-counsel",
       "source": {
         "source": "local",
-        "path": "./plugins/yonsei-club-argument-counsel"
+        "path": "./plugins/yonsei-central-student-governance-counsel"
       },
       "policy": {
         "installation": "AVAILABLE",

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Yonsei Central Student Governance Counsel"
+  short_description: "Ground Yonsei central governance positions in current rules"
+  default_prompt: "Use $yonsei-central-student-governance-counsel to ground my position on this Yonsei central student-governance agenda with current rules, counterarguments, and meeting-ready language."

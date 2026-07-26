@@ -12,7 +12,7 @@ Each directory under `skills/` remains a self-contained skill built around `SKIL
 codex plugin marketplace add mrcha033/skills
 codex plugin add advisor-review@mrcha-skills
 codex plugin add agent-finish-line@mrcha-skills
-codex plugin add yonsei-club-argument-counsel@mrcha-skills
+codex plugin add yonsei-central-student-governance-counsel@mrcha-skills
 codex plugin add learnus-course-copilot@mrcha-skills
 codex plugin add katok-reply-reuse@mrcha-skills
 codex plugin add quant-stock-technical@mrcha-skills
@@ -27,7 +27,7 @@ Install only the plugins you want. Start a new Codex task after installation, th
 claude plugin marketplace add mrcha033/skills
 claude plugin install advisor-review@mrcha-skills
 claude plugin install agent-finish-line@mrcha-skills
-claude plugin install yonsei-club-argument-counsel@mrcha-skills
+claude plugin install yonsei-central-student-governance-counsel@mrcha-skills
 claude plugin install learnus-course-copilot@mrcha-skills
 claude plugin install katok-reply-reuse@mrcha-skills
 claude plugin install quant-stock-technical@mrcha-skills
@@ -66,9 +66,9 @@ Replace `advisor-review` with any plugin name above, or install multiple individ
 
 ## Yonsei and personal workflow skills
 
-### Yonsei Governance Argument Counsel
+### Yonsei Central Student Governance Counsel
 
-`yonsei-club-argument-counsel` covers both the General Student Council and the General Student Club Union. It traces authority-controlled publication paths with deterministic public access and Insane Search fallback, refuses substantive reliance when freshness is incomplete, routes by meeting body, keeps the two rule hierarchies separate, retrieves current official provisions, runs adverse and procedure searches, and turns a user's desired position into a cited meeting brief, motion, objection, or amendment.
+`yonsei-central-student-governance-counsel` covers Yonsei University's Sinchon and International Campus undergraduate General Student Council central bodies and General Student Club Union central bodies. It rejects explicitly out-of-scope institutions, campuses, and graduate bodies; requires body-specific rules for subordinate or autonomous bodies; traces authority-controlled publication paths with deterministic public access and Insane Search fallback; keeps the two rule hierarchies separate; and turns a user's desired position into a cited meeting brief, motion, objection, or amendment.
 
 The General Student Council corpus is sourced from the public Drive linked by the official Legislation Committee Instagram account. The packaged corpus contains the 2025-09-11 General Student Council Rules and six current published bylaws; the combined two-domain index contains 824 provisions.
 
@@ -112,7 +112,7 @@ cp -R mrcha-skills/skills/quant-stock-technical ~/.codex/skills/
 cp -R mrcha-skills/skills/stock-scenario-story ~/.codex/skills/
 cp -R mrcha-skills/skills/advisor-review ~/.codex/skills/
 cp -R mrcha-skills/skills/agent-finish-line ~/.codex/skills/
-cp -R mrcha-skills/skills/yonsei-club-argument-counsel ~/.codex/skills/
+cp -R mrcha-skills/skills/yonsei-central-student-governance-counsel ~/.codex/skills/
 cp -R mrcha-skills/skills/learnus-course-copilot ~/.codex/skills/
 cp -R mrcha-skills/skills/katok-reply-reuse ~/.codex/skills/
 ```
@@ -145,7 +145,7 @@ python3 -B skills/advisor-review/scripts/run_advisor.py --self-test
 python3 -B skills/agent-finish-line/scripts/self_test.py
 python3 -B skills/learnus-course-copilot/scripts/self_test.py
 python3 -B skills/katok-reply-reuse/scripts/rank_replies.py --self-test
-python3 -B skills/yonsei-club-argument-counsel/scripts/self_test.py
+python3 -B skills/yonsei-central-student-governance-counsel/scripts/self_test.py
 python3 -B tests/test_handoff_integration.py
 python3 -B tests/test_advisor_review.py
 python3 -B tests/test_marketplace_packaging.py

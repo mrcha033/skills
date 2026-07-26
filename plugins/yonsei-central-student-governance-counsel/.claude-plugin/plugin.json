@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "yonsei-central-student-governance-counsel",
+  "displayName": "Yonsei Central Student Governance Counsel",
+  "version": "0.3.0",
+  "description": "Ground positions for Yonsei undergraduate central student-governance agendas in current official rules.",
+  "author": {"name": "mrcha033", "url": "https://github.com/mrcha033"},
+  "homepage": "https://github.com/mrcha033/skills",
+  "repository": "https://github.com/mrcha033/skills",
+  "keywords": ["yonsei", "central-student-governance", "rules", "argument"],
+  "skills": "./skills/"
+}
