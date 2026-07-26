@@ -61,7 +61,6 @@ if (-not (Test-Path $VcpkgRoot)) {
     $cloned = $false
     for ($attempt = 1; $attempt -le 3; $attempt++) {
         & git clone `
-            --filter=blob:none `
             https://github.com/microsoft/vcpkg.git `
             $VcpkgRoot
         if ($LASTEXITCODE -eq 0) {

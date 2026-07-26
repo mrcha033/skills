@@ -192,6 +192,7 @@ def main() -> None:
     assert arm64_ci.count(
         "for ($attempt = 1; $attempt -le 3; $attempt++)"
     ) == 2
+    assert "--filter=blob:none" not in arm64_ci
     assert "LLVM_MINGW_VERSION=20260616" in arm64_versions
     assert "-shared -static" in arm64_build
 
