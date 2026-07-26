@@ -61,16 +61,16 @@
       ]
     },
     {
-      "name": "yonsei-club-argument-counsel",
-      "displayName": "Yonsei Governance Argument Counsel",
-      "source": "./plugins/yonsei-club-argument-counsel",
-      "description": "Turn positions on Yonsei student-governance agendas into current-rule-grounded arguments with adaptive official-source tracing.",
-      "version": "0.2.0",
+      "name": "yonsei-central-student-governance-counsel",
+      "displayName": "Yonsei Central Student Governance Counsel",
+      "source": "./plugins/yonsei-central-student-governance-counsel",
+      "description": "Ground positions for Yonsei undergraduate central student-governance agendas in current official rules.",
+      "version": "0.3.0",
       "author": {"name": "mrcha033"},
       "homepage": "https://github.com/mrcha033/skills",
       "repository": "https://github.com/mrcha033/skills",
       "category": "education",
-      "tags": ["yonsei", "student-governance", "rules"]
+      "tags": ["yonsei", "central-student-governance", "rules"]
     },
     {
       "name": "agent-finish-line",

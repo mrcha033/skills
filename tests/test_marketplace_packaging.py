@@ -17,7 +17,7 @@ EXPECTED_PLUGINS = {
     "learnus-course-copilot",
     "quant-stock-technical",
     "stock-scenario-story",
-    "yonsei-club-argument-counsel",
+    "yonsei-central-student-governance-counsel",
 }
 EXPECTED_VERSIONS = {
     "agent-finish-line": "0.1.0",
@@ -26,7 +26,7 @@ EXPECTED_VERSIONS = {
     "learnus-course-copilot": "0.1.0",
     "quant-stock-technical": "0.1.0",
     "stock-scenario-story": "0.1.0",
-    "yonsei-club-argument-counsel": "0.2.0",
+    "yonsei-central-student-governance-counsel": "0.3.0",
 }
 
 
@@ -55,6 +55,8 @@ def main() -> None:
     assert set(claude_entries) == EXPECTED_PLUGINS
     assert len(codex_market["plugins"]) == len(claude_market["plugins"]) == 7
     assert not (PLUGINS / "mrcha-skills").exists(), "aggregate plugin must not remain installable"
+    assert not (SOURCE_SKILLS / "yonsei-club-argument-counsel").exists()
+    assert not (PLUGINS / "yonsei-club-argument-counsel").exists()
 
     for plugin_name in EXPECTED_PLUGINS:
         plugin = PLUGINS / plugin_name
