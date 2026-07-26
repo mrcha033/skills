@@ -1,8 +1,8 @@
 # MrCha Skills
 
-A public, multi-topic collection of portable Agent Skills by `mrcha033`, packaged as seven independently installable marketplace plugins for Codex and Claude Code.
+A public, multi-topic collection of portable Agent Skills by `mrcha033`, packaged as eight independently installable marketplace plugins for Codex and Claude Code.
 
-Each directory under `skills/` remains a self-contained skill built around `SKILL.md`. Each marketplace plugin contains exactly one matching skill; none adds MCP servers, hooks, or external authentication.
+Each directory under `skills/` remains a self-contained skill built around `SKILL.md`. Each marketplace plugin contains exactly one matching skill; none adds MCP servers or hooks. Broker credentials stay local and are never packaged.
 
 ## Install from the marketplace
 
@@ -16,6 +16,7 @@ codex plugin add yonsei-central-student-governance-counsel@mrcha-skills
 codex plugin add learnus-course-copilot@mrcha-skills
 codex plugin add katok-reply-reuse@mrcha-skills
 codex plugin add quant-stock-technical@mrcha-skills
+codex plugin add quant-stock-polling-trader@mrcha-skills
 codex plugin add stock-scenario-story@mrcha-skills
 ```
 
@@ -31,6 +32,7 @@ claude plugin install yonsei-central-student-governance-counsel@mrcha-skills
 claude plugin install learnus-course-copilot@mrcha-skills
 claude plugin install katok-reply-reuse@mrcha-skills
 claude plugin install quant-stock-technical@mrcha-skills
+claude plugin install quant-stock-polling-trader@mrcha-skills
 claude plugin install stock-scenario-story@mrcha-skills
 ```
 
@@ -86,7 +88,7 @@ The General Student Council corpus is sourced from the public Drive linked by th
 
 `quant-stock-technical` calculates reproducible technical opinions, risk, entry, stop, target, and a historical technical-strength score from completed daily adjusted OHLCV data. It can also build and screen a deterministic, source-hashed intersection of KOSPI, KOSDAQ, NYSE, and NASDAQ listings without changing `qta-1.0.0`. It excludes news, fundamentals, sentiment, analyst opinion, discretionary model judgment, and broker mutations.
 
-`quant-stock-polling-trader` is currently a development-only local skill. It consumes the frozen exchange-aware screen, routes broker symbols and venues, plans whole-share orders, and implements fail-closed Toss/KIS polling, ledger, and reconciliation contracts. It is intentionally not yet a marketplace plugin or download.
+`quant-stock-polling-trader` is a separately installable execution plugin. It consumes the frozen exchange-aware screen, routes broker symbols and venues, plans whole-share orders, and implements fail-closed Toss/KIS polling, ledger, and reconciliation contracts.
 Its first-hour runner precomputes the slow path before the open, warms
 authentication 30 seconds early, admits only broker-rate-feasible candidate
 counts, polls on absolute rank-ordered cycles, and records cycle/quote/submit
@@ -97,6 +99,31 @@ contract until a Toss-qualified universe snapshot is implemented and verified.
 V2 planning also requires a local SHA-256-bound market-session snapshot,
 the latest completed session date, and fresh same-instant account/exposure
 snapshots.
+
+For KIS, keep paper and live app keys separate. Prefer process environment or
+an OS secret store; use `~/.config/mrcha-skills/secrets.env` with permission
+`0600` only as a fallback. Check status first:
+
+```bash
+python3 skills/quant-stock-polling-trader/scripts/broker_credentials.py status --environment paper
+```
+
+If it reports `BLOCKED`, run `configure` yourself in an interactive local
+terminal so credentials never enter chat or an agent-owned PTY:
+
+```bash
+python3 skills/quant-stock-polling-trader/scripts/broker_credentials.py configure --environment paper
+```
+
+After configuration, let the agent recheck presence and verify token issuance
+without printing or persisting the token:
+
+```bash
+python3 skills/quant-stock-polling-trader/scripts/broker_credentials.py status --environment paper
+python3 skills/quant-stock-polling-trader/scripts/broker_credentials.py auth-check --environment paper
+```
+
+Authentication does not arm an order, and live mutation remains disabled.
 
 ### Stock Scenario Story
 
@@ -219,6 +246,7 @@ python3 -B skills/quant-stock-technical/scripts/build_universe_manifest.py --sel
 python3 -B skills/quant-stock-technical/scripts/screen_universe.py --self-test
 python3 -B skills/quant-stock-polling-trader/scripts/execution_core.py --self-test
 python3 -B skills/quant-stock-polling-trader/scripts/broker_adapters.py --self-test
+python3 -B skills/quant-stock-polling-trader/scripts/broker_credentials.py self-test
 python3 -B skills/quant-stock-polling-trader/scripts/plan_orders.py --self-test
 python3 -B skills/quant-stock-polling-trader/scripts/run_session.py self-test
 python3 -B skills/quant-stock-polling-trader/scripts/reconcile.py --self-test

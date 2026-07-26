@@ -15,10 +15,13 @@ EXPECTED_PLUGINS = {
     "advisor-review",
     "katok-reply-reuse",
     "learnus-course-copilot",
+    "quant-stock-polling-trader",
     "quant-stock-technical",
     "stock-scenario-story",
     "yonsei-central-student-governance-counsel",
 }
+
+
 def load_json(path: Path) -> dict:
     value = json.loads(path.read_text(encoding="utf-8"))
     assert isinstance(value, dict), f"{path} must contain a JSON object"
@@ -41,10 +44,10 @@ def main() -> None:
     }
     assert catalog["schemaVersion"] == 1
     assert set(release_entries) == EXPECTED_PLUGINS
-    assert set(excluded_entries) == {"quant-stock-polling-trader"}
+    assert not excluded_entries
     assert {
         path.name for path in SOURCE_SKILLS.iterdir() if path.is_dir()
-    } == EXPECTED_PLUGINS | set(excluded_entries)
+    } == EXPECTED_PLUGINS
     expected_versions = {
         name: entry["version"] for name, entry in release_entries.items()
     }
@@ -57,7 +60,7 @@ def main() -> None:
     claude_entries = {entry["name"]: entry for entry in claude_market["plugins"]}
     assert set(codex_entries) == EXPECTED_PLUGINS
     assert set(claude_entries) == EXPECTED_PLUGINS
-    assert len(codex_market["plugins"]) == len(claude_market["plugins"]) == 7
+    assert len(codex_market["plugins"]) == len(claude_market["plugins"]) == 8
     assert not (PLUGINS / "mrcha-skills").exists(), (
         "aggregate plugin must not remain installable"
     )
@@ -101,7 +104,7 @@ def main() -> None:
                 packaged / relative
             ).read_bytes(), f"{plugin_name}/{relative} content drift"
 
-    print("catalog-backed seven-plugin marketplace packaging: PASS")
+    print("catalog-backed eight-plugin marketplace packaging: PASS")
 
 
 if __name__ == "__main__":

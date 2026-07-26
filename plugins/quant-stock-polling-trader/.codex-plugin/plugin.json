@@ -1,0 +1,34 @@
+{
+  "name": "quant-stock-polling-trader",
+  "version": "0.1.0",
+  "description": "Validate and run fail-closed KIS/Toss stock polling sessions.",
+  "author": {
+    "name": "mrcha033",
+    "url": "https://github.com/mrcha033"
+  },
+  "homepage": "https://github.com/mrcha033/skills",
+  "repository": "https://github.com/mrcha033/skills",
+  "keywords": [
+    "stocks",
+    "broker-api",
+    "polling",
+    "execution"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Quant Stock Polling Trader",
+    "shortDescription": "Fail-closed KIS and Toss polling execution",
+    "longDescription": "Validate frozen quant screens, configure local broker credentials, plan first-hour orders, poll deterministically, and reconcile without enabling live mutation.",
+    "developerName": "mrcha033",
+    "category": "Finance",
+    "capabilities": [
+      "Interactive",
+      "Deterministic execution"
+    ],
+    "websiteURL": "https://github.com/mrcha033/skills",
+    "defaultPrompt": [
+      "Securely guide KIS credential setup and verify authentication.",
+      "Prepare a fail-closed KIS paper polling session."
+    ]
+  }
+}

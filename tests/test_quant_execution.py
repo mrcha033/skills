@@ -53,6 +53,56 @@ def run(*arguments: str) -> None:
     assert '"self_test"' in result.stdout or '"self_test": "PASS"' in result.stdout
 
 
+def assert_credential_guidance_contract() -> None:
+    skill_text = (
+        ROOT / "skills" / "quant-stock-polling-trader" / "SKILL.md"
+    ).read_text(encoding="utf-8")
+    status_command = (
+        "python3 scripts/broker_credentials.py status --environment paper"
+    )
+    configure_command = (
+        "python3 scripts/broker_credentials.py configure --environment paper"
+    )
+    auth_command = (
+        "python3 scripts/broker_credentials.py auth-check --environment paper"
+    )
+    first_status = skill_text.index(status_command)
+    configure = skill_text.index(configure_command)
+    second_status = skill_text.index(status_command, configure + 1)
+    auth_check = skill_text.index(auth_command)
+    assert first_status < configure < second_status < auth_check
+    for required_guidance in (
+        "secure KIS credential setup",
+        "Do not\n   run `configure` in an agent-owned",
+        "Wait for the user to confirm completion.",
+        "`status` field of `AUTHENTICATED`",
+        "never infer success from credential",
+    ):
+        assert required_guidance in skill_text
+
+    openai_text = (
+        ROOT
+        / "skills"
+        / "quant-stock-polling-trader"
+        / "agents"
+        / "openai.yaml"
+    ).read_text(encoding="utf-8")
+    assert "$quant-stock-polling-trader" in openai_text
+    assert "securely guide KIS credential setup" in openai_text
+    assert "verify token authentication" in openai_text
+
+    plugin_text = (
+        ROOT
+        / "plugins"
+        / "quant-stock-polling-trader"
+        / ".codex-plugin"
+        / "plugin.json"
+    ).read_text(encoding="utf-8")
+    assert "Securely guide KIS credential setup and verify authentication." in (
+        plugin_text
+    )
+
+
 def v2_instrument(
     exchange: str,
     canonical_symbol: str,
@@ -237,6 +287,7 @@ def complete_v2_screen(
 
 
 def main() -> None:
+    assert_credential_guidance_contract()
     run("skills/quant-stock-technical/scripts/analyze_stock.py", "--self-test")
     run("skills/quant-stock-technical/scripts/screen_universe.py", "--self-test")
     run(
@@ -250,6 +301,10 @@ def main() -> None:
     run(
         "skills/quant-stock-polling-trader/scripts/broker_adapters.py",
         "--self-test",
+    )
+    run(
+        "skills/quant-stock-polling-trader/scripts/broker_credentials.py",
+        "self-test",
     )
     run("skills/quant-stock-polling-trader/scripts/plan_orders.py", "--self-test")
     run("skills/quant-stock-polling-trader/scripts/run_session.py", "self-test")

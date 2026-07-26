@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "distributionVersion": "1.0.0",
+  "distributionVersion": "1.1.0",
   "releaseTagPrefix": "skills-v",
   "guaranteeScope": "Package compatibility guarantees archive layout, manifest placement, and byte integrity. Runtime compatibility remains conditional on each skill's declared tools, authentication, network, and data requirements.",
   "formats": {
@@ -97,6 +97,25 @@
       "notes": "The skill deliberately depends on an existing local browser login and does not accept copied credentials or cookies."
     },
     {
+      "name": "quant-stock-polling-trader",
+      "version": "0.1.0",
+      "runtime": {
+        "codex": "supported",
+        "claudeCode": "supported",
+        "chatgptWeb": "unsupported",
+        "claudeWeb": "unsupported"
+      },
+      "requirements": [
+        "Python 3",
+        "local shell execution",
+        "KIS Open API credentials for the selected paper or live scope",
+        "outbound access to the selected broker API",
+        "secure local secret injection or a permission-0600 dotenv fallback",
+        "frozen screen, account, exposure, calendar, risk, and execution-policy inputs"
+      ],
+      "notes": "Credential and token checks are local and never persist access tokens. Live mutation remains fail-closed until every declared execution gate passes; web-only runtimes cannot host the required local secret store and deterministic supervisor."
+    },
+    {
       "name": "quant-stock-technical",
       "version": "0.2.0",
       "runtime": {
@@ -144,10 +163,5 @@
       "notes": "The packaged corpus is self-contained, but current-rule advice requires live source-lineage checks."
     }
   ],
-  "excludedSkills": [
-    {
-      "name": "quant-stock-polling-trader",
-      "reason": "Development-only local skill; live mutation remains disabled and it is not a marketplace plugin."
-    }
-  ]
+  "excludedSkills": []
 }

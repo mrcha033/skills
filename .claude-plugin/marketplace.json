@@ -107,6 +107,24 @@
       "repository": "https://github.com/mrcha033/skills",
       "category": "productivity",
       "tags": ["kakaotalk", "reply", "retrieval"]
+    },
+    {
+      "name": "quant-stock-polling-trader",
+      "displayName": "Quant Stock Polling Trader",
+      "source": "./plugins/quant-stock-polling-trader",
+      "description": "Validate frozen screens, configure local KIS credentials, and run fail-closed broker polling sessions.",
+      "version": "0.1.0",
+      "author": {
+        "name": "mrcha033"
+      },
+      "homepage": "https://github.com/mrcha033/skills",
+      "repository": "https://github.com/mrcha033/skills",
+      "category": "finance",
+      "tags": [
+        "stocks",
+        "broker-api",
+        "polling"
+      ]
     }
   ]
 }
