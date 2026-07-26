@@ -53,6 +53,9 @@ target_compile_features(provider_smoke PRIVATE c_std_11)
 target_link_libraries(provider_smoke PRIVATE OpenSSL::Crypto)
 
 if(MSVC)
+    set_target_properties(lea provider_smoke PROPERTIES
+        MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+    )
     target_compile_options(lea PRIVATE /O2 /guard:cf /W4 /Brepro)
     target_link_options(lea PRIVATE /DYNAMICBASE /NXCOMPAT /GUARD:CF /Brepro)
     target_compile_options(provider_smoke PRIVATE /O2 /guard:cf /W4 /Brepro)

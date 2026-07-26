@@ -170,6 +170,19 @@ def main() -> None:
     arm64_cmake = (
         TOOL / "experiments" / "windows-arm64" / "CMakeLists.txt"
     ).read_text(encoding="utf-8")
+    arm64_triplet = (
+        TOOL
+        / "experiments"
+        / "windows-arm64"
+        / "triplets"
+        / "arm64-windows-secuway.cmake"
+    ).read_text(encoding="utf-8")
+    arm64_native_test = (
+        TOOL
+        / "experiments"
+        / "windows-arm64"
+        / "test-on-windows.ps1"
+    ).read_text(encoding="utf-8")
     arm64_ci = (
         TOOL
         / "experiments"
@@ -189,6 +202,21 @@ def main() -> None:
     ]
     assert "find_package(cryptopp 8.9.0 EXACT CONFIG REQUIRED)" in arm64_cmake
     assert '"${CRYPTOPP_INCLUDE_ROOT}/cryptopp"' in arm64_cmake
+    assert "MSVC_RUNTIME_LIBRARY" in arm64_cmake
+    assert "MultiThreaded$<$<CONFIG:Debug>:Debug>" in arm64_cmake
+    assert "set(VCPKG_CRT_LINKAGE static)" in arm64_triplet
+    for runtime_name in (
+        "libc\\+\\+abi",
+        "libunwind",
+        "libgcc",
+        "libstdc\\+\\+",
+        "libwinpthread",
+        "msvcp",
+        "vcruntime",
+    ):
+        assert runtime_name in arm64_native_test
+    assert "'msvc_crt_linkage=static'" in arm64_ci
+    assert "'external_toolchain_runtime_imports=false'" in arm64_ci
     assert arm64_ci.count(
         "for ($attempt = 1; $attempt -le 3; $attempt++)"
     ) == 2

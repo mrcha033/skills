@@ -49,6 +49,33 @@ function Get-PeMachine {
     }
 }
 
+function Assert-NoExternalToolchainRuntime {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $ImportReport,
+
+        [Parameter(Mandatory = $true)]
+        [string] $BinaryName
+    )
+
+    $RuntimePattern = (
+        '(?im)^\s*(?:' +
+        'libc\+\+|libc\+\+abi|libunwind|libgcc|libstdc\+\+|libwinpthread|' +
+        'msvcp|vcruntime' +
+        ')[^\s]*\.dll\s*$'
+    )
+    $RuntimeImports = @(
+        [regex]::Matches($ImportReport, $RuntimePattern) |
+            ForEach-Object { $_.Value.Trim() }
+    )
+    if ($RuntimeImports.Count -gt 0) {
+        throw (
+            "$BinaryName depends on external toolchain runtime DLLs: " +
+            ($RuntimeImports -join ', ')
+        )
+    }
+}
+
 $Provider = (Resolve-Path $Provider).Path
 $ProviderSmoke = (Resolve-Path $ProviderSmoke).Path
 $OpenVpnRoot = (Resolve-Path $OpenVpnRoot).Path
@@ -90,9 +117,9 @@ if ($LASTEXITCODE -ne 0) {
 if ($Imports -notmatch '(?im)^\s*libcrypto-3-arm64\.dll\s*$') {
     throw 'lea.dll does not import libcrypto-3-arm64.dll'
 }
-if ($Imports -match '(?im)^\s*(libc\+\+|libunwind|libgcc)[^\s]*\.dll\s*$') {
-    throw 'lea.dll depends on an unbundled compiler runtime DLL'
-}
+Assert-NoExternalToolchainRuntime `
+    -ImportReport $Imports `
+    -BinaryName 'lea.dll'
 
 $SmokeImports = (& $Dumpbin /nologo /imports $ProviderSmoke 2>&1 | Out-String)
 if ($LASTEXITCODE -ne 0) {
@@ -101,6 +128,9 @@ if ($LASTEXITCODE -ne 0) {
 if ($SmokeImports -notmatch '(?im)^\s*libcrypto-3-arm64\.dll\s*$') {
     throw 'provider_smoke.exe does not import libcrypto-3-arm64.dll'
 }
+Assert-NoExternalToolchainRuntime `
+    -ImportReport $SmokeImports `
+    -BinaryName 'provider_smoke.exe'
 
 $Version = (& $OpenSsl version 2>&1 | Out-String).Trim()
 if ($LASTEXITCODE -ne 0 -or $Version -notmatch '^OpenSSL 3\.6\.3\b') {

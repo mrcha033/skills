@@ -11,7 +11,7 @@ that a real VPN tunnel works.
 | macOS x86-64 | PASS | COMPILE ONLY | NOT BUILT | NOT RUN | NOT RUN | NOT RUN |
 | Linux ARM64 | PASS | PASS, protected 0600 file | NOT BUILT | NOT RUN | NOT RUN | NOT RUN |
 | Linux x86-64 | PASS | PASS, protected 0600 file | NOT BUILT | NOT RUN | NOT RUN | NOT RUN |
-| Windows ARM64 | PASS, native Windows 11 ARM64 | PASS, user-scoped DPAPI | PASS, native provider/KAT/OpenVPN cipher discovery; full installer and LZO doctor NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| Windows ARM64 | PASS, native Windows 11 ARM64 | PASS, user-scoped DPAPI | PARTIAL, native provider/KAT/OpenVPN cipher discovery PASS; full installer and LZO doctor NOT RUN | NOT RUN | NOT RUN | NOT RUN |
 | Windows x86-64 | PASS, native Windows x64 | PASS, user-scoped DPAPI | PASS, official signed OpenVPN install, LEA/LZO doctor, and KAT | NOT RUN | NOT RUN | NOT RUN |
 
 ## Native Windows evidence
@@ -24,8 +24,8 @@ that a real VPN tunnel works.
   verified the official OpenVPN 2.7.5-I001 MSI hash and Authenticode signature,
   installed it on native Windows, installed the matching LEA provider, passed
   the LEA/LZO doctor and LEA encrypt/decrypt KAT, protected the profile
-  directory, started the Interactive Service, and restored the prior service
-  state and exact user `PATH` after uninstall.
+  directory, confirmed the Interactive Service was running, and restored the
+  prior service state and exact user `PATH` after uninstall.
 - [ARM64 provider run 30215976293](https://github.com/mrcha033/skills/actions/runs/30215976293)
   tested both a fresh MSVC build and the distributed ARM64 provider. Each
   passed ARM64 PE/ABI checks, exact OpenSSL 3.6.3 provider loading,

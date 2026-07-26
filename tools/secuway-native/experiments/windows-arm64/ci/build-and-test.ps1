@@ -178,6 +178,8 @@ Set-Content -Encoding Ascii -Path (Join-Path $DistRoot 'build-manifest.txt') -Va
     'cryptopp_version=8.9.0'
     'cryptopp_vcpkg_port_version=2'
     'cryptopp_vcpkg_git_tree=7a43c1863687809d90c65c768b70eb0add5aacc6'
+    'msvc_crt_linkage=static'
+    'external_toolchain_runtime_imports=false'
     "openvpn_msi_sha256=$MsiSha256"
     "vcpkg_commit=$VcpkgCommit"
     "provider_source_sha256=$ProviderSourceHash"

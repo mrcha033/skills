@@ -17,7 +17,7 @@ Date: 2026-07-27
 | LEA encrypt/decrypt KAT | PASS | PASS, both providers |
 | OpenVPN LEA cipher discovery | PASS, OpenVPN 2.7.5 | PASS, OpenVPN 2.7.5 |
 | LZO doctor | PASS | NOT RUN |
-| Full install/ACL/service/uninstall | PASS | NOT RUN |
+| Secuway support install/ACL/service-state/cleanup | PASS; OpenVPN retained | NOT RUN |
 
 Evidence links:
 
@@ -30,15 +30,19 @@ The portable run executed the Go test suite, DPAPI test, CLI, status boundary,
 and PE checks natively on both Windows architectures. The x64 install run
 verified the official OpenVPN 2.7.5-I001 MSI hash and Authenticode signature,
 installed the architecture-matched LEA provider, passed the LEA/LZO doctor and
-KAT, enforced the user profile-directory ACL, started the Interactive Service,
-and restored its prior state and the exact user `PATH` during uninstall.
+KAT, enforced the user profile-directory ACL, confirmed the Interactive
+Service was running, and restored its prior state and the exact user `PATH`
+during Secuway-support uninstall. The official OpenVPN installation was
+retained.
 
 The ARM64 run checked a fresh MSVC-built provider and the distributed provider
 independently. For both, it confirmed ARM64 PE files, the sole
 `OSSL_provider_init` export, the `libcrypto-3-arm64.dll` import, absence of an
-unbundled compiler-runtime dependency, OpenSSL 3.6.3 provider loading,
+external LLVM/GNU runtime DLL dependency, OpenSSL 3.6.3 provider loading,
 LEA-128-CBC encrypt/decrypt KAT and round-trip, and OpenVPN 2.7.5-I001 cipher
-discovery.
+discovery. That run did not reject MSVC runtime DLL imports; the subsequent
+static-CRT hardening is tracked by the ARM64 workflow rather than attributed
+to run 30215976293.
 
 ## Evidence still not obtained
 
