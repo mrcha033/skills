@@ -28,8 +28,8 @@
       "name": "quant-stock-technical",
       "displayName": "Quant Stock Technical",
       "source": "./plugins/quant-stock-technical",
-      "description": "Acquire KIS Korean EOD data and screen a deterministic KOSPI, KOSDAQ, NYSE, and NASDAQ technical universe.",
-      "version": "0.3.0",
+      "description": "Acquire KIS Korean and U.S. EOD data and screen a deterministic KOSPI, KOSDAQ, NYSE, and NASDAQ technical universe.",
+      "version": "0.4.0",
       "author": {
         "name": "mrcha033"
       },
@@ -112,8 +112,8 @@
       "name": "quant-stock-polling-trader",
       "displayName": "Quant Stock Polling Trader",
       "source": "./plugins/quant-stock-polling-trader",
-      "description": "Validate frozen screens, configure local KIS credentials, and run fail-closed broker polling sessions.",
-      "version": "0.1.0",
+      "description": "Validate frozen screens, configure local KIS credentials, and supervise fail-closed broker polling sessions with systemd.",
+      "version": "0.2.0",
       "author": {
         "name": "mrcha033"
       },

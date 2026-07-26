@@ -1,6 +1,6 @@
 ---
 name: quant-stock-technical
-description: Acquire a resumable read-only KIS Korean adjusted-EOD bundle, calculate reproducible numbers-only stock technical analysis, and screen deterministic KOSPI, KOSDAQ, NYSE, and NASDAQ target universes. Use when the user needs completed historical OHLCV and benchmarks, an as-of-date market/ticker report, short-, medium-, and long-horizon opinions, a quantitative risk counterpoint, entry/stop/take-profit levels, a 0-100 technical-strength score, or a frozen exchange-aware screen for a separate execution system. Do not use news, fundamentals, analyst views, narrative judgment, intraday execution, or live-order claims.
+description: Acquire resumable read-only KIS Korean and U.S. adjusted-EOD bundles, calculate reproducible numbers-only stock technical analysis, and screen deterministic KOSPI, KOSDAQ, NYSE, and NASDAQ target universes. Use when the user needs completed historical OHLCV and benchmarks, an as-of-date market/ticker report, short-, medium-, and long-horizon opinions, a quantitative risk counterpoint, entry/stop/take-profit levels, a 0-100 technical-strength score, or a frozen exchange-aware screen for a separate execution system. Do not use news, fundamentals, analyst views, narrative judgment, intraday execution, or live-order claims.
 ---
 
 # Quant Stock Technical
@@ -44,6 +44,17 @@ collector; KIS limits token issuance to once per minute. Treat the collector's
 first successful read as authentication evidence or inject one
 supervisor-held token through the environment.
 
+## U.S. EOD acquisition
+
+When NYSE/NASDAQ history is missing, read
+`references/us-eod-provider-contract.md`. Freeze Nasdaq Trader official symbol
+directories and KIS overseas masters with
+`scripts/fetch_kis_us_eod.py snapshot-sources`, then run `collect --job ...`
+outside the U.S. entry window. KIS stock history must use adjusted `MODP=1`;
+preserve exchange-specific membership, broker symbols, benchmarks, and tick
+mappings. Combine the completed Korean catalog and all four source descriptor
+pairs before claiming a complete v2 build spec.
+
 ## Workflow
 
 1. Read `references/methodology.md` when explaining, reviewing, or changing the model.
@@ -80,6 +91,7 @@ After changing universe or screening code, run:
 
 ```bash
 python3 scripts/fetch_kis_kr_eod.py --self-test
+python3 scripts/fetch_kis_us_eod.py --self-test
 python3 scripts/build_universe_manifest.py --self-test
 python3 scripts/screen_universe.py --self-test
 ```

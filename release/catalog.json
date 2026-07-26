@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "distributionVersion": "1.2.0",
+  "distributionVersion": "1.3.0",
   "releaseTagPrefix": "skills-v",
   "guaranteeScope": "Package compatibility guarantees archive layout, manifest placement, and byte integrity. Runtime compatibility remains conditional on each skill's declared tools, authentication, network, and data requirements.",
   "formats": {
@@ -98,7 +98,7 @@
     },
     {
       "name": "quant-stock-polling-trader",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "runtime": {
         "codex": "supported",
         "claudeCode": "supported",
@@ -111,13 +111,14 @@
         "KIS Open API credentials for the selected paper or live scope",
         "outbound access to the selected broker API",
         "secure local secret injection or a permission-0600 dotenv fallback",
-        "frozen screen, account, exposure, calendar, risk, and execution-policy inputs"
+        "frozen screen, account, exposure, calendar, risk, and execution-policy inputs",
+        "systemd for generated Linux user units"
       ],
-      "notes": "Credential and token checks are local and never persist access tokens. Live mutation remains fail-closed until every declared execution gate passes; web-only runtimes cannot host the required local secret store and deterministic supervisor."
+      "notes": "Credential and token checks are local and never persist access tokens. The generator emits but never activates hardened user units. Live mutation remains fail-closed until every declared execution gate passes."
     },
     {
       "name": "quant-stock-technical",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "runtime": {
         "codex": "supported",
         "claudeCode": "supported",
@@ -126,10 +127,10 @@
       },
       "requirements": [
         "Python 3",
-        "user-provided finalized OHLCV and benchmark files, or KIS Open API credentials for read-only Korean EOD acquisition",
-        "outbound KRX and KIS source access for Korean source snapshots"
+        "user-provided finalized OHLCV and benchmark files, or KIS Open API credentials for read-only Korean and U.S. EOD acquisition",
+        "outbound KRX, Nasdaq Trader, KIS, and benchmark source access"
       ],
-      "notes": "The Korean EOD collector is resumable and read-only; web runtimes must support bundled Python scripts, persistent storage, secret injection, and outbound source access."
+      "notes": "The Korean and U.S. EOD collectors are resumable and read-only; web runtimes must support bundled Python scripts, persistent storage, secret injection, and outbound source access."
     },
     {
       "name": "stock-scenario-story",

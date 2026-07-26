@@ -1,4 +1,4 @@
 interface:
   display_name: "Quant Stock Technical"
-  short_description: "KIS EOD acquisition and deterministic screening"
-  default_prompt: "Use $quant-stock-technical to acquire a resumable read-only KIS Korean adjusted-EOD bundle, calculate reproducible technical scores, or build and screen a frozen KOSPI, KOSDAQ, NYSE, and NASDAQ universe."
+  short_description: "Four-exchange EOD acquisition and screening"
+  default_prompt: "Use $quant-stock-technical to acquire resumable read-only KIS Korean and U.S. adjusted-EOD bundles, calculate reproducible technical scores, or build and screen a frozen KOSPI, KOSDAQ, NYSE, and NASDAQ universe."
