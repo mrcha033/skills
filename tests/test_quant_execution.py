@@ -57,9 +57,7 @@ def assert_credential_guidance_contract() -> None:
     skill_text = (
         ROOT / "skills" / "quant-stock-polling-trader" / "SKILL.md"
     ).read_text(encoding="utf-8")
-    status_command = (
-        "python3 scripts/broker_credentials.py status --environment paper"
-    )
+    status_command = "python3 scripts/broker_credentials.py status --environment paper"
     configure_command = (
         "python3 scripts/broker_credentials.py configure --environment paper"
     )
@@ -81,11 +79,7 @@ def assert_credential_guidance_contract() -> None:
         assert required_guidance in skill_text
 
     openai_text = (
-        ROOT
-        / "skills"
-        / "quant-stock-polling-trader"
-        / "agents"
-        / "openai.yaml"
+        ROOT / "skills" / "quant-stock-polling-trader" / "agents" / "openai.yaml"
     ).read_text(encoding="utf-8")
     assert "$quant-stock-polling-trader" in openai_text
     assert "securely guide KIS credential setup" in openai_text
@@ -289,6 +283,10 @@ def complete_v2_screen(
 def main() -> None:
     assert_credential_guidance_contract()
     run("skills/quant-stock-technical/scripts/analyze_stock.py", "--self-test")
+    run(
+        "skills/quant-stock-technical/scripts/fetch_kis_kr_eod.py",
+        "--self-test",
+    )
     run("skills/quant-stock-technical/scripts/screen_universe.py", "--self-test")
     run(
         "skills/quant-stock-polling-trader/scripts/execution_core.py",

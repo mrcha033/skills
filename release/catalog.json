@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "distributionVersion": "1.1.0",
+  "distributionVersion": "1.2.0",
   "releaseTagPrefix": "skills-v",
   "guaranteeScope": "Package compatibility guarantees archive layout, manifest placement, and byte integrity. Runtime compatibility remains conditional on each skill's declared tools, authentication, network, and data requirements.",
   "formats": {
@@ -117,7 +117,7 @@
     },
     {
       "name": "quant-stock-technical",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "runtime": {
         "codex": "supported",
         "claudeCode": "supported",
@@ -126,9 +126,10 @@
       },
       "requirements": [
         "Python 3",
-        "user-provided finalized OHLCV and benchmark files"
+        "user-provided finalized OHLCV and benchmark files, or KIS Open API credentials for read-only Korean EOD acquisition",
+        "outbound KRX and KIS source access for Korean source snapshots"
       ],
-      "notes": "Web runtimes must support bundled Python scripts and uploaded input files."
+      "notes": "The Korean EOD collector is resumable and read-only; web runtimes must support bundled Python scripts, persistent storage, secret injection, and outbound source access."
     },
     {
       "name": "stock-scenario-story",
