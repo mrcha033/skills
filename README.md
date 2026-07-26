@@ -102,17 +102,51 @@ snapshots.
 
 `stock-scenario-story` is its qualitative antithesis. It runs only after validating the complete result from `quant-stock-technical`, hides every upstream number, researches the surrounding company and market context, and tells a sourced, theatrical, numbers-free story purely for entertainment.
 
-## Use in ChatGPT
+## Versioned release packages
 
-Download one skill archive:
+Every marketplace skill is built from `skills/<name>/` into three versioned
+assets on the [latest GitHub Release](https://github.com/mrcha033/skills/releases/latest):
 
-- [Quant Stock Technical](downloads/quant-stock-technical.zip)
-- [Stock Scenario Story](downloads/stock-scenario-story.zip)
-- [Advisor Review](downloads/advisor-review.zip)
+| Asset | Intended use | Guaranteed layout |
+| --- | --- | --- |
+| `<name>-<version>.zip` | ChatGPT or Claude skill upload | One top-level `<name>/` directory containing `SKILL.md` and the complete skill |
+| `<name>-<version>.skill` | Claude skill upload where the `.skill` extension is accepted | Byte-identical to the standalone ZIP |
+| `<name>-plugin-<version>.zip` | Codex custom plugin or Claude Code plugin | Both plugin manifests at archive root plus `skills/<name>/` |
 
-In an eligible ChatGPT workspace, open **Plugins → Skills → Create → Upload from your computer**, then upload the archive. GitHub repository URLs are not ChatGPT installation links.
+The layouts follow the current
+[OpenAI Agent Skills upload guidance](https://help.openai.com/en/articles/20001066),
+[OpenAI plugin package specification](https://developers.openai.com/plugins/build/plugins),
+and [Claude custom skill guidance](https://support.claude.com/en/articles/12512198-how-to-create-custom-skills).
 
-`advisor-review` requires shell access to an authenticated local Codex CLI with GPT-5.6 Sol access. It needs no MCP server, separate API key, or native subagent primitive.
+`release-manifest.json` records the runtime status, requirements, size, and
+SHA-256 of every asset. `SHA256SUMS` provides an independently checkable digest
+list. The old unversioned files under `downloads/` remain only as historical
+backward-compatible snapshots; CI releases are the distribution source of
+truth.
+
+The compatibility guarantee is deliberately limited to package layout and byte
+integrity. It does not invent a tool or login that the target runtime lacks.
+For example, `advisor-review` needs a local authenticated Codex CLI,
+`katok-reply-reuse` needs the authorized macOS KakaoTalk archive, and
+`learnus-course-copilot` needs the user's authenticated local browser session.
+Those three packages can be structurally inspected by a web uploader but cannot
+complete their workflows in a web-only sandbox. See
+[`release/catalog.json`](release/catalog.json) for every skill's declared
+Codex, Claude Code, ChatGPT web, and Claude web status.
+
+### Use in ChatGPT
+
+Open the latest release, download the desired
+`<name>-<version>.zip`, then use **Plugins → Skills → Create → Upload from your
+computer** in an eligible ChatGPT workspace. A GitHub repository URL is not a
+ChatGPT installation link.
+
+### Upload to Claude
+
+Download either `<name>-<version>.skill` or the byte-identical ZIP according to
+the Claude upload surface you are using. Claude Code users should normally use
+the marketplace commands above; the plugin ZIP is the portable dual-manifest
+source bundle.
 
 ## Install as standalone Codex skills
 
@@ -135,6 +169,29 @@ Start a new Codex task after copying. Invoke `$advisor-review` explicitly when y
 ## Standalone Claude Code skills
 
 The core skill folders also follow the Agent Skills layout. Copy a desired folder into `~/.claude/skills/` or a project's `.claude/skills/` directory when you do not want marketplace installation.
+
+## Publish an update
+
+The checked-in skill under `skills/<name>/` is the canonical source. A release
+update changes that source and only one version file:
+
+1. Edit `skills/<name>/`, then bump that skill's `version` and the top-level
+   `distributionVersion` in `release/catalog.json`.
+2. Run
+   `python3 -B scripts/sync_distribution.py --write --skill <name>`.
+   This refreshes the self-contained plugin copy and derives both plugin
+   manifest versions plus the Claude marketplace version from the catalog.
+3. Run `python3 -B tests/test_release_packaging.py`, or let pull-request CI
+   build and retain a fourteen-day preview containing every format.
+4. After the change reaches `main`, create and push the exact tag
+   `skills-v<distributionVersion>`. The release workflow rejects a mismatched
+   tag, rebuilds all assets deterministically, and publishes one immutable
+   GitHub Release.
+
+Users installed through the Codex or Claude Code marketplace can refresh the
+marketplace and update normally. ChatGPT and Claude web uploads remain copied
+artifacts, so those users must upload the newly versioned file; the platform
+does not currently turn a local upload into a repository subscription.
 
 ## Input
 
@@ -181,7 +238,9 @@ python3 -B tests/test_advisor_review.py
 python3 -B tests/test_universe_builder.py
 python3 -B tests/test_screen_universe.py
 python3 -B tests/test_quant_execution.py
+python3 -B scripts/sync_distribution.py --check
 python3 -B tests/test_marketplace_packaging.py
+python3 -B tests/test_release_packaging.py
 claude plugin validate . --strict
 ```
 

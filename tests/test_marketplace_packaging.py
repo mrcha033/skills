@@ -4,12 +4,12 @@
 from __future__ import annotations
 
 import json
-import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGINS = ROOT / "plugins"
 SOURCE_SKILLS = ROOT / "skills"
+CATALOG = ROOT / "release" / "catalog.json"
 EXPECTED_PLUGINS = {
     "agent-finish-line",
     "advisor-review",
@@ -19,22 +19,6 @@ EXPECTED_PLUGINS = {
     "stock-scenario-story",
     "yonsei-central-student-governance-counsel",
 }
-EXPECTED_VERSIONS = {
-    "agent-finish-line": "0.1.0",
-    "advisor-review": "0.2.0",
-    "katok-reply-reuse": "0.1.0",
-    "learnus-course-copilot": "0.1.0",
-    "quant-stock-technical": "0.2.0",
-    "stock-scenario-story": "0.1.0",
-    "yonsei-central-student-governance-counsel": "0.3.0",
-}
-DOWNLOAD_ARCHIVES = {
-    "advisor-review",
-    "quant-stock-technical",
-    "stock-scenario-story",
-}
-
-
 def load_json(path: Path) -> dict:
     value = json.loads(path.read_text(encoding="utf-8"))
     assert isinstance(value, dict), f"{path} must contain a JSON object"
@@ -50,6 +34,21 @@ def relative_files(root: Path) -> set[Path]:
 
 
 def main() -> None:
+    catalog = load_json(CATALOG)
+    release_entries = {entry["name"]: entry for entry in catalog["skills"]}
+    excluded_entries = {
+        entry["name"]: entry for entry in catalog["excludedSkills"]
+    }
+    assert catalog["schemaVersion"] == 1
+    assert set(release_entries) == EXPECTED_PLUGINS
+    assert set(excluded_entries) == {"quant-stock-polling-trader"}
+    assert {
+        path.name for path in SOURCE_SKILLS.iterdir() if path.is_dir()
+    } == EXPECTED_PLUGINS | set(excluded_entries)
+    expected_versions = {
+        name: entry["version"] for name, entry in release_entries.items()
+    }
+
     codex_market = load_json(ROOT / ".agents/plugins/marketplace.json")
     claude_market = load_json(ROOT / ".claude-plugin/marketplace.json")
     assert codex_market["name"] == claude_market["name"] == "mrcha-skills"
@@ -81,9 +80,9 @@ def main() -> None:
         assert (
             codex_plugin["version"]
             == claude_plugin["version"]
-            == EXPECTED_VERSIONS[plugin_name]
+            == expected_versions[plugin_name]
         )
-        assert claude_entries[plugin_name]["version"] == EXPECTED_VERSIONS[plugin_name]
+        assert claude_entries[plugin_name]["version"] == expected_versions[plugin_name]
         assert codex_plugin["skills"] == claude_plugin["skills"] == "./skills/"
 
         source = SOURCE_SKILLS / plugin_name
@@ -102,24 +101,7 @@ def main() -> None:
                 packaged / relative
             ).read_bytes(), f"{plugin_name}/{relative} content drift"
 
-        if plugin_name not in DOWNLOAD_ARCHIVES:
-            continue
-        archive_path = ROOT / "downloads" / f"{plugin_name}.zip"
-        assert archive_path.is_file(), f"missing download archive: {archive_path}"
-        with zipfile.ZipFile(archive_path) as archive:
-            archive_files = {
-                Path(name).relative_to(plugin_name)
-                for name in archive.namelist()
-                if not name.endswith("/")
-            }
-            assert archive_files == source_files, f"{plugin_name} ZIP inventory drift"
-            for relative in source_files:
-                assert (
-                    archive.read(f"{plugin_name}/{relative.as_posix()}")
-                    == (source / relative).read_bytes()
-                ), f"{plugin_name}/{relative} ZIP content drift"
-
-    print("seven-plugin dual marketplace packaging: PASS")
+    print("catalog-backed seven-plugin marketplace packaging: PASS")
 
 
 if __name__ == "__main__":
