@@ -113,7 +113,7 @@
       "displayName": "Quant Stock Polling Trader",
       "source": "./plugins/quant-stock-polling-trader",
       "description": "Validate frozen screens, configure local KIS credentials, and supervise fail-closed broker polling sessions with systemd.",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "author": {
         "name": "mrcha033"
       },

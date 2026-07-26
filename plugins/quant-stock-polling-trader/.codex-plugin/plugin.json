@@ -1,6 +1,6 @@
 {
   "name": "quant-stock-polling-trader",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Validate and supervise fail-closed KIS/Toss stock polling sessions.",
   "author": {
     "name": "mrcha033",

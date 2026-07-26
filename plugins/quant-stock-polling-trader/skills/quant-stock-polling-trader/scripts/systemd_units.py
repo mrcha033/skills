@@ -296,12 +296,26 @@ def systemd_quote(value: str) -> str:
     return f'"{escaped}"'
 
 
+def systemd_path(value: str) -> str:
+    """Escape one absolute path for directives that do not accept quoting."""
+    escaped: list[str] = []
+    for octet in value.encode("utf-8"):
+        character = chr(octet)
+        if character == "%":
+            escaped.append("%%")
+        elif 0x21 <= octet <= 0x7E and character not in {'"', "'", "\\"}:
+            escaped.append(character)
+        else:
+            escaped.append(f"\\x{octet:02x}")
+    return "".join(escaped)
+
+
 def service_text(bundle: dict[str, Any], job: dict[str, Any], bundle_path: Path) -> str:
     root = Path(bundle["runtime_directory"])
     conditions = []
     for field in ("input_path", "plan_path", "arm_path", "venue_map"):
         if job[field]:
-            conditions.append(f"ConditionPathExists={job[field]}")
+            conditions.append(f"ConditionPathExists={systemd_path(job[field])}")
     command = " ".join(
         systemd_quote(item)
         for item in (
@@ -324,8 +338,8 @@ def service_text(bundle: dict[str, Any], job: dict[str, Any], bundle_path: Path)
         + ("\n".join(conditions) + "\n" if conditions else "")
         + "\n[Service]\n"
         "Type=oneshot\n"
-        f"WorkingDirectory={systemd_quote(str(root))}\n"
-        f"EnvironmentFile={systemd_quote(bundle['environment_file'])}\n"
+        f"WorkingDirectory={systemd_path(str(root))}\n"
+        f"EnvironmentFile={systemd_path(bundle['environment_file'])}\n"
         'Environment="PYTHONDONTWRITEBYTECODE=1"\n'
         f"ExecStart={command}\n"
         f"TimeoutStartSec={job['timeout_start_seconds']}s\n"
@@ -342,10 +356,10 @@ def service_text(bundle: dict[str, Any], job: dict[str, Any], bundle_path: Path)
         "LockPersonality=yes\n"
         "MemoryDenyWriteExecute=yes\n"
         "RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6\n"
-        f"ReadWritePaths={systemd_quote(str(root))}\n"
-        f"ReadOnlyPaths={systemd_quote(bundle['technical_skill_root'])} "
-        f"{systemd_quote(bundle['trader_skill_root'])} "
-        f"{systemd_quote(bundle['environment_file'])}\n"
+        f"ReadWritePaths={systemd_path(str(root))}\n"
+        f"ReadOnlyPaths={systemd_path(bundle['technical_skill_root'])} "
+        f"{systemd_path(bundle['trader_skill_root'])} "
+        f"{systemd_path(bundle['environment_file'])}\n"
     )
 
 
@@ -552,6 +566,11 @@ def self_test() -> None:
         timer = (output / "qta-entry-us.timer").read_text()
         if "ProtectSystem=strict" not in service or "live" in service:
             raise AssertionError("systemd self-test hardening failed")
+        if (
+            f"WorkingDirectory={systemd_path(str(runtime))}\n" not in service
+            or f"EnvironmentFile={systemd_path(str(environment))}\n" not in service
+        ):
+            raise AssertionError("systemd self-test path rendering failed")
         if "09:29:00 America/New_York" not in timer or "Persistent=no" not in timer:
             raise AssertionError("systemd self-test timer failed")
         print(

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "distributionVersion": "1.4.0",
+  "distributionVersion": "1.4.1",
   "releaseTagPrefix": "skills-v",
   "guaranteeScope": "Package compatibility guarantees archive layout, manifest placement, and byte integrity. Runtime compatibility remains conditional on each skill's declared tools, authentication, network, and data requirements.",
   "formats": {
@@ -98,7 +98,7 @@
     },
     {
       "name": "quant-stock-polling-trader",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "runtime": {
         "codex": "supported",
         "claudeCode": "supported",

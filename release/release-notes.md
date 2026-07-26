@@ -15,6 +15,9 @@ This release contains the versioned distribution packages declared in
   adjusted-EOD acquisition and updates `quant-stock-polling-trader` to 0.2.0
   with hardened, inactive systemd user-unit generation for KR/US EOD and entry
   jobs.
+- Distribution 1.4.1 updates `quant-stock-polling-trader` to 0.2.1 so generated
+  systemd path directives use unquoted C-escaped absolute paths accepted by
+  `systemd-analyze`, including paths with whitespace or percent specifiers.
 - `<name>-<version>.zip`: standalone Agent Skill upload for ChatGPT or Claude.
 - `<name>-<version>.skill`: byte-identical standalone archive with the Claude
   skill extension.

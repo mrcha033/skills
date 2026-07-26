@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "quant-stock-polling-trader",
   "displayName": "Quant Stock Polling Trader",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Validate and supervise fail-closed KIS/Toss stock polling sessions with hardened systemd units.",
   "author": {
     "name": "mrcha033",
