@@ -56,7 +56,9 @@ Replace `advisor-review` with either stock plugin name, or install multiple indi
 
 ### Quant Stock Technical
 
-`quant-stock-technical` calculates reproducible technical opinions, risk, entry, stop, target, and a historical technical-strength score from completed daily adjusted OHLCV data. It excludes news, fundamentals, sentiment, analyst opinion, and discretionary model judgment.
+`quant-stock-technical` calculates reproducible technical opinions, risk, entry, stop, target, and a historical technical-strength score from completed daily adjusted OHLCV data. It can also freeze a deterministic KR/US target-universe screen without changing `qta-1.0.0`. It excludes news, fundamentals, sentiment, analyst opinion, discretionary model judgment, and broker mutations.
+
+`quant-stock-polling-trader` is currently a development-only local skill. It consumes the frozen screen, plans whole-share orders, and implements fail-closed Toss/KIS polling, ledger, and reconciliation contracts. It is intentionally not yet a marketplace plugin or download.
 
 ### Stock Scenario Story
 
@@ -105,6 +107,12 @@ Also provide the market, ticker, and valid market tick size. The skill requires 
 
 ```bash
 python3 -B skills/quant-stock-technical/scripts/analyze_stock.py --self-test
+python3 -B skills/quant-stock-technical/scripts/screen_universe.py --self-test
+python3 -B skills/quant-stock-polling-trader/scripts/execution_core.py --self-test
+python3 -B skills/quant-stock-polling-trader/scripts/broker_adapters.py --self-test
+python3 -B skills/quant-stock-polling-trader/scripts/plan_orders.py --self-test
+python3 -B skills/quant-stock-polling-trader/scripts/run_session.py self-test
+python3 -B skills/quant-stock-polling-trader/scripts/reconcile.py --self-test
 python3 -B skills/stock-scenario-story/scripts/validate_quant_handoff.py --self-test
 python3 -B skills/stock-scenario-story/scripts/validate_story_text.py --self-test
 python3 -B skills/advisor-review/scripts/build_context_packet.py --self-test

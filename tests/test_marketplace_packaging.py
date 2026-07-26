@@ -4,8 +4,8 @@
 from __future__ import annotations
 
 import json
+import zipfile
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGINS = ROOT / "plugins"
@@ -82,6 +82,19 @@ def main() -> None:
             assert (source / relative).read_bytes() == (packaged / relative).read_bytes(), (
                 f"{plugin_name}/{relative} content drift"
             )
+        archive_path = ROOT / "downloads" / f"{plugin_name}.zip"
+        assert archive_path.is_file(), f"missing download archive: {archive_path}"
+        with zipfile.ZipFile(archive_path) as archive:
+            archive_files = {
+                Path(name).relative_to(plugin_name)
+                for name in archive.namelist()
+                if not name.endswith("/")
+            }
+            assert archive_files == source_files, f"{plugin_name} ZIP inventory drift"
+            for relative in source_files:
+                assert archive.read(f"{plugin_name}/{relative.as_posix()}") == (
+                    source / relative
+                ).read_bytes(), f"{plugin_name}/{relative} ZIP content drift"
 
     print("three-plugin dual marketplace packaging: PASS")
 
