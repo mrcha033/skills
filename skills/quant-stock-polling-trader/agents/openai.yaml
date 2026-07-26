@@ -1,0 +1,4 @@
+interface:
+  display_name: "Quant Stock Polling Trader"
+  short_description: "Deterministic KR/US broker polling and execution"
+  default_prompt: "Use $quant-stock-polling-trader to prepare and validate a deterministic KR/US first-hour broker execution session."

@@ -84,7 +84,19 @@ The General Student Council corpus is sourced from the public Drive linked by th
 
 ### Quant Stock Technical
 
-`quant-stock-technical` calculates reproducible technical opinions, risk, entry, stop, target, and a historical technical-strength score from completed daily adjusted OHLCV data. It excludes news, fundamentals, sentiment, analyst opinion, and discretionary model judgment.
+`quant-stock-technical` calculates reproducible technical opinions, risk, entry, stop, target, and a historical technical-strength score from completed daily adjusted OHLCV data. It can also build and screen a deterministic, source-hashed intersection of KOSPI, KOSDAQ, NYSE, and NASDAQ listings without changing `qta-1.0.0`. It excludes news, fundamentals, sentiment, analyst opinion, discretionary model judgment, and broker mutations.
+
+`quant-stock-polling-trader` is currently a development-only local skill. It consumes the frozen exchange-aware screen, routes broker symbols and venues, plans whole-share orders, and implements fail-closed Toss/KIS polling, ledger, and reconciliation contracts. It is intentionally not yet a marketplace plugin or download.
+Its first-hour runner precomputes the slow path before the open, warms
+authentication 30 seconds early, admits only broker-rate-feasible candidate
+counts, polls on absolute rank-ordered cycles, and records cycle/quote/submit
+latency. Live mutation remains disabled.
+The four-exchange v2 universe is currently qualified from KIS stock masters, so
+v2 planning is KIS-only; Toss remains available only through the legacy
+contract until a Toss-qualified universe snapshot is implemented and verified.
+V2 planning also requires a local SHA-256-bound market-session snapshot,
+the latest completed session date, and fresh same-instant account/exposure
+snapshots.
 
 ### Stock Scenario Story
 
@@ -109,6 +121,7 @@ If marketplace installation is unavailable, clone the repository and copy only t
 ```bash
 git clone https://github.com/mrcha033/skills.git mrcha-skills
 cp -R mrcha-skills/skills/quant-stock-technical ~/.codex/skills/
+cp -R mrcha-skills/skills/quant-stock-polling-trader ~/.codex/skills/
 cp -R mrcha-skills/skills/stock-scenario-story ~/.codex/skills/
 cp -R mrcha-skills/skills/advisor-review ~/.codex/skills/
 cp -R mrcha-skills/skills/agent-finish-line ~/.codex/skills/
@@ -125,18 +138,33 @@ The core skill folders also follow the Agent Skills layout. Copy a desired folde
 
 ## Input
 
-The deterministic skill requires finalized ticker and same-market benchmark CSV files with:
+The deterministic calculator requires finalized ticker and same-exchange
+benchmark CSV files with:
 
 ```text
 date,open,high,low,close,adjusted_close,volume
 ```
 
-Also provide the market, ticker, and valid market tick size. The skill requires at least 756 shared completed sessions and recommends 1,260.
+Also provide the market, ticker, and valid effective tick size. The calculator
+requires at least 756 shared completed sessions and recommends 1,260.
+
+The four-exchange builder additionally requires dated official listing and
+broker-master snapshots, explicit adjusted-EOD file mappings, benchmark
+mappings, effective-dated tick contracts, and a hashed per-exchange catalog
+coverage minimum. Missing data is recorded as an exclusion; it is never
+fetched or guessed during the entry window.
 
 ## Validation
 
 ```bash
 python3 -B skills/quant-stock-technical/scripts/analyze_stock.py --self-test
+python3 -B skills/quant-stock-technical/scripts/build_universe_manifest.py --self-test
+python3 -B skills/quant-stock-technical/scripts/screen_universe.py --self-test
+python3 -B skills/quant-stock-polling-trader/scripts/execution_core.py --self-test
+python3 -B skills/quant-stock-polling-trader/scripts/broker_adapters.py --self-test
+python3 -B skills/quant-stock-polling-trader/scripts/plan_orders.py --self-test
+python3 -B skills/quant-stock-polling-trader/scripts/run_session.py self-test
+python3 -B skills/quant-stock-polling-trader/scripts/reconcile.py --self-test
 python3 -B skills/stock-scenario-story/scripts/validate_quant_handoff.py --self-test
 python3 -B skills/stock-scenario-story/scripts/validate_story_text.py --self-test
 python3 -B skills/advisor-review/scripts/build_context_packet.py --self-test
@@ -150,6 +178,9 @@ python3 -B skills/katok-reply-reuse/scripts/rank_replies.py --self-test
 python3 -B skills/yonsei-central-student-governance-counsel/scripts/self_test.py
 python3 -B tests/test_handoff_integration.py
 python3 -B tests/test_advisor_review.py
+python3 -B tests/test_universe_builder.py
+python3 -B tests/test_screen_universe.py
+python3 -B tests/test_quant_execution.py
 python3 -B tests/test_marketplace_packaging.py
 claude plugin validate . --strict
 ```

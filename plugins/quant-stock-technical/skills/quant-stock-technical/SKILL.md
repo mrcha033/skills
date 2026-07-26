@@ -1,6 +1,6 @@
 ---
 name: quant-stock-technical
-description: Calculate reproducible, numbers-only stock technical analysis from completed daily adjusted OHLCV and benchmark data. Use when the user wants an as-of-date market/ticker report with deterministic short-, medium-, and long-horizon opinions, a one-line quantitative risk counterpoint, entry/stop/take-profit levels, or a 0-100 technical-strength score. Do not use news, fundamentals, analyst views, narrative judgment, intraday execution, or live-order claims.
+description: Calculate reproducible, numbers-only stock technical analysis and deterministic KOSPI, KOSDAQ, NYSE, and NASDAQ target-universe screening from completed daily adjusted OHLCV and benchmark data. Use when the user wants an as-of-date market/ticker report, short-, medium-, and long-horizon opinions, a quantitative risk counterpoint, entry/stop/take-profit levels, a 0-100 technical-strength score, or a frozen four-exchange screening artifact for a separate execution system. Do not use news, fundamentals, analyst views, narrative judgment, intraday execution, or live-order claims.
 ---
 
 # Quant Stock Technical
@@ -41,6 +41,22 @@ python3 scripts/analyze_stock.py \
 
 Use `--format json` for machine-readable output. Run `python3 scripts/analyze_stock.py --self-test` after modifying the calculator.
 
+For a four-exchange target universe, first read
+`references/universe-contract.md`, build `qta-universe-manifest/v2` with
+`scripts/build_universe_manifest.py`, then read `references/screen-contract.md`
+and run `scripts/screen_universe.py`. Use `qta-universe-manifest/v1` only for
+legacy, explicitly curated KR/US inputs. The selector is a separate
+cross-sectional strategy assumption; it does not change `qta-1.0.0` or turn
+its score into a probability. Pass the complete frozen screen artifact to
+`$quant-stock-polling-trader`; never submit orders from this skill.
+
+After changing universe or screening code, run:
+
+```bash
+python3 scripts/build_universe_manifest.py --self-test
+python3 scripts/screen_universe.py --self-test
+```
+
 When `$stock-scenario-story` will run next, save the unmodified JSON output to a file. That downstream skill requires `source_skill`, `result_schema`, `method_version`, and the complete calculator payload; do not summarize or reconstruct the handoff manually.
 
 ## Output boundaries
@@ -49,3 +65,4 @@ When `$stock-scenario-story` will run next, save the unmodified JSON output to a
 - Treat entry, stop, and take-profit as calculated price levels, not execution or suitability advice.
 - Keep brokerage fees, tax, FX, slippage, position sizing, account constraints, and order semantics outside this technical score unless a later version explicitly models them.
 - Do not claim real-time monitoring. This version consumes completed end-of-day data.
+- Keep API credentials, account identifiers, intraday quotes, and broker mutations outside this skill.

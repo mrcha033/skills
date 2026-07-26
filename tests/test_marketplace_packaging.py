@@ -4,8 +4,8 @@
 from __future__ import annotations
 
 import json
+import zipfile
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGINS = ROOT / "plugins"
@@ -24,9 +24,14 @@ EXPECTED_VERSIONS = {
     "advisor-review": "0.2.0",
     "katok-reply-reuse": "0.1.0",
     "learnus-course-copilot": "0.1.0",
-    "quant-stock-technical": "0.1.0",
+    "quant-stock-technical": "0.2.0",
     "stock-scenario-story": "0.1.0",
     "yonsei-central-student-governance-counsel": "0.3.0",
+}
+DOWNLOAD_ARCHIVES = {
+    "advisor-review",
+    "quant-stock-technical",
+    "stock-scenario-story",
 }
 
 
@@ -54,7 +59,9 @@ def main() -> None:
     assert set(codex_entries) == EXPECTED_PLUGINS
     assert set(claude_entries) == EXPECTED_PLUGINS
     assert len(codex_market["plugins"]) == len(claude_market["plugins"]) == 7
-    assert not (PLUGINS / "mrcha-skills").exists(), "aggregate plugin must not remain installable"
+    assert not (PLUGINS / "mrcha-skills").exists(), (
+        "aggregate plugin must not remain installable"
+    )
     assert not (SOURCE_SKILLS / "yonsei-club-argument-counsel").exists()
     assert not (PLUGINS / "yonsei-club-argument-counsel").exists()
 
@@ -62,7 +69,9 @@ def main() -> None:
         plugin = PLUGINS / plugin_name
         codex_plugin = load_json(plugin / ".codex-plugin/plugin.json")
         claude_plugin = load_json(plugin / ".claude-plugin/plugin.json")
-        assert codex_entries[plugin_name]["source"]["path"] == f"./plugins/{plugin_name}"
+        assert (
+            codex_entries[plugin_name]["source"]["path"] == f"./plugins/{plugin_name}"
+        )
         assert claude_entries[plugin_name]["source"] == f"./plugins/{plugin_name}"
         assert codex_entries[plugin_name]["policy"] == {
             "installation": "AVAILABLE",
@@ -89,9 +98,26 @@ def main() -> None:
         packaged_files = relative_files(packaged)
         assert source_files == packaged_files, f"{plugin_name} file inventory drift"
         for relative in source_files:
-            assert (source / relative).read_bytes() == (packaged / relative).read_bytes(), (
-                f"{plugin_name}/{relative} content drift"
-            )
+            assert (source / relative).read_bytes() == (
+                packaged / relative
+            ).read_bytes(), f"{plugin_name}/{relative} content drift"
+
+        if plugin_name not in DOWNLOAD_ARCHIVES:
+            continue
+        archive_path = ROOT / "downloads" / f"{plugin_name}.zip"
+        assert archive_path.is_file(), f"missing download archive: {archive_path}"
+        with zipfile.ZipFile(archive_path) as archive:
+            archive_files = {
+                Path(name).relative_to(plugin_name)
+                for name in archive.namelist()
+                if not name.endswith("/")
+            }
+            assert archive_files == source_files, f"{plugin_name} ZIP inventory drift"
+            for relative in source_files:
+                assert (
+                    archive.read(f"{plugin_name}/{relative.as_posix()}")
+                    == (source / relative).read_bytes()
+                ), f"{plugin_name}/{relative} ZIP content drift"
 
     print("seven-plugin dual marketplace packaging: PASS")
 

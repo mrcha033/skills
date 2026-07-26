@@ -26,6 +26,10 @@ jobs:
           PY
       - name: Run deterministic calculator self-test
         run: python -B skills/quant-stock-technical/scripts/analyze_stock.py --self-test
+      - name: Run four-exchange universe builder self-test
+        run: python -B skills/quant-stock-technical/scripts/build_universe_manifest.py --self-test
+      - name: Run deterministic universe screen self-test
+        run: python -B skills/quant-stock-technical/scripts/screen_universe.py --self-test
       - name: Run mandatory handoff-gate self-test
         run: python -B skills/stock-scenario-story/scripts/validate_quant_handoff.py --self-test
       - name: Run numbers-free story gate self-test
@@ -52,5 +56,11 @@ jobs:
         run: python -B tests/test_handoff_integration.py
       - name: Run advisor integration test
         run: python -B tests/test_advisor_review.py
+      - name: Run universe builder regression
+        run: python -B tests/test_universe_builder.py
+      - name: Run four-exchange screen contract regression
+        run: python -B tests/test_screen_universe.py
+      - name: Run screening and execution regression
+        run: python -B tests/test_quant_execution.py
       - name: Validate marketplace packaging
         run: python -B tests/test_marketplace_packaging.py
