@@ -170,6 +170,13 @@ def main() -> None:
     arm64_cmake = (
         TOOL / "experiments" / "windows-arm64" / "CMakeLists.txt"
     ).read_text(encoding="utf-8")
+    arm64_ci = (
+        TOOL
+        / "experiments"
+        / "windows-arm64"
+        / "ci"
+        / "build-and-test.ps1"
+    ).read_text(encoding="utf-8")
     assert "CRYPTOPP_VERSION=8.9.0" in x64_build
     assert "-static-libgcc -static-libstdc++" in x64_build
     assert "CRYPTOPP_VERSION=8_9_0" in arm64_versions
@@ -182,6 +189,9 @@ def main() -> None:
     ]
     assert "find_package(cryptopp 8.9.0 EXACT CONFIG REQUIRED)" in arm64_cmake
     assert '"${CRYPTOPP_INCLUDE_ROOT}/cryptopp"' in arm64_cmake
+    assert arm64_ci.count(
+        "for ($attempt = 1; $attempt -le 3; $attempt++)"
+    ) == 2
     assert "LLVM_MINGW_VERSION=20260616" in arm64_versions
     assert "-shared -static" in arm64_build
 

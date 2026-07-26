@@ -58,8 +58,25 @@ if ($MsiProcess.ExitCode -ne 0) {
 }
 
 if (-not (Test-Path $VcpkgRoot)) {
-    & git clone --filter=blob:none https://github.com/microsoft/vcpkg.git $VcpkgRoot
-    if ($LASTEXITCODE -ne 0) {
+    $cloned = $false
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        & git clone `
+            --filter=blob:none `
+            https://github.com/microsoft/vcpkg.git `
+            $VcpkgRoot
+        if ($LASTEXITCODE -eq 0) {
+            $cloned = $true
+            break
+        }
+        if (Test-Path -LiteralPath $VcpkgRoot) {
+            Remove-Item -LiteralPath $VcpkgRoot -Recurse -Force
+        }
+        if ($attempt -lt 3) {
+            Write-Warning "vcpkg clone attempt $attempt failed; retrying"
+            Start-Sleep -Seconds (5 * $attempt)
+        }
+    }
+    if (-not $cloned) {
         throw 'vcpkg clone failed'
     }
 }
@@ -73,14 +90,25 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $CmakeBuild = Join-Path $BuildRoot 'cmake'
-& cmake `
-    -S $ExperimentRoot `
-    -B $CmakeBuild `
-    -A ARM64 `
-    "-DCMAKE_TOOLCHAIN_FILE=$(Join-Path $VcpkgRoot 'scripts\buildsystems\vcpkg.cmake')" `
-    '-DVCPKG_TARGET_TRIPLET=arm64-windows-secuway' `
-    "-DVCPKG_OVERLAY_TRIPLETS=$(Join-Path $ExperimentRoot 'triplets')"
-if ($LASTEXITCODE -ne 0) {
+$configured = $false
+for ($attempt = 1; $attempt -le 3; $attempt++) {
+    & cmake `
+        -S $ExperimentRoot `
+        -B $CmakeBuild `
+        -A ARM64 `
+        "-DCMAKE_TOOLCHAIN_FILE=$(Join-Path $VcpkgRoot 'scripts\buildsystems\vcpkg.cmake')" `
+        '-DVCPKG_TARGET_TRIPLET=arm64-windows-secuway' `
+        "-DVCPKG_OVERLAY_TRIPLETS=$(Join-Path $ExperimentRoot 'triplets')"
+    if ($LASTEXITCODE -eq 0) {
+        $configured = $true
+        break
+    }
+    if ($attempt -lt 3) {
+        Write-Warning "CMake/vcpkg configure attempt $attempt failed; retrying"
+        Start-Sleep -Seconds (5 * $attempt)
+    }
+}
+if (-not $configured) {
     throw 'CMake configure failed'
 }
 & cmake --build $CmakeBuild --config Release --parallel
