@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agent Finish Line"
+  short_description: "Force agent work toward a bounded shipped outcome"
+  default_prompt: "Use $agent-finish-line to finish this task without expanding its scope."

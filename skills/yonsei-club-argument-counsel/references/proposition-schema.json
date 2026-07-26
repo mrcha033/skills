@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Argument proposition",
+  "type": "object",
+  "required": ["proposition_id", "text", "proposition_type", "supports_conclusion", "supporting_source_ids", "adverse_source_ids", "counter_search"],
+  "properties": {
+    "proposition_id": {"type": "string", "pattern": "^p_[0-9]{3,}$"},
+    "text": {"type": "string"},
+    "proposition_type": {"enum": ["direct_rule", "interpretation", "fact", "precedent", "policy", "external_law"]},
+    "supports_conclusion": {"type": "boolean"},
+    "supporting_source_ids": {"type": "array", "items": {"type": "string"}},
+    "adverse_source_ids": {"type": "array", "items": {"type": "string"}},
+    "inference": {"type": "string"},
+    "applicability": {"type": "string"},
+    "counter_search": {"type": "string"},
+    "counter_refuted": {"type": "boolean"},
+    "conflicting": {"type": "boolean"},
+    "disputed": {"type": "boolean"},
+    "similarity_basis": {"type": "string"}
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "learnus-course-copilot",
+  "version": "0.1.0",
+  "description": "Turn authorized, authenticated LearnUs course pages into materials, deadlines, and study actions.",
+  "author": {
+    "name": "mrcha033",
+    "url": "https://github.com/mrcha033"
+  },
+  "homepage": "https://github.com/mrcha033/skills",
+  "repository": "https://github.com/mrcha033/skills",
+  "keywords": ["learnus", "yonsei", "lms", "course"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "LearnUs Course Copilot",
+    "shortDescription": "Turn authenticated LearnUs pages into study actions",
+    "longDescription": "Use an existing browser login to inspect authorized LearnUs course pages, structure materials and deadlines, and retrieve only requested resources.",
+    "developerName": "mrcha033",
+    "category": "Education",
+    "capabilities": ["Course snapshot analysis", "Material discovery", "Deadline extraction"],
+    "websiteURL": "https://github.com/mrcha033/skills",
+    "defaultPrompt": [
+      "Collect the materials and deadlines from this LearnUs course.",
+      "Structure this authorized LearnUs page into study actions."
+    ]
+  }
+}

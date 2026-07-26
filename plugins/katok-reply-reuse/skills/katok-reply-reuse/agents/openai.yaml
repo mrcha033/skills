@@ -1,0 +1,4 @@
+interface:
+  display_name: "Kakao Reply Reuse"
+  short_description: "Reuse your real past KakaoTalk replies with provenance"
+  default_prompt: "Use $katok-reply-reuse to find how I answered a similar KakaoTalk message before."

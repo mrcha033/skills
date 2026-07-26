@@ -1,0 +1,26 @@
+{
+  "name": "agent-finish-line",
+  "version": "0.1.0",
+  "description": "Drive agent work to a bounded shipped outcome instead of endless implementation or experiments.",
+  "author": {
+    "name": "mrcha033",
+    "url": "https://github.com/mrcha033"
+  },
+  "homepage": "https://github.com/mrcha033/skills",
+  "repository": "https://github.com/mrcha033/skills",
+  "keywords": ["execution", "finish", "scope", "delivery"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Agent Finish Line",
+    "shortDescription": "Force agent work toward a bounded shipped outcome",
+    "longDescription": "Create a small finish contract, stop repeated unchanged attempts and optional scope expansion, and end with terminal evidence or one concrete blocker.",
+    "developerName": "mrcha033",
+    "category": "Productivity",
+    "capabilities": ["Execution contract", "Attempt limits", "Delivery evidence"],
+    "websiteURL": "https://github.com/mrcha033/skills",
+    "defaultPrompt": [
+      "Finish this implementation without expanding the scope.",
+      "Run the decisive experiment and stop at the declared threshold."
+    ]
+  }
+}

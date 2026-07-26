@@ -1,0 +1,26 @@
+{
+  "name": "katok-reply-reuse",
+  "version": "0.1.0",
+  "description": "Find and reuse the user's own past KakaoTalk replies instead of generating an AI-sounding rewrite.",
+  "author": {
+    "name": "mrcha033",
+    "url": "https://github.com/mrcha033"
+  },
+  "homepage": "https://github.com/mrcha033/skills",
+  "repository": "https://github.com/mrcha033/skills",
+  "keywords": ["kakaotalk", "reply", "retrieval", "tone"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Kakao Reply Reuse",
+    "shortDescription": "Reuse your real past KakaoTalk replies with provenance",
+    "longDescription": "Search an authorized macOS KakaoTalk archive, rank user-authored past replies, and return exact reuse or explicit placeholder substitution without automatic sending.",
+    "developerName": "mrcha033",
+    "category": "Productivity",
+    "capabilities": ["Reply retrieval", "Provenance", "Minimal substitution"],
+    "websiteURL": "https://github.com/mrcha033/skills",
+    "defaultPrompt": [
+      "Find how I answered a similar KakaoTalk message before.",
+      "Reuse my own past wording for this reply."
+    ]
+  }
+}
