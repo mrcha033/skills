@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "distributionVersion": "1.4.1",
+  "distributionVersion": "2.0.0",
   "releaseTagPrefix": "skills-v",
   "guaranteeScope": "Package compatibility guarantees archive layout, manifest placement, and byte integrity. Runtime compatibility remains conditional on each skill's declared tools, authentication, network, and data requirements.",
   "formats": {
@@ -115,24 +115,6 @@
         "systemd for generated Linux user units"
       ],
       "notes": "Credential and token checks are local and never persist access tokens. The generator emits but never activates hardened user units. Live mutation remains fail-closed until every declared execution gate passes."
-    },
-    {
-      "name": "secuway-vpn",
-      "version": "0.1.0",
-      "runtime": {
-        "codex": "conditional",
-        "claudeCode": "conditional",
-        "chatgptWeb": "unsupported",
-        "claudeWeb": "unsupported"
-      },
-      "requirements": [
-        "Windows amd64 or arm64 for bundled installation, or an existing compatible macOS/Linux runtime",
-        "64-bit PowerShell and one-time UAC approval on Windows",
-        "outbound access to the official OpenVPN download and the selected SecuwaySSL gateway",
-        "the gateway's required ID, password, and app OTP for first enrollment",
-        "permission to create a local VPN adapter and protected route"
-      ],
-      "notes": "The package bundles independently built Windows CLI and LEA provider assets but no proprietary Secuway binaries or credentials. Web-only runtimes cannot install a driver, invoke UAC, protect a local profile, or establish the tunnel."
     },
     {
       "name": "quant-stock-technical",

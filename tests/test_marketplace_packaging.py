@@ -17,7 +17,6 @@ EXPECTED_PLUGINS = {
     "learnus-course-copilot",
     "quant-stock-polling-trader",
     "quant-stock-technical",
-    "secuway-vpn",
     "stock-scenario-story",
     "yonsei-central-student-governance-counsel",
 }
@@ -61,7 +60,7 @@ def main() -> None:
     claude_entries = {entry["name"]: entry for entry in claude_market["plugins"]}
     assert set(codex_entries) == EXPECTED_PLUGINS
     assert set(claude_entries) == EXPECTED_PLUGINS
-    assert len(codex_market["plugins"]) == len(claude_market["plugins"]) == 9
+    assert len(codex_market["plugins"]) == len(claude_market["plugins"]) == 8
     assert not (PLUGINS / "mrcha-skills").exists(), (
         "aggregate plugin must not remain installable"
     )
@@ -105,7 +104,7 @@ def main() -> None:
                 packaged / relative
             ).read_bytes(), f"{plugin_name}/{relative} content drift"
 
-    print("catalog-backed nine-plugin marketplace packaging: PASS")
+    print("catalog-backed eight-plugin marketplace packaging: PASS")
 
 
 if __name__ == "__main__":

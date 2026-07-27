@@ -1,3 +1,0 @@
-LIBRARY lea
-EXPORTS
-    OSSL_provider_init
