@@ -8,7 +8,12 @@
   },
   "homepage": "https://github.com/mrcha033/skills",
   "repository": "https://github.com/mrcha033/skills",
-  "keywords": ["execution", "finish", "scope", "delivery"],
+  "keywords": [
+    "execution",
+    "finish",
+    "scope",
+    "delivery"
+  ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Agent Finish Line",
@@ -16,7 +21,11 @@
     "longDescription": "Create a small finish contract, stop repeated unchanged attempts and optional scope expansion, and end with terminal evidence or one concrete blocker.",
     "developerName": "mrcha033",
     "category": "Productivity",
-    "capabilities": ["Execution contract", "Attempt limits", "Delivery evidence"],
+    "capabilities": [
+      "Execution contract",
+      "Attempt limits",
+      "Delivery evidence"
+    ],
     "websiteURL": "https://github.com/mrcha033/skills",
     "defaultPrompt": [
       "Finish this implementation without expanding the scope.",

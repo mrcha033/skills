@@ -1,4 +1,4 @@
 interface:
   display_name: "Quant Stock Polling Trader"
   short_description: "KIS/Toss polling and systemd supervision"
-  default_prompt: "Use $quant-stock-polling-trader to securely guide KIS credential setup, verify token authentication, prepare a fail-closed KR/US polling session, generate hardened inactive systemd units, or run paper/shadow reconciliation."
+  default_prompt: "Use $quant-stock-polling-trader to securely guide KIS credential setup, verify token authentication, collect read-only KIS account and cross-broker exposure snapshots, prepare a fail-closed KR/US polling session, generate hardened inactive systemd units, or run paper/shadow reconciliation."

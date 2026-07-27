@@ -31,6 +31,15 @@ this policy always excludes it. A `qta-screen/v2` plan requires
 stock-master snapshots. Do not change this field to `toss`; build and validate
 a separate Toss-qualified universe contract first.
 
+For the user's explicitly requested effectively uncapped 2,000,000 KRW shadow
+allocation, use
+`references/fixtures/aggressive-2m-risk-policy.json`. Its numeric fields are
+set to the full operating capital and its concurrent-position cap is above any
+feasible screen size, so they do not impose a smaller portfolio limit.
+`round_trip_cost_bps: 30` remains part of the fill-cost calculation and
+`cash_buffer_bps: 0` reserves no extra cash. This does not authorize borrowed
+cash, margin, shorting, or live mutation.
+
 ## Account snapshot
 
 ```json

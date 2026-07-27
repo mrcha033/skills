@@ -4,9 +4,17 @@
   "displayName": "Kakao Reply Reuse",
   "version": "0.1.0",
   "description": "Find and reuse the user's own past KakaoTalk replies instead of generating an AI-sounding rewrite.",
-  "author": {"name": "mrcha033", "url": "https://github.com/mrcha033"},
+  "author": {
+    "name": "mrcha033",
+    "url": "https://github.com/mrcha033"
+  },
   "homepage": "https://github.com/mrcha033/skills",
   "repository": "https://github.com/mrcha033/skills",
-  "keywords": ["kakaotalk", "reply", "retrieval", "tone"],
+  "keywords": [
+    "kakaotalk",
+    "reply",
+    "retrieval",
+    "tone"
+  ],
   "skills": "./skills/"
 }

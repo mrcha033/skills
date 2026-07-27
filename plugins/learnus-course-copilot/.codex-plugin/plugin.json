@@ -8,7 +8,12 @@
   },
   "homepage": "https://github.com/mrcha033/skills",
   "repository": "https://github.com/mrcha033/skills",
-  "keywords": ["learnus", "yonsei", "lms", "course"],
+  "keywords": [
+    "learnus",
+    "yonsei",
+    "lms",
+    "course"
+  ],
   "skills": "./skills/",
   "interface": {
     "displayName": "LearnUs Course Copilot",
@@ -16,7 +21,11 @@
     "longDescription": "Use an existing browser login to inspect authorized LearnUs course pages, structure materials and deadlines, and retrieve only requested resources.",
     "developerName": "mrcha033",
     "category": "Education",
-    "capabilities": ["Course snapshot analysis", "Material discovery", "Deadline extraction"],
+    "capabilities": [
+      "Course snapshot analysis",
+      "Material discovery",
+      "Deadline extraction"
+    ],
     "websiteURL": "https://github.com/mrcha033/skills",
     "defaultPrompt": [
       "Collect the materials and deadlines from this LearnUs course.",

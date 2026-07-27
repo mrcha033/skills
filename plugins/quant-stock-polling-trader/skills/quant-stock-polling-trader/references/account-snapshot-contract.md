@@ -1,0 +1,105 @@
+# Account snapshot collector contract
+
+Use `scripts/account_snapshot.py` only for KIS live credentials in shadow mode.
+It sends read-only requests and emits one `qta-account-snapshot/v1`, one
+`qta-exposure-snapshot/v2`, and one hash receipt with
+`api_mutation_count: 0`.
+
+## Inputs
+
+The job is nonsecret JSON. Every path must be absolute:
+
+```json
+{
+  "schema": "qta-account-snapshot-job/v1",
+  "broker": "kis-live",
+  "mode": "shadow",
+  "market": "KR",
+  "account_alias": "kis-live-kr",
+  "universe_manifest": "/secure/runtime/universe-manifest.json",
+  "fx_to_krw": "1",
+  "manual_exposure_components": [
+    "/secure/runtime/exposure/toss.json",
+    "/secure/runtime/exposure/nh.json"
+  ],
+  "manual_component_max_age_seconds": 1800,
+  "output_account_path": "/secure/runtime/account-kr.json",
+  "output_exposure_path": "/secure/runtime/exposure-kr.json",
+  "output_receipt_path": "/secure/runtime/account-kr-receipt.json"
+}
+```
+
+Use the exact observed USD/KRW conversion value for a U.S. job. Never insert a
+placeholder or silently reuse an old rate. The collector validates the
+manifest hash and uses its `broker_symbol -> exchange` mapping. Anything held
+or working outside KOSPI, KOSDAQ, NYSE, and NASDAQ is `BLOCKED`; extend the
+exposure schema instead of assigning a false exchange.
+
+KIS credentials follow the resolution contract in `SKILL.md`. Account routing
+values and secrets are never written. Only the HMAC-derived account identity
+appears in outputs.
+
+## Toss and NH components
+
+Until an authenticated account API is available, create a component in the
+user's own terminal and fill it from a broker export or a freshly verified
+account view:
+
+```bash
+python3 scripts/account_snapshot.py manual-template \
+  --broker toss \
+  --source-as-of 2026-07-27T08:45:00+09:00 \
+  --output /secure/runtime/exposure/toss.json
+```
+
+Each component has exactly:
+
+```json
+{
+  "schema": "qta-exposure-component/v1",
+  "broker": "toss",
+  "source_kind": "verified-manual",
+  "source_as_of": "2026-07-27T08:45:00+09:00",
+  "positions": [
+    {
+      "market": "US",
+      "exchange": "NASDAQ",
+      "symbol": "AAPL",
+      "quantity": "0.182408",
+      "market_value_krw": "89096"
+    }
+  ]
+}
+```
+
+`quantity` may be `null` only when the source genuinely omits it. Include
+fractional holdings. The collector rejects future-dated components, components
+older than the job's explicit maximum age, unsupported exchanges, duplicate
+output paths, and malformed decimals. It does not scrape a browser, infer a
+symbol from a Korean display name, or fabricate a source time.
+
+## Cash derivation
+
+The account contract requires settled, unborrowed cash:
+
+- KR uses the minimum nonnegative value among KIS `dnca_tot_amt`,
+  `nxdy_excc_amt`, and `prvs_rcdl_excc_amt`.
+- US uses the minimum nonnegative USD value among `frcr_dncl_amt_2`,
+  `frcr_drwg_psbl_amt_1`, and `nxdy_frcr_drwg_psbl_amt`.
+- Loan amounts are preserved separately as `borrowed_buying_power` and never
+  added to `settled_cash`.
+
+This is a settlement-safe derivation. A new broker field or account product
+must be contract-probed before changing it.
+
+## Collection
+
+```bash
+python3 scripts/account_snapshot.py collect \
+  --job /secure/runtime/account-snapshot-kr-job.json
+```
+
+The collector freezes one common `as_of` only after the KIS reads and manual
+component validation complete. The account and exposure objects therefore
+meet the planner's exact timestamp equality requirement. Missing or stale
+inputs return `BLOCKED` and do not produce a receipt claiming readiness.

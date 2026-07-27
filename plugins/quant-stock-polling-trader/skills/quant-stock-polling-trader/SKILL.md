@@ -93,6 +93,10 @@ submit, or enable live orders.
    HMAC-derived `broker_account_identity_hash` in the account snapshot; keep
    the account number, product code, account sequence, and binding key in the
    secret environment.
+   For KIS live/shadow, read `references/account-snapshot-contract.md` and use
+   `scripts/account_snapshot.py collect` to fetch the KIS balance and working
+   orders and merge fresh Toss/NH exposure components. This collector is
+   read-only and records `api_mutation_count: 0`.
 5. Run `scripts/plan_orders.py` to create a side-effect-free plan.
 6. Generate the nonsecret account-identity receipt, create a plan-, account-,
    mode-, and trading-date-bound arm artifact, then start
@@ -116,6 +120,7 @@ python3 scripts/execution_core.py --self-test
 python3 scripts/freeze_market_session.py --self-test
 python3 scripts/broker_adapters.py --self-test
 python3 scripts/broker_credentials.py self-test
+python3 scripts/account_snapshot.py self-test
 python3 scripts/plan_orders.py --self-test
 python3 scripts/run_session.py self-test
 python3 scripts/reconcile.py --self-test

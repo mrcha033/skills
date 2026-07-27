@@ -66,11 +66,17 @@
       "source": "./plugins/yonsei-central-student-governance-counsel",
       "description": "Ground positions for Yonsei undergraduate central student-governance agendas in current official rules.",
       "version": "0.3.0",
-      "author": {"name": "mrcha033"},
+      "author": {
+        "name": "mrcha033"
+      },
       "homepage": "https://github.com/mrcha033/skills",
       "repository": "https://github.com/mrcha033/skills",
       "category": "education",
-      "tags": ["yonsei", "central-student-governance", "rules"]
+      "tags": [
+        "yonsei",
+        "central-student-governance",
+        "rules"
+      ]
     },
     {
       "name": "agent-finish-line",
@@ -78,11 +84,17 @@
       "source": "./plugins/agent-finish-line",
       "description": "Drive agent work to a bounded shipped outcome instead of endless implementation or experiments.",
       "version": "0.1.0",
-      "author": {"name": "mrcha033"},
+      "author": {
+        "name": "mrcha033"
+      },
       "homepage": "https://github.com/mrcha033/skills",
       "repository": "https://github.com/mrcha033/skills",
       "category": "productivity",
-      "tags": ["execution", "scope", "delivery"]
+      "tags": [
+        "execution",
+        "scope",
+        "delivery"
+      ]
     },
     {
       "name": "learnus-course-copilot",
@@ -90,11 +102,17 @@
       "source": "./plugins/learnus-course-copilot",
       "description": "Turn authorized, authenticated LearnUs course pages into materials, deadlines, and study actions.",
       "version": "0.1.0",
-      "author": {"name": "mrcha033"},
+      "author": {
+        "name": "mrcha033"
+      },
       "homepage": "https://github.com/mrcha033/skills",
       "repository": "https://github.com/mrcha033/skills",
       "category": "education",
-      "tags": ["learnus", "yonsei", "lms"]
+      "tags": [
+        "learnus",
+        "yonsei",
+        "lms"
+      ]
     },
     {
       "name": "katok-reply-reuse",
@@ -102,18 +120,24 @@
       "source": "./plugins/katok-reply-reuse",
       "description": "Find and reuse the user's own past KakaoTalk replies instead of generating an AI-sounding rewrite.",
       "version": "0.1.0",
-      "author": {"name": "mrcha033"},
+      "author": {
+        "name": "mrcha033"
+      },
       "homepage": "https://github.com/mrcha033/skills",
       "repository": "https://github.com/mrcha033/skills",
       "category": "productivity",
-      "tags": ["kakaotalk", "reply", "retrieval"]
+      "tags": [
+        "kakaotalk",
+        "reply",
+        "retrieval"
+      ]
     },
     {
       "name": "quant-stock-polling-trader",
       "displayName": "Quant Stock Polling Trader",
       "source": "./plugins/quant-stock-polling-trader",
       "description": "Validate frozen screens, configure local KIS credentials, and supervise fail-closed broker polling sessions with systemd.",
-      "version": "0.2.1",
+      "version": "0.3.0",
       "author": {
         "name": "mrcha033"
       },
