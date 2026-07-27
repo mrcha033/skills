@@ -8,7 +8,12 @@
   },
   "homepage": "https://github.com/mrcha033/skills",
   "repository": "https://github.com/mrcha033/skills",
-  "keywords": ["kakaotalk", "reply", "retrieval", "tone"],
+  "keywords": [
+    "kakaotalk",
+    "reply",
+    "retrieval",
+    "tone"
+  ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Kakao Reply Reuse",
@@ -16,7 +21,11 @@
     "longDescription": "Search an authorized macOS KakaoTalk archive, rank user-authored past replies, and return exact reuse or explicit placeholder substitution without automatic sending.",
     "developerName": "mrcha033",
     "category": "Productivity",
-    "capabilities": ["Reply retrieval", "Provenance", "Minimal substitution"],
+    "capabilities": [
+      "Reply retrieval",
+      "Provenance",
+      "Minimal substitution"
+    ],
     "websiteURL": "https://github.com/mrcha033/skills",
     "defaultPrompt": [
       "Find how I answered a similar KakaoTalk message before.",

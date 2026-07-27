@@ -4,9 +4,17 @@
   "displayName": "Agent Finish Line",
   "version": "0.1.0",
   "description": "Drive agent work to a bounded shipped outcome instead of endless implementation or experiments.",
-  "author": {"name": "mrcha033", "url": "https://github.com/mrcha033"},
+  "author": {
+    "name": "mrcha033",
+    "url": "https://github.com/mrcha033"
+  },
   "homepage": "https://github.com/mrcha033/skills",
   "repository": "https://github.com/mrcha033/skills",
-  "keywords": ["execution", "finish", "scope", "delivery"],
+  "keywords": [
+    "execution",
+    "finish",
+    "scope",
+    "delivery"
+  ],
   "skills": "./skills/"
 }

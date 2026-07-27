@@ -1,6 +1,11 @@
 This release contains the versioned distribution packages declared in
 `release/catalog.json`.
 
+- Distribution 2.1.0 updates `quant-stock-polling-trader` to 0.3.0 with a
+  read-only KIS live/shadow account collector, freshness-checked Toss/NH
+  exposure component merging, and an effectively uncapped 2,000,000 KRW
+  shadow risk policy requested by the user.
+
 - Distribution 1.1.0 adds `quant-stock-polling-trader` as a separately
   installable, fail-closed KIS/Toss execution plugin with local-only credential
   and token checks.

@@ -8,7 +8,12 @@
   },
   "homepage": "https://github.com/mrcha033/skills",
   "repository": "https://github.com/mrcha033/skills",
-  "keywords": ["yonsei", "central-student-governance", "rules", "argument"],
+  "keywords": [
+    "yonsei",
+    "central-student-governance",
+    "rules",
+    "argument"
+  ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Yonsei Central Student Governance Counsel",
@@ -16,7 +21,12 @@
     "longDescription": "Trace current official publication paths, enforce the Sinchon and International Campus undergraduate scope, route a central agenda to the General Student Council or General Student Club Union corpus, require body-specific rules when needed, test counterarguments, and draft meeting-ready language.",
     "developerName": "mrcha033",
     "category": "Education",
-    "capabilities": ["Adaptive official-source tracing", "Scope-safe rule grounding", "Jurisdiction routing", "Meeting procedure"],
+    "capabilities": [
+      "Adaptive official-source tracing",
+      "Scope-safe rule grounding",
+      "Jurisdiction routing",
+      "Meeting procedure"
+    ],
     "websiteURL": "https://github.com/mrcha033/skills",
     "defaultPrompt": [
       "Ground my position on this Yonsei central governance agenda.",

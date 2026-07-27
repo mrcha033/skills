@@ -45,6 +45,8 @@ JOB_FIELDS = {
 SCHEDULES = {
     ("eod", "KR"): "Mon..Fri *-*-* 07:00:00 Asia/Seoul",
     ("eod", "US"): "Mon..Fri *-*-* 18:00:00 America/New_York",
+    ("snapshot", "KR"): "Mon..Fri *-*-* 08:50:00 Asia/Seoul",
+    ("snapshot", "US"): "Mon..Fri *-*-* 09:20:00 America/New_York",
     ("entry", "KR"): "Mon..Fri *-*-* 08:59:00 Asia/Seoul",
     ("entry", "US"): "Mon..Fri *-*-* 09:29:00 America/New_York",
 }
@@ -160,6 +162,7 @@ def normalize_bundle(raw: Any) -> dict[str, Any]:
     required_scripts = (
         technical_root / "scripts" / "fetch_kis_kr_eod.py",
         technical_root / "scripts" / "fetch_kis_us_eod.py",
+        trader_root / "scripts" / "account_snapshot.py",
         trader_root / "scripts" / "run_session.py",
         trader_root / "scripts" / "systemd_units.py",
     )
@@ -238,6 +241,32 @@ def normalize_bundle(raw: Any) -> dict[str, Any]:
                 raise UnitBlockedError(f"{label} has entry-only paths on an EOD job")
             if broker or mode or max_cycles:
                 raise UnitBlockedError(f"{label} has entry-only values on an EOD job")
+        elif kind == "snapshot":
+            if path_values["input_path"] is None:
+                raise UnitBlockedError(
+                    f"{label}.input_path is required for an account snapshot"
+                )
+            if any(
+                path_values[field] is not None
+                for field in (
+                    "plan_path",
+                    "arm_path",
+                    "state_directory",
+                    "output_path",
+                    "venue_map",
+                )
+            ):
+                raise UnitBlockedError(
+                    f"{label} has entry-only paths on an account snapshot job"
+                )
+            if broker != "kis-live" or mode != "shadow":
+                raise UnitBlockedError(
+                    f"{label} account snapshot requires kis-live/shadow"
+                )
+            if max_cycles:
+                raise UnitBlockedError(
+                    f"{label}.max_cycles must be zero for an account snapshot"
+                )
         else:
             required = ("plan_path", "arm_path", "state_directory", "output_path")
             if any(path_values[field] is None for field in required):
@@ -439,6 +468,20 @@ def command_for(bundle: dict[str, Any], job: dict[str, Any]) -> list[str]:
             "--job",
             job["input_path"],
         ]
+    if job["kind"] == "snapshot":
+        return [
+            python,
+            "-B",
+            "-s",
+            str(
+                Path(bundle["trader_skill_root"])
+                / "scripts"
+                / "account_snapshot.py"
+            ),
+            "collect",
+            "--job",
+            job["input_path"],
+        ]
     command = [
         python,
         "-B",
@@ -508,8 +551,10 @@ def self_test() -> None:
             technical / "scripts" / "fetch_kis_kr_eod.py",
             technical / "scripts" / "fetch_kis_us_eod.py",
             trader / "scripts" / "run_session.py",
+            trader / "scripts" / "account_snapshot.py",
             trader / "scripts" / "systemd_units.py",
             runtime / "kr-eod.json",
+            runtime / "kr-account-snapshot.json",
             runtime / "us-plan.json",
             runtime / "us-arm.json",
         ):
@@ -542,6 +587,21 @@ def self_test() -> None:
                     "timeout_start_seconds": 7200,
                 },
                 {
+                    "name": "snapshot-kr",
+                    "kind": "snapshot",
+                    "market": "KR",
+                    "input_path": str(runtime / "kr-account-snapshot.json"),
+                    "plan_path": "",
+                    "arm_path": "",
+                    "state_directory": "",
+                    "output_path": "",
+                    "broker": "kis-live",
+                    "mode": "shadow",
+                    "venue_map": "",
+                    "max_cycles": 0,
+                    "timeout_start_seconds": 300,
+                },
+                {
                     "name": "entry-us",
                     "kind": "entry",
                     "market": "US",
@@ -560,15 +620,17 @@ def self_test() -> None:
         }
         bundle = normalize_bundle(raw)
         receipt = generate(bundle, output)
-        if len(receipt["unit_files"]) != 4:
+        if len(receipt["unit_files"]) != 6:
             raise AssertionError("systemd self-test unit count mismatch")
         service = (output / "qta-entry-us.service").read_text()
         timer = (output / "qta-entry-us.timer").read_text()
         if "ProtectSystem=strict" not in service or "live" in service:
             raise AssertionError("systemd self-test hardening failed")
         if (
-            f"WorkingDirectory={systemd_path(str(runtime))}\n" not in service
-            or f"EnvironmentFile={systemd_path(str(environment))}\n" not in service
+            f"WorkingDirectory={systemd_path(bundle['runtime_directory'])}\n"
+            not in service
+            or f"EnvironmentFile={systemd_path(bundle['environment_file'])}\n"
+            not in service
         ):
             raise AssertionError("systemd self-test path rendering failed")
         if "09:29:00 America/New_York" not in timer or "Persistent=no" not in timer:
@@ -577,7 +639,7 @@ def self_test() -> None:
             json.dumps(
                 {
                     "self_test": "PASS",
-                    "unit_files": 4,
+                    "unit_files": 6,
                     "activation_performed": False,
                     "live_enabled": False,
                 },

@@ -37,6 +37,14 @@ class SystemdUnitTests(unittest.TestCase):
             MODULE.SCHEDULES[("entry", "US")],
             "Mon..Fri *-*-* 09:29:00 America/New_York",
         )
+        self.assertEqual(
+            MODULE.SCHEDULES[("snapshot", "KR")],
+            "Mon..Fri *-*-* 08:50:00 Asia/Seoul",
+        )
+        self.assertEqual(
+            MODULE.SCHEDULES[("snapshot", "US")],
+            "Mon..Fri *-*-* 09:20:00 America/New_York",
+        )
 
     def test_systemd_escaping_disables_specifiers(self) -> None:
         self.assertEqual(MODULE.systemd_quote("/tmp/100%"), '"/tmp/100%%"')
@@ -60,6 +68,7 @@ class SystemdUnitTests(unittest.TestCase):
             for path in (
                 technical / "scripts" / "fetch_kis_kr_eod.py",
                 technical / "scripts" / "fetch_kis_us_eod.py",
+                trader / "scripts" / "account_snapshot.py",
                 trader / "scripts" / "run_session.py",
                 trader / "scripts" / "systemd_units.py",
                 runtime / "kr-eod.json",

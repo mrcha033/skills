@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "distributionVersion": "2.0.0",
+  "distributionVersion": "2.1.0",
   "releaseTagPrefix": "skills-v",
   "guaranteeScope": "Package compatibility guarantees archive layout, manifest placement, and byte integrity. Runtime compatibility remains conditional on each skill's declared tools, authentication, network, and data requirements.",
   "formats": {
@@ -98,7 +98,7 @@
     },
     {
       "name": "quant-stock-polling-trader",
-      "version": "0.2.1",
+      "version": "0.3.0",
       "runtime": {
         "codex": "supported",
         "claudeCode": "supported",
@@ -114,7 +114,7 @@
         "frozen screen, account, exposure, calendar, risk, and execution-policy inputs",
         "systemd for generated Linux user units"
       ],
-      "notes": "Credential and token checks are local and never persist access tokens. The generator emits but never activates hardened user units. Live mutation remains fail-closed until every declared execution gate passes."
+      "notes": "Credential and token checks are local and never persist access tokens. The read-only account collector freezes KIS state and fresh Toss/NH exposure components without API mutations. The generator emits but never activates hardened user units. Live mutation remains fail-closed until every declared execution gate passes."
     },
     {
       "name": "quant-stock-technical",

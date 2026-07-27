@@ -132,6 +132,8 @@ KR order book  GET  /uapi/domestic-stock/v1/quotations/inquire-asking-price-exp-
                     FHKST01010200
 KR balance     GET  /uapi/domestic-stock/v1/trading/inquire-balance
                     live TTTC8434R / paper VTTC8434R
+KR open orders GET  /uapi/domestic-stock/v1/trading/inquire-psbl-rvsecncl
+                    live TTTC0084R
 KR fills       GET  /uapi/domestic-stock/v1/trading/inquire-daily-ccld
                     live TTTC0081R / paper VTTC0081R
 KR buy         POST /uapi/domestic-stock/v1/trading/order-cash
@@ -147,6 +149,8 @@ US order book  GET  /uapi/overseas-price/v1/quotations/inquire-asking-price
                     live HHDFS76200100 / paper unsupported
 US balance     GET  /uapi/overseas-stock/v1/trading/inquire-balance
                     live TTTS3012R / paper VTTS3012R
+US present balance GET /uapi/overseas-stock/v1/trading/inquire-present-balance
+                    live CTRP6504R / paper VTRP6504R
 US fills       GET  /uapi/overseas-stock/v1/trading/inquire-ccnl
                     live TTTS3035R / paper VTTS3035R
 US open orders GET  /uapi/overseas-stock/v1/trading/inquire-nccs
@@ -201,3 +205,9 @@ and fault-injected:
   rejected records using the broker's full status fields;
 - enforce a process-shared app-key/account rate limiter, including the
   temporary lower limit for newly registered production applications.
+
+The read-only account collector currently supports only KIS live credentials
+with shadow execution. It uses `TTTC8434R + TTTC0084R` for Korea and
+`CTRP6504R + TTTS3018R` for the U.S. It follows documented continuation
+headers and keys, freezes only after all reads complete, and never sends an
+order, modify, or cancel request.

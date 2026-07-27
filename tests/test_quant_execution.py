@@ -308,6 +308,10 @@ def main() -> None:
         "skills/quant-stock-polling-trader/scripts/broker_credentials.py",
         "self-test",
     )
+    run(
+        "skills/quant-stock-polling-trader/scripts/account_snapshot.py",
+        "self-test",
+    )
     run("skills/quant-stock-polling-trader/scripts/plan_orders.py", "--self-test")
     run("skills/quant-stock-polling-trader/scripts/run_session.py", "self-test")
     run(

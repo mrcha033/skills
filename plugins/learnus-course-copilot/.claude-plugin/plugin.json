@@ -4,9 +4,17 @@
   "displayName": "LearnUs Course Copilot",
   "version": "0.1.0",
   "description": "Turn authorized, authenticated LearnUs course pages into materials, deadlines, and study actions.",
-  "author": {"name": "mrcha033", "url": "https://github.com/mrcha033"},
+  "author": {
+    "name": "mrcha033",
+    "url": "https://github.com/mrcha033"
+  },
   "homepage": "https://github.com/mrcha033/skills",
   "repository": "https://github.com/mrcha033/skills",
-  "keywords": ["learnus", "yonsei", "lms", "course"],
+  "keywords": [
+    "learnus",
+    "yonsei",
+    "lms",
+    "course"
+  ],
   "skills": "./skills/"
 }
