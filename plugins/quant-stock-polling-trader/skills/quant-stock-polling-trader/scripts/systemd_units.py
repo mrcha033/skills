@@ -315,6 +315,21 @@ def normalize_bundle(raw: Any) -> dict[str, Any]:
     }
 
 
+def execution_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
+    """Project a normalized bundle back to the exact executable v1 schema."""
+    return {
+        key: (
+            [
+                {field: job[field] for field in JOB_FIELDS}
+                for job in bundle["jobs"]
+            ]
+            if key == "jobs"
+            else bundle[key]
+        )
+        for key in TOP_FIELDS
+    }
+
+
 def systemd_quote(value: str) -> str:
     escaped = (
         value.replace("\\", "\\\\")
@@ -370,6 +385,7 @@ def service_text(bundle: dict[str, Any], job: dict[str, Any], bundle_path: Path)
         f"WorkingDirectory={systemd_path(str(root))}\n"
         f"EnvironmentFile={systemd_path(bundle['environment_file'])}\n"
         'Environment="PYTHONDONTWRITEBYTECODE=1"\n'
+        "UnsetEnvironment=PYTHONPATH PYTHONHOME\n"
         f"ExecStart={command}\n"
         f"TimeoutStartSec={job['timeout_start_seconds']}s\n"
         "UMask=0077\n"
@@ -408,13 +424,24 @@ def timer_text(prefix: str, job: dict[str, Any]) -> str:
 
 
 def generate(bundle: dict[str, Any], output_directory: Path) -> dict[str, Any]:
-    output_directory.mkdir(parents=True, exist_ok=True)
-    if output_directory.is_symlink():
-        raise UnitBlockedError("output_directory cannot be a symlink")
+    if output_directory.exists():
+        if output_directory.is_symlink() or not output_directory.is_dir():
+            raise UnitBlockedError(
+                "output_directory must be a non-symlink directory"
+            )
+        if any(output_directory.iterdir()):
+            raise UnitBlockedError(
+                "output_directory must be empty to prevent stale unit files"
+            )
+    else:
+        output_directory.mkdir(parents=True)
     bundle_path = output_directory / "systemd-bundle.json"
+    runnable_bundle = execution_bundle(bundle)
     atomic_write(
         bundle_path,
-        (json.dumps(bundle, indent=2, sort_keys=True) + "\n").encode("utf-8"),
+        (json.dumps(runnable_bundle, indent=2, sort_keys=True) + "\n").encode(
+            "utf-8"
+        ),
     )
     files: list[dict[str, Any]] = []
     prefix = bundle["unit_prefix"]
@@ -514,9 +541,26 @@ def execute(bundle: dict[str, Any], name: str) -> None:
         raise UnitBlockedError(f"unknown job: {name}")
     runtime = Path(bundle["runtime_directory"])
     lock_directory = runtime / "locks"
-    lock_directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+    try:
+        lock_directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+        lock_metadata = lock_directory.lstat()
+    except OSError as exc:
+        raise UnitBlockedError("cannot create or inspect the lock directory") from exc
+    if stat.S_ISLNK(lock_metadata.st_mode) or not stat.S_ISDIR(
+        lock_metadata.st_mode
+    ):
+        raise UnitBlockedError("lock directory must be a non-symlink directory")
     lock_path = lock_directory / f"{job['market'].lower()}.lock"
-    descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    lock_flags = os.O_RDWR | os.O_CREAT
+    if hasattr(os, "O_NOFOLLOW"):
+        lock_flags |= os.O_NOFOLLOW
+    try:
+        descriptor = os.open(lock_path, lock_flags, 0o600)
+    except OSError as exc:
+        raise UnitBlockedError("cannot securely open the market lock") from exc
+    if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+        os.close(descriptor)
+        raise UnitBlockedError("market lock must be a regular file")
     try:
         fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError as exc:
@@ -631,10 +675,13 @@ def self_test() -> None:
             not in service
             or f"EnvironmentFile={systemd_path(bundle['environment_file'])}\n"
             not in service
+            or "UnsetEnvironment=PYTHONPATH PYTHONHOME\n" not in service
         ):
             raise AssertionError("systemd self-test path rendering failed")
         if "09:29:00 America/New_York" not in timer or "Persistent=no" not in timer:
             raise AssertionError("systemd self-test timer failed")
+        if read_bundle(output / "systemd-bundle.json") != bundle:
+            raise AssertionError("generated bundle is not executable by the reader")
         print(
             json.dumps(
                 {

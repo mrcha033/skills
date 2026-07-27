@@ -1,6 +1,14 @@
 This release contains the versioned distribution packages declared in
 `release/catalog.json`.
 
+- Distribution 2.2.1 updates `quant-stock-polling-trader` to 0.3.1. Generated
+  systemd bundles now round-trip through the same strict execution reader,
+  derived timer fields are no longer serialized into job inputs, Python path
+  overrides are cleared before wrapper startup, stale output directories and
+  symlink lock paths fail closed, and an explicit user request for activation
+  must be completed through verified install/enable/start state rather than
+  stopping at unit generation.
+
 - Distribution 2.2.0 updates `agent-finish-line` to 0.2.0 as an
   instruction-only execution closer. Invocation no longer creates or requires
   contract, receipt, gate, backlog, state-signature, or attempt-tracking

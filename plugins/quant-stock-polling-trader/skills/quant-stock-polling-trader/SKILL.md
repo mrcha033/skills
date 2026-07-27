@@ -109,9 +109,13 @@ submit, or enable live orders.
 
 For deterministic Linux supervision, read `references/systemd-contract.md` and
 use `scripts/systemd_units.py generate`. It emits hardened user service/timer
-files and a hash receipt but never installs, enables, or starts them. Entry
-jobs permit KIS paper/paper and KIS live/shadow only; live mode remains
-blocked.
+files and a hash receipt but does not activate them by itself. Generation is
+only an intermediate result when the user explicitly asks to install, enable,
+start, or automate the jobs: validate the generated units, install only the
+reviewed units, reload the user manager, perform the requested activation, and
+verify the resulting timer/service states. Do not activate entry or account
+snapshot units without their current session-bound inputs. Entry jobs permit
+KIS paper/paper and KIS live/shadow only; live mode remains blocked.
 
 Run all bundled self-tests after changing a script:
 

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "distributionVersion": "2.2.0",
+  "distributionVersion": "2.2.1",
   "releaseTagPrefix": "skills-v",
   "guaranteeScope": "Package compatibility guarantees archive layout, manifest placement, and byte integrity. Runtime compatibility remains conditional on each skill's declared tools, authentication, network, and data requirements.",
   "formats": {
@@ -96,7 +96,7 @@
     },
     {
       "name": "quant-stock-polling-trader",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "runtime": {
         "codex": "supported",
         "claudeCode": "supported",
@@ -112,7 +112,7 @@
         "frozen screen, account, exposure, calendar, risk, and execution-policy inputs",
         "systemd for generated Linux user units"
       ],
-      "notes": "Credential and token checks are local and never persist access tokens. The read-only account collector freezes KIS state and fresh Toss/NH exposure components without API mutations. The generator emits but never activates hardened user units. Live mutation remains fail-closed until every declared execution gate passes."
+      "notes": "Credential and token checks are local and never persist access tokens. The read-only account collector freezes KIS state and fresh Toss/NH exposure components without API mutations. The systemd generator now emits an execution-readable exact bundle, rejects stale output directories and symlink locks, clears Python path overrides before wrapper startup, and treats explicitly requested activation as a required operator step after verification. Live mutation remains fail-closed until every declared execution gate passes."
     },
     {
       "name": "quant-stock-technical",
