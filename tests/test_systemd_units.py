@@ -68,6 +68,7 @@ class SystemdUnitTests(unittest.TestCase):
             for path in (
                 technical / "scripts" / "fetch_kis_kr_eod.py",
                 technical / "scripts" / "fetch_kis_us_eod.py",
+                trader / "scripts" / "account_snapshot.py",
                 trader / "scripts" / "run_session.py",
                 trader / "scripts" / "systemd_units.py",
                 runtime / "kr-eod.json",
