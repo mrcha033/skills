@@ -82,8 +82,8 @@
       "name": "agent-finish-line",
       "displayName": "Agent Finish Line",
       "source": "./plugins/agent-finish-line",
-      "description": "Drive agent work to a bounded shipped outcome instead of endless implementation or experiments.",
-      "version": "0.1.0",
+      "description": "Finish agent work with minimal process and no automatic task-management artifacts.",
+      "version": "0.2.0",
       "author": {
         "name": "mrcha033"
       },

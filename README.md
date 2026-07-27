@@ -91,7 +91,7 @@ Replace `advisor-review` with any plugin name above, or install multiple individ
 
 ### Agent Finish Line
 
-`agent-finish-line` is an execution closer, not another verifier. It declares at most three required gates, blocks identical failed-state retries, routes optional improvements to a backlog, and ends with a shipped artifact or one concrete external blocker.
+`agent-finish-line` is a lightweight execution closer, not another verifier or task-management harness. It keeps the requested endpoint in focus, changes strategy after repeated unchanged failures, and ends with a shipped result or one concrete external blocker. Invoking it does not create contracts, receipts, gate ledgers, backlogs, or attempt-tracking files.
 
 ## Yonsei and personal workflow skills
 
@@ -284,7 +284,7 @@ python3 -B skills/advisor-review/scripts/validate_advice.py --self-test
 python3 -B skills/advisor-review/scripts/run_advisor.py --self-test
 python3 -B skills/advisor-review/scripts/validate_decision.py --self-test
 python3 -B skills/advisor-review/scripts/evaluate_advisor_behavior.py --self-test
-python3 -B skills/agent-finish-line/scripts/self_test.py
+python3 -B tests/test_agent_finish_line.py
 python3 -B skills/learnus-course-copilot/scripts/self_test.py
 python3 -B skills/katok-reply-reuse/scripts/rank_replies.py --self-test
 python3 -B skills/yonsei-central-student-governance-counsel/scripts/self_test.py

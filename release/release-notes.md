@@ -1,6 +1,12 @@
 This release contains the versioned distribution packages declared in
 `release/catalog.json`.
 
+- Distribution 2.2.0 updates `agent-finish-line` to 0.2.0 as an
+  instruction-only execution closer. Invocation no longer creates or requires
+  contract, receipt, gate, backlog, state-signature, or attempt-tracking
+  artifacts; formal records are produced only when explicitly requested or
+  required by the target system.
+
 - Distribution 2.1.0 updates `quant-stock-polling-trader` to 0.3.0 with a
   read-only KIS live/shadow account collector, freshness-checked Toss/NH
   exposure component merging, and an effectively uncapped 2,000,000 KRW

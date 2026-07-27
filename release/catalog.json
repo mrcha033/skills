@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "distributionVersion": "2.1.0",
+  "distributionVersion": "2.2.0",
   "releaseTagPrefix": "skills-v",
   "guaranteeScope": "Package compatibility guarantees archive layout, manifest placement, and byte integrity. Runtime compatibility remains conditional on each skill's declared tools, authentication, network, and data requirements.",
   "formats": {
@@ -49,7 +49,7 @@
     },
     {
       "name": "agent-finish-line",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "runtime": {
         "codex": "supported",
         "claudeCode": "supported",
@@ -57,11 +57,9 @@
         "claudeWeb": "conditional"
       },
       "requirements": [
-        "Python 3",
-        "writable task workspace",
         "tools needed to complete the user's target action"
       ],
-      "notes": "Web runtimes must expose a writable workspace and the action tools required by the finish contract."
+      "notes": "The skill is instruction-only and creates no contract, receipt, gate, backlog, or attempt-tracking artifacts unless the user explicitly requests a formal record."
     },
     {
       "name": "katok-reply-reuse",

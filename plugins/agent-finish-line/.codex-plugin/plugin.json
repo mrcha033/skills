@@ -1,7 +1,7 @@
 {
   "name": "agent-finish-line",
-  "version": "0.1.0",
-  "description": "Drive agent work to a bounded shipped outcome instead of endless implementation or experiments.",
+  "version": "0.2.0",
+  "description": "Finish agent work with minimal process and no automatic task-management artifacts.",
   "author": {
     "name": "mrcha033",
     "url": "https://github.com/mrcha033"
@@ -17,14 +17,14 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Agent Finish Line",
-    "shortDescription": "Force agent work toward a bounded shipped outcome",
-    "longDescription": "Create a small finish contract, stop repeated unchanged attempts and optional scope expansion, and end with terminal evidence or one concrete blocker.",
+    "shortDescription": "Finish tasks with minimal process and clear evidence",
+    "longDescription": "Keep work focused on the requested endpoint, change strategy after repeated unchanged failures, and finish without creating contracts, receipts, or tracking files.",
     "developerName": "mrcha033",
     "category": "Productivity",
     "capabilities": [
-      "Execution contract",
-      "Attempt limits",
-      "Delivery evidence"
+      "Focused execution",
+      "Strategy changes",
+      "Concise delivery"
     ],
     "websiteURL": "https://github.com/mrcha033/skills",
     "defaultPrompt": [
