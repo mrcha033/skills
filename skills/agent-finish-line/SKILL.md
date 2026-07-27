@@ -1,80 +1,52 @@
 ---
 name: agent-finish-line
-description: Drive an implementation, experiment, migration, release, or debugging task to a bounded terminal outcome. Use when agent work keeps expanding, repeating tests, adding optional improvements, or stopping at an intermediate artifact instead of shipping the requested deliverable or naming one concrete blocker.
+description: Finish an implementation, experiment, migration, release, or debugging task with the least process needed. Use when work is expanding, repeating unchanged attempts, or stopping before the requested deliverable; drive it to completion or one evidence-backed external blocker without creating task-management artifacts.
 ---
 
 # Agent Finish Line
 
-Turn the user's objective into a small finish contract, execute only its required gates, and end with a shipped artifact or one evidence-backed blocker. Do not use this as a post-hoc quality audit.
+Drive the user's requested endpoint to completion. This skill changes execution
+discipline only; it does not introduce a contract format, receipt, ledger, or
+separate workflow.
 
-## Start the finish contract
+## Work
 
-Create the contract before doing more implementation:
+1. Identify the requested endpoint and the earliest unmet condition internally.
+2. Perform the smallest action that materially advances or decides that condition.
+3. Verify the result in proportion to its risk.
+4. If the same observable failure repeats, change strategy instead of retrying it
+   unchanged.
+5. Route optional improvements out of scope and stop when the requested endpoint
+   is delivered.
 
-```bash
-python3 "$SKILL_DIR/scripts/finish_contract.py" init \
-  --contract .agent-finish.json \
-  --objective "..." \
-  --deliverable "..." \
-  --gate "build:requested behavior exists" \
-  --gate "test:decisive test passes" \
-  --gate "ship:requested endpoint is delivered"
-```
+Preserve any terminal condition the user supplied. Keep safety, authorization,
+and validation rules from the task's domain; this skill does not weaken them.
 
-Use one to three gates. Put desirable but nonessential ideas in `--backlog`, not in a gate. If the user supplied a terminal condition, preserve it exactly.
+## No ceremony
 
-## Execute
-
-1. Read `references/finish-contract.md`.
-2. Choose the earliest unmet gate.
-3. Run the smallest decisive action that can pass or falsify it.
-4. Record the result immediately:
-
-   ```bash
-   python3 "$SKILL_DIR/scripts/finish_contract.py" record \
-     --contract .agent-finish.json \
-     --gate build \
-     --result pass \
-     --evidence "path or concise observed result"
-   ```
-
-5. On failure, provide a state signature. Never repeat an identical failed state without a named strategy change:
-
-   ```bash
-   python3 "$SKILL_DIR/scripts/finish_contract.py" record \
-     --contract .agent-finish.json \
-     --gate test \
-     --result fail \
-     --state-signature "test-name:error-class:relevant-state" \
-     --evidence "failure evidence"
-   ```
-
-6. Route every newly discovered improvement to the backlog unless it is necessary to pass a declared gate.
-7. Do not add another verification layer after the final gate passes.
-
-Inspect the next required action at any time:
-
-```bash
-python3 "$SKILL_DIR/scripts/finish_contract.py" status \
-  --contract .agent-finish.json
-```
+- Do not create `.agent-finish*` files or any contract, gate, receipt, backlog,
+  state-signature, or attempt-tracking artifact merely because this skill was
+  invoked.
+- Do not ask the user to sign, approve, or acknowledge an internal execution
+  plan.
+- Do not announce internal gates or checklists unless doing so helps the user or
+  the user explicitly asks for them.
+- Do not add a second audit layer after decisive verification passes.
+- Reuse task-native evidence such as a test result, commit, deployed endpoint, or
+  generated output. Do not manufacture evidence paperwork around it.
+- Create a formal acceptance record only when the user explicitly requests one
+  or the target system itself requires it.
 
 ## Finish
 
-Complete only after all required gates pass:
+Complete when the requested deliverable exists and the decisive verification
+passes. If completion depends solely on unavailable external authority, state,
+credentials, hardware, or a required user choice, report:
 
-```bash
-python3 "$SKILL_DIR/scripts/finish_contract.py" complete \
-  --contract .agent-finish.json \
-  --terminal-evidence "commit, PR, output path, deployed endpoint, or experiment result"
-```
+- the unmet endpoint;
+- the observed evidence;
+- the exact missing external condition;
+- the smallest action that unblocks it.
 
-If an external permission, credential, unavailable device, or user choice is the sole remaining obstacle, record that gate as `blocked` with the exact missing condition. Report the smallest action that unblocks it. Do not relabel hard or unfinished work as blocked.
-
-End the response with:
-
-- what finished;
-- the terminal evidence;
-- any deferred backlog, without starting it.
-
-Run `python3 "$SKILL_DIR/scripts/self_test.py"` after modifying the contract script.
+Lead the final response with what finished or what remains blocked. Keep it
+short unless the user asks for detail.
