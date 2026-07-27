@@ -120,6 +120,11 @@ Its first-hour runner precomputes the slow path before the open, warms
 authentication 30 seconds early, admits only broker-rate-feasible candidate
 counts, polls on absolute rank-ordered cycles, and records cycle/quote/submit
 latency. Live mutation remains disabled.
+Its systemd generator emits an execution-readable strict bundle and hardened
+units into an empty directory. The command itself is non-activating, but an
+explicit request for actual automation is not complete until the reviewed
+units are installed, enabled or started as requested, and their user-systemd
+state is verified.
 The four-exchange v2 universe is currently qualified from KIS stock masters, so
 v2 planning is KIS-only; Toss remains available only through the legacy
 contract until a Toss-qualified universe snapshot is implemented and verified.

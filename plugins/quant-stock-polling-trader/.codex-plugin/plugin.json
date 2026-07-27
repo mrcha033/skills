@@ -1,6 +1,6 @@
 {
   "name": "quant-stock-polling-trader",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Validate and supervise fail-closed KIS/Toss stock polling sessions.",
   "author": {
     "name": "mrcha033",
@@ -18,7 +18,7 @@
   "interface": {
     "displayName": "Quant Stock Polling Trader",
     "shortDescription": "Fail-closed polling and systemd supervision",
-    "longDescription": "Validate frozen quant screens, configure local broker credentials, generate hardened systemd units, poll deterministically, and reconcile without enabling live mutation.",
+    "longDescription": "Validate frozen quant screens, configure local broker credentials, generate execution-readable hardened systemd units, complete explicitly requested activation, poll deterministically, and reconcile without enabling live mutation.",
     "developerName": "mrcha033",
     "category": "Finance",
     "capabilities": [
@@ -29,7 +29,7 @@
     "defaultPrompt": [
       "Securely guide KIS credential setup and verify authentication.",
       "Prepare a fail-closed KIS paper polling session.",
-      "Generate inactive hardened systemd units for KR and US EOD and entry jobs."
+      "Generate and explicitly activate verified KR and US paper/shadow systemd jobs."
     ]
   }
 }
