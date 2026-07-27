@@ -1,4 +1,0 @@
-interface:
-  display_name: "Secuway VPN"
-  short_description: "Portable SecuwaySSL VPN setup and connection"
-  default_prompt: "Use $secuway-vpn to set up and connect this host to a supported SecuwaySSL VPN."

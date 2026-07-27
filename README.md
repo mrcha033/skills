@@ -1,6 +1,6 @@
 # MrCha Skills
 
-A public, multi-topic collection of portable Agent Skills by `mrcha033`, packaged as nine independently installable marketplace plugins for Codex and Claude Code.
+A public, multi-topic collection of portable Agent Skills by `mrcha033`, packaged as eight independently installable marketplace plugins for Codex and Claude Code.
 
 Each directory under `skills/` remains a self-contained skill built around `SKILL.md`. Each marketplace plugin contains exactly one matching skill; none adds MCP servers or hooks. Broker credentials stay local and are never packaged.
 
@@ -18,7 +18,6 @@ codex plugin add katok-reply-reuse@mrcha-skills
 codex plugin add quant-stock-technical@mrcha-skills
 codex plugin add quant-stock-polling-trader@mrcha-skills
 codex plugin add stock-scenario-story@mrcha-skills
-codex plugin add secuway-vpn@mrcha-skills
 ```
 
 Install only the plugins you want. Start a new Codex task after installation, then invoke the matching skill, such as `$advisor-review`.
@@ -35,10 +34,36 @@ claude plugin install katok-reply-reuse@mrcha-skills
 claude plugin install quant-stock-technical@mrcha-skills
 claude plugin install quant-stock-polling-trader@mrcha-skills
 claude plugin install stock-scenario-story@mrcha-skills
-claude plugin install secuway-vpn@mrcha-skills
 ```
 
 Install only the plugins you want. Run `/reload-plugins` in an active Claude Code session. Skills use their plugin namespace, such as `/advisor-review:advisor-review`.
+
+### Migrate Secuway VPN to its standalone marketplace
+
+`secuway-vpn` moved to the dedicated
+[`mrcha033/secuway-vpn`](https://github.com/mrcha033/secuway-vpn)
+repository and marketplace. Install and verify the standalone plugin before
+removing the former `secuway-vpn@mrcha-skills` entry:
+
+```bash
+# Codex
+codex plugin marketplace add mrcha033/secuway-vpn --ref v0.4.0
+codex plugin add secuway-vpn@secuway-vpn
+codex plugin list
+codex plugin remove secuway-vpn@mrcha-skills
+
+# Claude Code
+claude plugin marketplace add mrcha033/secuway-vpn --scope user
+claude plugin install secuway-vpn@secuway-vpn --scope user
+claude plugin list
+claude plugin uninstall secuway-vpn@mrcha-skills --scope user --keep-data
+```
+
+The standalone package retains the existing protected profile-storage names so
+an in-place cache can be reused. Do not run `secuway forget` or a native runtime
+uninstall during this marketplace migration; those are separate destructive
+actions. Moving repositories does not bypass app OTP: first enrollment still
+requires successful server-approved authentication.
 
 ### Migrate from the former bundle
 
@@ -83,18 +108,6 @@ The General Student Council corpus is sourced from the public Drive linked by th
 ### Kakao Reply Reuse
 
 `katok-reply-reuse` searches authorized user-authored KakaoTalk exemplars and returns exact reuse or explicit placeholder substitution with provenance. It abstains when no strong past reply exists and never sends automatically.
-
-## System connectivity skills
-
-### Secuway VPN
-
-`secuway-vpn` diagnoses and operates an independent SecuwaySSL-compatible
-OpenVPN runtime. The package includes reproducible Windows amd64/arm64 CLI and
-LEA provider assets, verifies a pinned official OpenVPN installer, preserves the
-original caller SID through one-time UAC setup, and uses Windows DPAPI plus
-OpenVPN Interactive Service for ordinary non-admin connections. First
-enrollment still follows the gateway's ID/password/app-OTP policy; only the
-successful server-issued profile is cached.
 
 ## Finance skills
 
@@ -203,7 +216,6 @@ cp -R mrcha-skills/skills/agent-finish-line ~/.codex/skills/
 cp -R mrcha-skills/skills/yonsei-central-student-governance-counsel ~/.codex/skills/
 cp -R mrcha-skills/skills/learnus-course-copilot ~/.codex/skills/
 cp -R mrcha-skills/skills/katok-reply-reuse ~/.codex/skills/
-cp -R mrcha-skills/skills/secuway-vpn ~/.codex/skills/
 ```
 
 Start a new Codex task after copying. Invoke `$advisor-review` explicitly when you want an independent review. For the paired finance workflow, invoke `$quant-stock-technical` first and pass its unmodified JSON result to `$stock-scenario-story`.

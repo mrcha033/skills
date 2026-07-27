@@ -18,6 +18,11 @@ This release contains the versioned distribution packages declared in
 - Distribution 1.4.1 updates `quant-stock-polling-trader` to 0.2.1 so generated
   systemd path directives use unquoted C-escaped absolute paths accepted by
   `systemd-analyze`, including paths with whitespace or percent specifiers.
+- Distribution 2.0.0 removes `secuway-vpn` from this aggregate marketplace
+  after moving it to the dedicated `mrcha033/secuway-vpn` repository. Install
+  `secuway-vpn@secuway-vpn` and verify it before removing
+  `secuway-vpn@mrcha-skills`; keep protected enrollment data during the
+  marketplace migration.
 - `<name>-<version>.zip`: standalone Agent Skill upload for ChatGPT or Claude.
 - `<name>-<version>.skill`: byte-identical standalone archive with the Claude
   skill extension.
