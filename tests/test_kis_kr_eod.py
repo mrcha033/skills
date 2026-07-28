@@ -104,6 +104,46 @@ class KisKrEodTests(unittest.TestCase):
         self.assertEqual(client.request_count, 2)
         self.assertEqual(client.retry_count, 1)
 
+    def test_complete_cache_is_not_rewritten(self) -> None:
+        end = date(2026, 7, 24)
+        rows = [
+            {
+                "date": (end - MODULE.timedelta(days=offset)).isoformat(),
+                "open": "100",
+                "high": "110",
+                "low": "90",
+                "close": "105",
+                "adjusted_close": "105",
+                "volume": "1000",
+            }
+            for offset in range(3)
+        ]
+        rows.sort(key=lambda row: row["date"])
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "cached.csv"
+            MODULE.write_csv_rows(path, rows)
+            client = MODULE.KisReadClient(
+                environment="live",
+                app_key="fixture",
+                app_secret="fixture",
+                interval_ms=100,
+                access_token="fixture-token",
+                transport=lambda *args: self.fail("cache should satisfy the job"),
+            )
+            with patch.object(MODULE, "write_csv_rows") as writer:
+                result, requests = MODULE.update_history_file(
+                    client,
+                    kind="stock",
+                    symbol="005930",
+                    path=path,
+                    start=end - MODULE.timedelta(days=3),
+                    end=end,
+                    minimum_sessions=2,
+                )
+            self.assertEqual(result, rows)
+            self.assertEqual(requests, 0)
+            writer.assert_not_called()
+
     def test_offline_bundle_emits_catalog_spec_and_zero_mutations(self) -> None:
         end = date(2026, 7, 24)
         stock_rows = MODULE._synthetic_rows(end, 800, index=False)

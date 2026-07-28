@@ -11,6 +11,7 @@ import unittest
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "skills" / "quant-stock-technical" / "scripts"
@@ -177,6 +178,47 @@ class KisUsEodTests(unittest.TestCase):
             self.assertEqual(len(result), 2)
             self.assertEqual(len(audit), 1)
             self.assertNotIn(audit[0]["date"], {row["date"] for row in result})
+
+    def test_complete_cache_is_not_rewritten(self) -> None:
+        end = date(2026, 7, 24)
+        rows = [
+            {
+                "date": (end - timedelta(days=offset)).isoformat(),
+                "open": "10",
+                "high": "11",
+                "low": "9",
+                "close": "10.5",
+                "adjusted_close": "10.5",
+                "volume": "100",
+            }
+            for offset in range(3)
+        ]
+        rows.sort(key=lambda row: row["date"])
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "cached.csv"
+            MODULE.shared.write_csv_rows(path, rows)
+            client = MODULE.shared.KisReadClient(
+                environment="live",
+                app_key="fixture",
+                app_secret="fixture",
+                interval_ms=100,
+                access_token="fixture-token",
+                transport=lambda *args: self.fail("cache should satisfy the job"),
+            )
+            with patch.object(MODULE.shared, "write_csv_rows") as writer:
+                result, requests, audit = MODULE.update_stock_file(
+                    client,
+                    exchange="NASDAQ",
+                    symbol="AAPL",
+                    path=path,
+                    start=end - timedelta(days=3),
+                    end=end,
+                    minimum_sessions=2,
+                )
+            self.assertEqual(result, rows)
+            self.assertEqual(requests, 0)
+            self.assertEqual(audit, [])
+            writer.assert_not_called()
 
     def test_offline_bundle_emits_cross_market_inputs(self) -> None:
         end = date(2026, 7, 24)

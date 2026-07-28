@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "distributionVersion": "2.3.1",
+  "distributionVersion": "2.3.2",
   "releaseTagPrefix": "skills-v",
   "guaranteeScope": "Package compatibility guarantees archive layout, manifest placement, and byte integrity. Runtime compatibility remains conditional on each skill's declared tools, authentication, network, and data requirements.",
   "formats": {
@@ -116,7 +116,7 @@
     },
     {
       "name": "quant-stock-technical",
-      "version": "0.4.2",
+      "version": "0.4.3",
       "runtime": {
         "codex": "supported",
         "claudeCode": "supported",
@@ -128,7 +128,7 @@
         "user-provided finalized OHLCV and benchmark files, or KIS Open API credentials for read-only Korean and U.S. EOD acquisition",
         "outbound KRX, Nasdaq Trader, KIS, and benchmark source access"
       ],
-      "notes": "The Korean and U.S. EOD collectors are resumable and read-only. Normalized source descriptors are projected back to the exact manifest build-spec schema, preventing derived role metadata from invalidating their own output. KIS interior adjusted rows with invalid OHLC geometry are source-hashed and excluded without interpolation, while an invalid cutoff still blocks."
+      "notes": "The Korean and U.S. EOD collectors are resumable and read-only. Complete byte-equivalent cache files are no longer rewritten, while changed, incomplete, or invalid files still update atomically. Normalized source descriptors are projected back to the exact manifest build-spec schema. KIS interior adjusted rows with invalid OHLC geometry are source-hashed and excluded without interpolation, while an invalid cutoff still blocks."
     },
     {
       "name": "stock-scenario-story",

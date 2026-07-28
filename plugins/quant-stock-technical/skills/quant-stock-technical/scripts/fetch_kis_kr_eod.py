@@ -675,7 +675,8 @@ def update_history_file(
         raise EodBlockedError(
             f"{symbol} needs {minimum_sessions} sessions; found {len(rows)}"
         )
-    write_csv_rows(path, rows)
+    if rows != cached:
+        write_csv_rows(path, rows)
     return rows, client.request_count - before_requests
 
 
