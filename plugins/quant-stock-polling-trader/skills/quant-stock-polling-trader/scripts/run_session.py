@@ -4,8 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
-import hmac
 import json
 import os
 import sys
@@ -56,9 +54,7 @@ from execution_core import (
 )
 
 VENUE_SCHEMA = "qta-venue-map/v1"
-SESSION_RECEIPT_SCHEMA = "qta-session-receipt/v1"
-BROKER_ACCOUNT_IDENTITY_SCHEMA = "qta-broker-account-identity-hash/v1"
-TRADING_ARM_SCHEMA = "qta-trading-arm/v1"
+SESSION_STATUS_SCHEMA = "qta-session-status/v2"
 PREOPEN_WARMUP_SECONDS = 30
 SUBMIT_HTTP_TIMEOUT_SECONDS = 10
 DEFAULT_QUOTE_HTTP_REQUESTS_PER_INTENT = 2
@@ -66,16 +62,6 @@ BROKER_PACING_SECONDS = {
     "toss": Decimal("0.1"),
     "kis-paper": Decimal("1.05"),
     "kis-live": Decimal("0.12"),
-}
-TRADING_ARM_FIELDS = {
-    "schema",
-    "plan_hash",
-    "broker",
-    "environment",
-    "mode",
-    "trading_date",
-    "broker_account_identity_hash",
-    "arm_hash",
 }
 PLAN_FIELDS = {
     "schema",
@@ -114,7 +100,6 @@ BASE_CONTEXT_FIELDS = {
     "broker",
     "environment",
     "account_alias",
-    "broker_account_identity_hash",
     "market",
 }
 V2_CONTEXT_FIELDS = BASE_CONTEXT_FIELDS | {
@@ -450,7 +435,6 @@ def validate_plan(plan: dict[str, Any]) -> None:
         "exposure_hash",
         "risk_hash",
         "execution_policy_hash",
-        "broker_account_identity_hash",
     ):
         validate_sha256(context[field], f"plan.context.{field}")
     validate_nonempty_string(context["account_alias"], "plan.context.account_alias")
@@ -962,103 +946,6 @@ def require_environment(name: str) -> str:
     return value
 
 
-def broker_account_identity_hash(
-    broker_name: str,
-    environment: str,
-    *,
-    binding_key: str,
-    kis_account_prefix: str | None = None,
-    kis_account_product: str | None = None,
-    toss_account_seq: str | None = None,
-) -> str:
-    """Return an HMAC identity digest without retaining or emitting raw identifiers."""
-    if len(binding_key.encode("utf-8")) < 32:
-        raise BlockedError("QTA_ACCOUNT_BINDING_KEY must be at least 32 bytes")
-    if broker_name == "kis-paper":
-        if environment != "paper":
-            raise BlockedError("KIS paper account identity requires paper environment")
-        broker = "kis"
-    elif broker_name == "kis-live":
-        if environment not in {"shadow", "live"}:
-            raise BlockedError(
-                "KIS live account identity requires shadow/live environment"
-            )
-        broker = "kis"
-    elif broker_name == "toss":
-        if environment not in {"shadow", "live"}:
-            raise BlockedError("Toss account identity requires shadow/live environment")
-        broker = "toss"
-    else:
-        raise BlockedError(f"unsupported broker: {broker_name}")
-
-    if broker == "kis":
-        if (
-            not isinstance(kis_account_prefix, str)
-            or not kis_account_prefix
-            or kis_account_prefix != kis_account_prefix.strip()
-            or not isinstance(kis_account_product, str)
-            or not kis_account_product
-            or kis_account_product != kis_account_product.strip()
-        ):
-            raise BlockedError("KIS account identity fields must be canonical strings")
-        identity_material: dict[str, Any] = {
-            "schema": "qta-broker-account-identity-material/v1",
-            "broker": broker,
-            "environment": environment,
-            "account_prefix": kis_account_prefix,
-            "account_product": kis_account_product,
-        }
-    else:
-        if not isinstance(toss_account_seq, str):
-            raise BlockedError(
-                "Toss account identity field must be a canonical integer"
-            )
-        try:
-            account_seq = int(toss_account_seq)
-        except ValueError as exc:
-            raise BlockedError(
-                "Toss account identity field must be a canonical integer"
-            ) from exc
-        if account_seq <= 0 or str(account_seq) != toss_account_seq:
-            raise BlockedError(
-                "Toss account identity field must be a canonical positive integer"
-            )
-        identity_material = {
-            "schema": "qta-broker-account-identity-material/v1",
-            "broker": broker,
-            "environment": environment,
-            "account_seq": account_seq,
-        }
-    return hmac.new(
-        binding_key.encode("utf-8"),
-        canonical_json(identity_material).encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
-
-
-def runtime_broker_account_identity_hash(
-    broker_name: str,
-    environment: str,
-) -> str:
-    binding_key = require_environment("QTA_ACCOUNT_BINDING_KEY")
-    if broker_name == "toss":
-        return broker_account_identity_hash(
-            broker_name,
-            environment,
-            binding_key=binding_key,
-            toss_account_seq=require_environment("QTA_TOSS_ACCOUNT_SEQ"),
-        )
-    if broker_name in {"kis-paper", "kis-live"}:
-        return broker_account_identity_hash(
-            broker_name,
-            environment,
-            binding_key=binding_key,
-            kis_account_prefix=require_environment("QTA_KIS_ACCOUNT_PREFIX"),
-            kis_account_product=require_environment("QTA_KIS_ACCOUNT_PRODUCT"),
-        )
-    raise BlockedError(f"unsupported broker: {broker_name}")
-
-
 def runtime_toss_account_seq() -> int:
     raw = require_environment("QTA_TOSS_ACCOUNT_SEQ")
     try:
@@ -1070,100 +957,6 @@ def runtime_toss_account_seq() -> int:
     if account_seq <= 0 or str(account_seq) != raw:
         raise BlockedError("QTA_TOSS_ACCOUNT_SEQ must be a canonical positive integer")
     return account_seq
-
-
-def account_identity_hash_receipt(
-    broker_name: str,
-    environment: str,
-) -> dict[str, Any]:
-    output = {
-        "schema": BROKER_ACCOUNT_IDENTITY_SCHEMA,
-        "broker": "toss" if broker_name == "toss" else "kis",
-        "environment": environment,
-        "broker_account_identity_hash": runtime_broker_account_identity_hash(
-            broker_name,
-            environment,
-        ),
-    }
-    output["receipt_hash"] = sha256_json(output)
-    return output
-
-
-def trading_date_for_plan(plan: dict[str, Any]) -> str:
-    return (
-        parse_timestamp(
-            plan["entry_window"]["start"],
-            "entry window start",
-        )
-        .date()
-        .isoformat()
-    )
-
-
-def create_trading_arm(
-    plan: dict[str, Any],
-    broker_name: str,
-    mode: str,
-) -> dict[str, Any]:
-    validate_plan(plan)
-    validate_mode(plan, broker_name, mode)
-    runtime_hash = runtime_broker_account_identity_hash(
-        broker_name,
-        plan["context"]["environment"],
-    )
-    if runtime_hash != plan["context"]["broker_account_identity_hash"]:
-        raise BlockedError(
-            "runtime broker account identity does not match the frozen plan"
-        )
-    output = {
-        "schema": TRADING_ARM_SCHEMA,
-        "plan_hash": plan["plan_hash"],
-        "broker": broker_name,
-        "environment": plan["context"]["environment"],
-        "mode": mode,
-        "trading_date": trading_date_for_plan(plan),
-        "broker_account_identity_hash": runtime_hash,
-    }
-    output["arm_hash"] = sha256_json(output)
-    return output
-
-
-def validate_account_authorization(
-    plan: dict[str, Any],
-    broker_name: str,
-    mode: str,
-    arm: dict[str, Any] | None,
-) -> None:
-    if not isinstance(arm, dict):
-        raise BlockedError("a trading arm artifact is required")
-    exact_fields(arm, TRADING_ARM_FIELDS, "trading arm")
-    if arm["schema"] != TRADING_ARM_SCHEMA:
-        raise BlockedError(f"trading arm schema must be {TRADING_ARM_SCHEMA}")
-    validate_sha256(arm["arm_hash"], "trading arm.arm_hash")
-    unhashed = dict(arm)
-    unhashed.pop("arm_hash")
-    if sha256_json(unhashed) != arm["arm_hash"]:
-        raise BlockedError("trading arm hash does not match artifact contents")
-    context = plan["context"]
-    expected = {
-        "plan_hash": plan["plan_hash"],
-        "broker": broker_name,
-        "environment": context["environment"],
-        "mode": mode,
-        "trading_date": trading_date_for_plan(plan),
-        "broker_account_identity_hash": context["broker_account_identity_hash"],
-    }
-    for field, expected_value in expected.items():
-        if arm[field] != expected_value:
-            raise BlockedError(f"trading arm {field} does not match the plan")
-    runtime_hash = runtime_broker_account_identity_hash(
-        broker_name,
-        context["environment"],
-    )
-    if runtime_hash != context["broker_account_identity_hash"]:
-        raise BlockedError(
-            "runtime broker account identity does not match the frozen plan"
-        )
 
 
 def create_broker(broker_name: str) -> Any:
@@ -1397,7 +1190,7 @@ def cancel_order(
     )
 
 
-def session_receipt(
+def session_status(
     plan: dict[str, Any],
     broker_name: str,
     mode: str,
@@ -1405,7 +1198,6 @@ def session_receipt(
     started_at: datetime,
     stopped_at: datetime,
     freeze_reason: str | None,
-    arm_hash: str,
     warmup: dict[str, Any],
     polling_metrics: dict[str, Any],
 ) -> dict[str, Any]:
@@ -1422,12 +1214,10 @@ def session_receipt(
             }
         )
     output = {
-        "schema": SESSION_RECEIPT_SCHEMA,
+        "schema": SESSION_STATUS_SCHEMA,
         "plan_hash": plan["plan_hash"],
         "broker": broker_name,
         "mode": mode,
-        "arm_hash": arm_hash,
-        "broker_account_identity_hash": plan["context"]["broker_account_identity_hash"],
         "started_at": started_at.isoformat(),
         "stopped_at": stopped_at.isoformat(),
         "entry_freeze": freeze_reason is not None,
@@ -1436,7 +1226,6 @@ def session_receipt(
         "polling_metrics": polling_metrics,
         "intents": intents,
     }
-    output["receipt_hash"] = sha256_json(output)
     return output
 
 
@@ -1488,7 +1277,6 @@ def run_session(
     venues: dict[str, str],
     state_directory: Path,
     *,
-    arm: dict[str, Any],
     max_cycles: int | None = None,
 ) -> dict[str, Any]:
     validate_plan(plan)
@@ -1502,7 +1290,7 @@ def run_session(
             finally:
                 ledger.close()
         return {
-            "schema": SESSION_RECEIPT_SCHEMA,
+            "schema": SESSION_STATUS_SCHEMA,
             "plan_hash": plan["plan_hash"],
             "broker": broker_name,
             "mode": mode,
@@ -1514,7 +1302,6 @@ def run_session(
     start = parse_timestamp(plan["entry_window"]["start"], "entry window start")
     end = parse_timestamp(plan["entry_window"]["end"], "entry window end")
     interval = int(plan["entry_window"]["poll_interval_seconds"])
-    validate_account_authorization(plan, broker_name, mode, arm)
     admission = polling_admission(plan, broker_name, mode)
     broker = create_broker(broker_name)
     preview_by_intent = preflight_submit_requests(
@@ -2084,7 +1871,7 @@ def run_session(
                         ledger.append_event(
                             intent["intent_id"], "CANCEL_ACCEPTED", result
                         )
-            return session_receipt(
+            return session_status(
                 plan,
                 broker_name,
                 mode,
@@ -2092,7 +1879,6 @@ def run_session(
                 started_at,
                 datetime.now(timezone.utc),
                 freeze_reason,
-                arm["arm_hash"],
                 warmup,
                 polling_metrics,
             )
@@ -2353,30 +2139,8 @@ def parse_args() -> argparse.Namespace:
     preview.add_argument("--venue-map")
     preview.add_argument("--output")
 
-    identity = subparsers.add_parser("account-identity")
-    identity.add_argument(
-        "--broker", required=True, choices=("toss", "kis-paper", "kis-live")
-    )
-    identity.add_argument(
-        "--environment",
-        required=True,
-        choices=("paper", "shadow", "live"),
-    )
-    identity.add_argument("--output")
-
-    arm_parser = subparsers.add_parser("arm")
-    arm_parser.add_argument("--plan", required=True)
-    arm_parser.add_argument(
-        "--broker", required=True, choices=("toss", "kis-paper", "kis-live")
-    )
-    arm_parser.add_argument(
-        "--mode", required=True, choices=("paper", "shadow", "live")
-    )
-    arm_parser.add_argument("--output")
-
     run = subparsers.add_parser("run")
     run.add_argument("--plan", required=True)
-    run.add_argument("--arm", required=True)
     run.add_argument(
         "--broker", required=True, choices=("toss", "kis-paper", "kis-live")
     )
@@ -2395,35 +2159,21 @@ def main() -> int:
     if args.command == "self-test":
         self_test()
         return 0
-    if args.command not in {"preview", "account-identity", "arm", "run"}:
+    if args.command not in {"preview", "run"}:
         emit_json(
             {
-                "schema": SESSION_RECEIPT_SCHEMA,
+                "schema": SESSION_STATUS_SCHEMA,
                 "status": "BLOCKED",
-                "reason": ("choose preview, account-identity, arm, run, or self-test"),
+                "reason": "choose preview, run, or self-test",
             }
         )
         return 2
     try:
-        if (
-            args.command in {"account-identity", "arm", "run"}
-            and args.broker in {"kis-paper", "kis-live"}
-        ):
+        if args.command == "run" and args.broker in {"kis-paper", "kis-live"}:
             require_kis_runtime_credentials(
                 load_kis_credentials(args.broker.split("-", 1)[1])
             )
-        if args.command == "account-identity":
-            output = account_identity_hash_receipt(
-                args.broker,
-                args.environment,
-            )
-            emit_json(output, args.output)
-            return 0
         plan = load_json_object(args.plan)
-        if args.command == "arm":
-            output = create_trading_arm(plan, args.broker, args.mode)
-            emit_json(output, args.output)
-            return 0
         venues = (
             normalize_venue_map(load_json_object(args.venue_map))
             if args.venue_map
@@ -2440,12 +2190,11 @@ def main() -> int:
                 args.mode,
                 venues,
                 Path(args.state_dir).resolve(),
-                arm=load_json_object(args.arm),
                 max_cycles=args.max_cycles,
             )
     except (BlockedError, OSError, ValueError, json.JSONDecodeError) as exc:
         output = {
-            "schema": SESSION_RECEIPT_SCHEMA,
+            "schema": SESSION_STATUS_SCHEMA,
             "status": "BLOCKED",
             "reason": str(exc),
         }

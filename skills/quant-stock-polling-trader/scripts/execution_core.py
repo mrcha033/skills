@@ -19,12 +19,12 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-EXECUTION_VERSION = "open1h-exec-1.0.0"
-PLAN_SCHEMA = "qta-order-plan/v1"
+EXECUTION_VERSION = "open1h-exec-2.0.0"
+PLAN_SCHEMA = "qta-order-plan/v2"
 RISK_SCHEMA = "qta-risk-policy/v1"
 EXECUTION_POLICY_SCHEMA = "qta-execution-policy/v1"
 MARKET_SESSION_SCHEMA = "qta-market-session/v1"
-ACCOUNT_SCHEMA = "qta-account-snapshot/v1"
+ACCOUNT_SCHEMA = "qta-account-snapshot/v2"
 EXPOSURE_SCHEMA = "qta-exposure-snapshot/v1"
 EXPOSURE_SCHEMA_V2 = "qta-exposure-snapshot/v2"
 SCREEN_SCHEMA = "qta-screen/v1"
@@ -746,7 +746,6 @@ def normalized_account_snapshot(
         "broker",
         "environment",
         "account_alias",
-        "broker_account_identity_hash",
         "market",
         "currency",
         "as_of",
@@ -770,10 +769,6 @@ def normalized_account_snapshot(
         raise BlockedError("account environment must be paper, shadow, or live")
     broker = validate_nonempty_string(value["broker"], "broker")
     account_alias = validate_nonempty_string(value["account_alias"], "account_alias")
-    validate_sha256(
-        value["broker_account_identity_hash"],
-        "broker_account_identity_hash",
-    )
     as_of = parse_aware_datetime(value["as_of"], "account as_of")
     settled = nonnegative_decimal(value["settled_cash"], "settled_cash")
     borrowed = nonnegative_decimal(
@@ -867,7 +862,6 @@ def normalized_account_snapshot(
         **value,
         "broker": broker,
         "account_alias": account_alias,
-        "broker_account_identity_hash": value["broker_account_identity_hash"],
         "market": market,
         "as_of": as_of.isoformat(),
         "settled_cash": format(settled, "f"),
@@ -1909,7 +1903,6 @@ def plan_orders(
         "broker": account["broker"],
         "environment": account["environment"],
         "account_alias": account["account_alias"],
-        "broker_account_identity_hash": account["broker_account_identity_hash"],
         "market": market,
     }
     if screen_schema == SCREEN_SCHEMA_V2:
@@ -2517,9 +2510,6 @@ def self_test() -> None:
         "broker": "kis",
         "environment": "paper",
         "account_alias": "paper-us",
-        "broker_account_identity_hash": (
-            "5fb0e7c56b21e275d437f5fc8835ab1a8673813af62257601ffc901224d594ab"
-        ),
         "market": "US",
         "currency": "USD",
         "as_of": "2026-07-27T09:00:00-04:00",

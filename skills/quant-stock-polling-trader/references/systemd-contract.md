@@ -9,12 +9,12 @@ the requested scope.
 
 ## Bundle
 
-The input is one exact `qta-systemd-bundle/v1` JSON object. It binds:
+The input is one exact `qta-systemd-bundle/v2` JSON object. It binds:
 
 - the exact Python executable and installed technical/trader skill roots;
 - a user-owned, regular, non-symlink mode-0600 environment file;
-- one absolute runtime directory containing all mutable jobs, plans, arms,
-  state, venue maps, and receipts;
+- one absolute runtime directory containing all mutable jobs, plans, state,
+  venue maps, and status files;
 - unique static EOD/account-snapshot/entry jobs or daily
   prepare/snapshot/entry jobs for KR and US.
 
@@ -33,12 +33,12 @@ snapshot timers are never persistent.
 
 For recurring automation, use `daily-prepare`, `daily-snapshot`, and
 `daily-entry` jobs whose `input_path` is the stable
-`qta-daily-shadow-config/v1` file described in
+`qta-daily-shadow-config/v2` file described in
 `daily-pipeline-contract.md`. The daily runner calculates the session date and
 atomically publishes current descriptors. A timer bound to a date-stamped job
 file remains session-specific and must not be reported as future-date
-automation. Never reuse a prior session's plan, arm, calendar, state directory,
-or output path on a later date.
+automation. Never reuse a prior session's plan, calendar, state directory, or
+output path on a later date.
 
 The generator accepts only KIS paper/paper or KIS live/shadow entry pairs.
 It refuses live mode. The generated service executes Python directly without a
@@ -60,13 +60,13 @@ it.
 
 Generate into a new or empty output directory so stale service/timer files
 cannot survive from an older bundle. The generated `systemd-bundle.json` is a
-normalized, hashed, exact `qta-systemd-bundle/v1` object that the `execute`
+normalized, hashed, exact `qta-systemd-bundle/v2` object that the `execute`
 subcommand must be able to read without projection or manual editing.
 Derived `schedule` and `persistent` values belong only in generated timer
 files; they are not serialized as job input fields.
 
 Unit files and their SHA-256 values are recorded in
-`generation-receipt.json` with:
+`generation-status.json` with:
 
 ```text
 activation_performed=false
@@ -81,7 +81,6 @@ stale or unreviewed unit. After an explicitly requested activation, run
 `systemctl --user daemon-reload`, enable/start only the approved timers or
 services, and verify `is-enabled`, `is-active`, `list-timers`, and the service
 journal. Entry or snapshot activation must not occur until the daily config,
-credentials, runtime ownership, isolated plugin roots, and provenance approval
-are all bound. The daily producer itself creates the date-bound calendar,
-plan, arm, and state path before entry; a missing stage descriptor is
-`BLOCKED`.
+credentials, runtime ownership, and installed skill roots are valid. The daily
+producer itself creates the date-bound calendar, plan, and state path before
+entry; a missing stage descriptor is `BLOCKED`.

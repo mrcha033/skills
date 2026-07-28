@@ -57,12 +57,12 @@ def assert_credential_guidance_contract() -> None:
     skill_text = (
         ROOT / "skills" / "quant-stock-polling-trader" / "SKILL.md"
     ).read_text(encoding="utf-8")
-    status_command = "python3 scripts/broker_credentials.py status --environment paper"
+    status_command = "python3 scripts/broker_credentials.py status --environment live"
     configure_command = (
-        "python3 scripts/broker_credentials.py configure --environment paper"
+        "python3 scripts/broker_credentials.py configure --environment live"
     )
     auth_command = (
-        "python3 scripts/broker_credentials.py auth-check --environment paper"
+        "python3 scripts/broker_credentials.py auth-check --environment live"
     )
     first_status = skill_text.index(status_command)
     configure = skill_text.index(configure_command)
@@ -70,11 +70,10 @@ def assert_credential_guidance_contract() -> None:
     auth_check = skill_text.index(auth_command)
     assert first_status < configure < second_status < auth_check
     for required_guidance in (
-        "secure KIS credential setup",
-        "Do not\n   run `configure` in an agent-owned",
-        "Wait for the user to confirm completion.",
-        "`status` field of `AUTHENTICATED`",
-        "never infer success from credential",
+        "Never ask the user to paste a credential into chat.",
+        "Wait for the user to confirm",
+        "Authentication is proven only when the result says `AUTHENTICATED`.",
+        "does not enable live trading",
     ):
         assert required_guidance in skill_text
 
@@ -82,8 +81,7 @@ def assert_credential_guidance_contract() -> None:
         ROOT / "skills" / "quant-stock-polling-trader" / "agents" / "openai.yaml"
     ).read_text(encoding="utf-8")
     assert "$quant-stock-polling-trader" in openai_text
-    assert "securely guide KIS credential setup" in openai_text
-    assert "verify token authentication" in openai_text
+    assert "direct KIS shadow workflow" in openai_text
 
     plugin_text = (
         ROOT
@@ -359,88 +357,8 @@ def main() -> None:
     rehash_screen(execution_core, legacy_inputs[0])
     plan = execution_core.plan_orders(*legacy_inputs)
     assert "exchange" not in plan["intents"][0]
-    assert (
-        plan["context"]["broker_account_identity_hash"]
-        == legacy_inputs[1]["broker_account_identity_hash"]
-    )
-    legacy_account_without_identity = deepcopy(legacy_inputs[1])
-    legacy_account_without_identity.pop("broker_account_identity_hash")
-    assert_blocked(
-        lambda: execution_core.plan_orders(
-            legacy_inputs[0],
-            legacy_account_without_identity,
-            *legacy_inputs[2:],
-        ),
-        "account snapshot fields mismatch",
-    )
-    old_plan_without_identity = deepcopy(plan)
-    old_plan_without_identity["context"].pop("broker_account_identity_hash")
-    old_plan_without_identity["frozen_inputs"]["account"].pop(
-        "broker_account_identity_hash"
-    )
-    rehash_plan(execution_core, old_plan_without_identity)
-    assert_blocked(
-        lambda: run_session.validate_plan(old_plan_without_identity),
-        "plan.context fields mismatch",
-    )
-    fixture_identity_environment = {
-        "QTA_ACCOUNT_BINDING_KEY": "fixture-account-binding-key-0001",
-        "QTA_KIS_ACCOUNT_PREFIX": "00000000",
-        "QTA_KIS_ACCOUNT_PRODUCT": "01",
-    }
-    with patch.dict(os.environ, fixture_identity_environment, clear=True):
-        identity_receipt = run_session.account_identity_hash_receipt(
-            "kis-paper",
-            "paper",
-        )
-        assert (
-            identity_receipt["broker_account_identity_hash"]
-            == plan["context"]["broker_account_identity_hash"]
-        )
-        assert "00000000" not in execution_core.canonical_json(identity_receipt)
-        arm = run_session.create_trading_arm(plan, "kis-paper", "paper")
-        run_session.validate_account_authorization(
-            plan,
-            "kis-paper",
-            "paper",
-            arm,
-        )
-        assert "00000000" not in execution_core.canonical_json(plan)
-        assert "00000000" not in execution_core.canonical_json(arm)
-    with patch.dict(
-        os.environ,
-        {
-            **fixture_identity_environment,
-            "QTA_KIS_ACCOUNT_PREFIX": "99999999",
-        },
-        clear=True,
-    ):
-        assert_blocked(
-            lambda: run_session.validate_account_authorization(
-                plan,
-                "kis-paper",
-                "paper",
-                arm,
-            ),
-            "runtime broker account identity does not match",
-        )
-    with patch.dict(
-        os.environ,
-        {
-            **fixture_identity_environment,
-            "QTA_KIS_ACCOUNT_PRODUCT": "02",
-        },
-        clear=True,
-    ):
-        assert_blocked(
-            lambda: run_session.validate_account_authorization(
-                plan,
-                "kis-paper",
-                "paper",
-                arm,
-            ),
-            "runtime broker account identity does not match",
-        )
+    assert "broker_account_identity_hash" not in legacy_inputs[1]
+    assert "broker_account_identity_hash" not in plan["context"]
     runtime_plan = deepcopy(plan)
     runtime_now = datetime.now(timezone.utc)
     runtime_plan["entry_window"]["start"] = (
@@ -496,7 +414,6 @@ def main() -> None:
         patch.object(run_session, "validate_plan"),
         patch.object(run_session, "validate_mode"),
         patch.object(run_session, "validate_runtime_capabilities"),
-        patch.object(run_session, "validate_account_authorization"),
         patch.object(run_session, "create_broker", return_value=ShadowQuoteBroker()),
         patch.object(
             run_session,
@@ -516,7 +433,6 @@ def main() -> None:
             "paper",
             {"KR:005930": "KRX"},
             Path(state_directory),
-            arm={"arm_hash": "a" * 64},
             max_cycles=1,
         )
     assert runtime_receipt["freeze_reason"] == "max_cycles_reached"
@@ -524,7 +440,7 @@ def main() -> None:
     assert runtime_receipt["polling_metrics"]["cycles_completed"] == 1
     assert runtime_receipt["polling_metrics"]["quotes_evaluated"] == 1
     assert runtime_receipt["polling_metrics"]["expected_http_requests_started"] == 2
-    assert runtime_receipt["arm_hash"] == "a" * 64
+    assert "arm_hash" not in runtime_receipt
     with tempfile.TemporaryDirectory(prefix="qta-cross-plan-") as state_directory:
         foreign_ledger = execution_core.Ledger(Path(state_directory) / "ledger.sqlite3")
         foreign_ledger.create_intent("b" * 64, {"intent_id": "old-intent"})
@@ -564,7 +480,6 @@ def main() -> None:
             patch.object(run_session, "validate_plan"),
             patch.object(run_session, "validate_mode"),
             patch.object(run_session, "validate_runtime_capabilities"),
-            patch.object(run_session, "validate_account_authorization"),
             patch.object(
                 run_session,
                 "create_broker",
@@ -578,7 +493,6 @@ def main() -> None:
                     "paper",
                     {"KR:005930": "KRX"},
                     Path(state_directory),
-                    arm={"arm_hash": "a" * 64},
                     max_cycles=1,
                 ),
                 "nonterminal intents outside the current plan",
@@ -606,68 +520,16 @@ def main() -> None:
             "unresolved mutation states",
         )
         blocked_ledger.close()
-    assert_blocked(
-        lambda: run_session.validate_account_authorization(
-            plan,
-            "kis-paper",
-            "paper",
-            None,
-        ),
-        "trading arm artifact is required",
-    )
-    tampered_arm = deepcopy(arm)
-    tampered_arm["trading_date"] = "2026-07-28"
-    assert_blocked(
-        lambda: run_session.validate_account_authorization(
-            plan,
-            "kis-paper",
-            "paper",
-            tampered_arm,
-        ),
-        "trading arm hash does not match",
-    )
     toss_inputs = deepcopy(legacy_inputs)
     toss_inputs[1].update(
         {
             "broker": "toss",
             "environment": "shadow",
             "account_alias": "toss-shadow-kr",
-            "broker_account_identity_hash": (
-                "41572c0d88d62a56667e2f7aa5de0bb2a0e202a3946d13b5e1eb4640bdc453ae"
-            ),
         }
     )
     toss_plan = execution_core.plan_orders(*toss_inputs)
-    toss_identity_environment = {
-        "QTA_ACCOUNT_BINDING_KEY": "fixture-account-binding-key-0001",
-        "QTA_TOSS_ACCOUNT_SEQ": "1",
-    }
-    with patch.dict(os.environ, toss_identity_environment, clear=True):
-        toss_arm = run_session.create_trading_arm(
-            toss_plan,
-            "toss",
-            "shadow",
-        )
-        run_session.validate_account_authorization(
-            toss_plan,
-            "toss",
-            "shadow",
-            toss_arm,
-        )
-    with patch.dict(
-        os.environ,
-        {**toss_identity_environment, "QTA_TOSS_ACCOUNT_SEQ": "2"},
-        clear=True,
-    ):
-        assert_blocked(
-            lambda: run_session.validate_account_authorization(
-                toss_plan,
-                "toss",
-                "shadow",
-                toss_arm,
-            ),
-            "runtime broker account identity does not match",
-        )
+    assert toss_plan["context"]["account_alias"] == "toss-shadow-kr"
     stale_legacy_inputs = deepcopy(legacy_inputs)
     stale_legacy_inputs[1]["as_of"] = "2026-07-27T08:00:00+09:00"
     stale_legacy_inputs[2]["as_of"] = "2026-07-27T08:00:00+09:00"

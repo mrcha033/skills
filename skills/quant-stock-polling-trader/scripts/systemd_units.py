@@ -15,8 +15,8 @@ from pathlib import Path
 from typing import Any, Mapping
 
 
-BUNDLE_SCHEMA = "qta-systemd-bundle/v1"
-RECEIPT_SCHEMA = "qta-systemd-generation-receipt/v1"
+BUNDLE_SCHEMA = "qta-systemd-bundle/v2"
+STATUS_SCHEMA = "qta-systemd-generation-status/v2"
 TOP_FIELDS = {
     "schema",
     "unit_prefix",
@@ -33,7 +33,6 @@ JOB_FIELDS = {
     "market",
     "input_path",
     "plan_path",
-    "arm_path",
     "state_directory",
     "output_path",
     "broker",
@@ -61,20 +60,6 @@ UNIT_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,47}$")
 
 class UnitBlockedError(ValueError):
     """Raised when a unit bundle would rely on an unsafe or ambiguous value."""
-
-
-def canonical_json(value: Any) -> str:
-    return json.dumps(
-        value,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-        allow_nan=False,
-    )
-
-
-def sha256_bytes(payload: bytes) -> str:
-    return hashlib.sha256(payload).hexdigest()
 
 
 def sha256_file(path: Path) -> str:
@@ -225,7 +210,6 @@ def normalize_bundle(raw: Any) -> dict[str, Any]:
             for field in (
                 "input_path",
                 "plan_path",
-                "arm_path",
                 "state_directory",
                 "output_path",
                 "venue_map",
@@ -242,7 +226,6 @@ def normalize_bundle(raw: Any) -> dict[str, Any]:
                 path_values[field] is not None
                 for field in (
                     "plan_path",
-                    "arm_path",
                     "state_directory",
                     "output_path",
                     "venue_map",
@@ -266,7 +249,6 @@ def normalize_bundle(raw: Any) -> dict[str, Any]:
                 path_values[field] is not None
                 for field in (
                     "plan_path",
-                    "arm_path",
                     "state_directory",
                     "output_path",
                     "venue_map",
@@ -284,7 +266,6 @@ def normalize_bundle(raw: Any) -> dict[str, Any]:
                 path_values[field] is not None
                 for field in (
                     "plan_path",
-                    "arm_path",
                     "state_directory",
                     "output_path",
                     "venue_map",
@@ -302,7 +283,7 @@ def normalize_bundle(raw: Any) -> dict[str, Any]:
                     f"{label}.max_cycles must be zero for an account snapshot"
                 )
         else:
-            required = ("plan_path", "arm_path", "state_directory", "output_path")
+            required = ("plan_path", "state_directory", "output_path")
             if any(path_values[field] is None for field in required):
                 raise UnitBlockedError(f"{label} is missing an entry path")
             if path_values["input_path"] is not None:
@@ -326,7 +307,6 @@ def normalize_bundle(raw: Any) -> dict[str, Any]:
                 "persistent": kind in {"eod", "daily-prepare"},
                 "input_path": str(path_values["input_path"] or ""),
                 "plan_path": str(path_values["plan_path"] or ""),
-                "arm_path": str(path_values["arm_path"] or ""),
                 "state_directory": str(path_values["state_directory"] or ""),
                 "output_path": str(path_values["output_path"] or ""),
                 "broker": broker,
@@ -391,7 +371,7 @@ def systemd_path(value: str) -> str:
 def service_text(bundle: dict[str, Any], job: dict[str, Any], bundle_path: Path) -> str:
     root = Path(bundle["runtime_directory"])
     conditions = []
-    for field in ("input_path", "plan_path", "arm_path", "venue_map"):
+    for field in ("input_path", "plan_path", "venue_map"):
         if job[field]:
             conditions.append(f"ConditionPathExists={systemd_path(job[field])}")
     command = " ".join(
@@ -512,8 +492,8 @@ def generate(bundle: dict[str, Any], output_directory: Path) -> dict[str, Any]:
                 }
             )
     files.sort(key=lambda item: item["path"])
-    without_hash = {
-        "schema": RECEIPT_SCHEMA,
+    status = {
+        "schema": STATUS_SCHEMA,
         "status": "READY",
         "bundle_path": str(bundle_path.resolve()),
         "bundle_sha256": sha256_file(bundle_path),
@@ -522,15 +502,11 @@ def generate(bundle: dict[str, Any], output_directory: Path) -> dict[str, Any]:
         "live_enabled": False,
         "api_mutation_count": 0,
     }
-    receipt = {
-        **without_hash,
-        "receipt_hash": sha256_bytes(canonical_json(without_hash).encode("utf-8")),
-    }
     atomic_write(
-        output_directory / "generation-receipt.json",
-        (json.dumps(receipt, indent=2, sort_keys=True) + "\n").encode(),
+        output_directory / "generation-status.json",
+        (json.dumps(status, indent=2, sort_keys=True) + "\n").encode(),
     )
-    return receipt
+    return status
 
 
 def command_for(bundle: dict[str, Any], job: dict[str, Any]) -> list[str]:
@@ -594,8 +570,6 @@ def command_for(bundle: dict[str, Any], job: dict[str, Any]) -> list[str]:
         "run",
         "--plan",
         job["plan_path"],
-        "--arm",
-        job["arm_path"],
         "--broker",
         job["broker"],
         "--mode",
@@ -711,7 +685,6 @@ def self_test() -> None:
             runtime / "kr-eod.json",
             runtime / "kr-account-snapshot.json",
             runtime / "us-plan.json",
-            runtime / "us-arm.json",
         ):
             path.write_text("{}\n", encoding="utf-8")
         environment = root / "secrets.env"
@@ -732,7 +705,6 @@ def self_test() -> None:
                     "market": "KR",
                     "input_path": str(runtime / "kr-eod.json"),
                     "plan_path": "",
-                    "arm_path": "",
                     "state_directory": "",
                     "output_path": "",
                     "broker": "",
@@ -747,7 +719,6 @@ def self_test() -> None:
                     "market": "KR",
                     "input_path": str(runtime / "kr-account-snapshot.json"),
                     "plan_path": "",
-                    "arm_path": "",
                     "state_directory": "",
                     "output_path": "",
                     "broker": "kis-live",
@@ -762,7 +733,6 @@ def self_test() -> None:
                     "market": "US",
                     "input_path": "",
                     "plan_path": str(runtime / "us-plan.json"),
-                    "arm_path": str(runtime / "us-arm.json"),
                     "state_directory": str(runtime / "state-us"),
                     "output_path": str(runtime / "us-receipt.json"),
                     "broker": "kis-live",

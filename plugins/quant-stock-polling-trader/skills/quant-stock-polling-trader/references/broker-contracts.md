@@ -46,10 +46,8 @@ new token invalidates the prior token for that client. If
 ISO-8601 expiry in `QTA_TOSS_ACCESS_TOKEN_EXPIRES_AT`; block when exactly one
 of the pair is present.
 
-Before any account-scoped request, HMAC the canonical Toss broker,
-shadow/live environment, and `accountSeq` with `QTA_ACCOUNT_BINDING_KEY`.
-Require the result to match the account snapshot, plan context, and arm
-artifact. Persist only the digest.
+Keep `accountSeq` in the runtime credential environment. Do not copy it into a
+plan, status file, or error message.
 
 Bind every Toss mutation request hash to the uppercase HTTP method, exact API
 path, account sequence header value, and canonical request body. An identical
@@ -118,10 +116,8 @@ must not submit an order or claim account/order readiness from OAuth alone.
 Use `authorization`, `appkey`, `appsecret`, `tr_id`, and `custtype: P`.
 Account requests contain `CANO` and `ACNT_PRDT_CD`.
 
-Before any account-scoped request, HMAC the canonical KIS broker, plan
-environment, `CANO`, and `ACNT_PRDT_CD` with `QTA_ACCOUNT_BINDING_KEY`.
-Require the result to match the account snapshot, plan context, and arm
-artifact. Persist only the digest.
+Keep `CANO` and `ACNT_PRDT_CD` in the runtime credential environment. Do not
+copy them into a plan, status file, or error message.
 
 Core paths and current official TR IDs:
 

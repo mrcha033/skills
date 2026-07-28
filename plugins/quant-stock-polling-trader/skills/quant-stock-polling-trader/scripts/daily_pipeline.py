@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import shutil
@@ -25,16 +24,15 @@ from execution_core import (
     ENTRY_WINDOWS,
     TERMINAL_STATES,
     BlockedError,
-    canonical_json,
     normalized_execution_policy,
     normalized_risk_policy,
     sha256_file,
 )
 
-CONFIG_SCHEMA = "qta-daily-shadow-config/v1"
-RECEIPT_SCHEMA = "qta-daily-shadow-receipt/v1"
-PROVENANCE_SCHEMA = "qta-runtime-provenance/v1"
-CONFIG_FIELDS = {
+CONFIG_SCHEMA = "qta-daily-shadow-config/v2"
+STATUS_SCHEMA = "qta-daily-shadow-status/v2"
+DESCRIPTOR_SCHEMA = "qta-daily-shadow-descriptor/v2"
+REQUIRED_CONFIG_FIELDS = {
     "schema",
     "runtime_root",
     "broker",
@@ -46,15 +44,12 @@ CONFIG_FIELDS = {
     "selector",
     "risk_policy_path",
     "execution_policy",
-    "manual_exposure_component_paths",
-    "required_manual_exposure_brokers",
-    "manual_component_max_age_seconds",
     "account_aliases",
     "prepare_complete_seconds_before_open",
-    "approved_technical_version",
-    "approved_technical_tree_sha256",
-    "approved_trader_version",
-    "approved_trader_tree_sha256",
+}
+OPTIONAL_CONFIG_FIELDS = {
+    "exposure_component_paths",
+    "exposure_component_max_age_seconds",
 }
 EXECUTION_DEFAULT_FIELDS = {
     "snapshot_max_age_seconds",
@@ -163,7 +158,13 @@ def parse_iso_date(value: Any, label: str) -> date:
 def normalize_config(raw: Any, path: Path) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raise PipelineBlockedError("daily config must be one JSON object")
-    exact_fields(raw, CONFIG_FIELDS, "daily config")
+    missing = REQUIRED_CONFIG_FIELDS - set(raw)
+    extra = set(raw) - REQUIRED_CONFIG_FIELDS - OPTIONAL_CONFIG_FIELDS
+    if missing or extra:
+        raise PipelineBlockedError(
+            "daily config fields mismatch; "
+            f"missing={sorted(missing)}, extra={sorted(extra)}"
+        )
     if raw["schema"] != CONFIG_SCHEMA:
         raise PipelineBlockedError(f"daily config.schema must be {CONFIG_SCHEMA}")
     runtime = absolute_path(raw["runtime_root"], "runtime_root")
@@ -208,40 +209,29 @@ def normalize_config(raw: Any, path: Path) -> dict[str, Any]:
     if not isinstance(execution, dict):
         raise PipelineBlockedError("execution_policy must be an object")
     exact_fields(execution, EXECUTION_DEFAULT_FIELDS, "execution_policy")
-    component_paths = raw["manual_exposure_component_paths"]
+    component_paths = raw.get("exposure_component_paths", [])
     if not isinstance(component_paths, list):
-        raise PipelineBlockedError(
-            "manual_exposure_component_paths must be an array"
-        )
+        raise PipelineBlockedError("exposure_component_paths must be an array")
     normalized_component_paths: list[str] = []
     for index, item in enumerate(component_paths):
         if not isinstance(item, str) or not item:
             raise PipelineBlockedError(
-                f"manual_exposure_component_paths[{index}] must be a string"
+                f"exposure_component_paths[{index}] must be a string"
             )
         text = item
         substituted = text.replace("{session_date}", "2000-01-01")
         absolute_path(
             substituted,
-            f"manual_exposure_component_paths[{index}]",
+            f"exposure_component_paths[{index}]",
         )
         if text.count("{session_date}") > 1 or "{" in text.replace(
             "{session_date}", ""
         ):
             raise PipelineBlockedError(
-                f"manual_exposure_component_paths[{index}] has an unknown template"
+                f"exposure_component_paths[{index}] has an unknown template"
             )
         normalized_component_paths.append(text)
-    required_brokers = raw["required_manual_exposure_brokers"]
-    if (
-        not isinstance(required_brokers, list)
-        or sorted(required_brokers) != ["nh", "toss"]
-        or len(required_brokers) != 2
-    ):
-        raise PipelineBlockedError(
-            "required_manual_exposure_brokers must be exactly toss and nh"
-        )
-    max_age = raw["manual_component_max_age_seconds"]
+    max_age = raw.get("exposure_component_max_age_seconds", 86400)
     if (
         isinstance(max_age, bool)
         or not isinstance(max_age, int)
@@ -249,16 +239,21 @@ def normalize_config(raw: Any, path: Path) -> dict[str, Any]:
         or max_age > 86400
     ):
         raise PipelineBlockedError(
-            "manual_component_max_age_seconds must be 1..86400"
+            "exposure_component_max_age_seconds must be 1..86400"
         )
     aliases = raw["account_aliases"]
     if not isinstance(aliases, dict) or set(aliases) != {"KR", "US"}:
         raise PipelineBlockedError("account_aliases must contain exactly KR and US")
     if any(
-        not isinstance(value, str) or not value.strip() or value != value.strip()
+        not isinstance(value, str)
+        or not value.strip()
+        or value != value.strip()
+        or any(character not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_" for character in value)
         for value in aliases.values()
     ):
-        raise PipelineBlockedError("account aliases must be non-empty trimmed strings")
+        raise PipelineBlockedError(
+            "account aliases must use only letters, digits, hyphen, and underscore"
+        )
     deadline = raw["prepare_complete_seconds_before_open"]
     if (
         isinstance(deadline, bool)
@@ -269,28 +264,14 @@ def normalize_config(raw: Any, path: Path) -> dict[str, Any]:
         raise PipelineBlockedError(
             "prepare_complete_seconds_before_open must be 600..7200"
         )
-    versions = {
-        "technical": str(raw["approved_technical_version"]),
-        "trader": str(raw["approved_trader_version"]),
-    }
-    if any(not value or value != value.strip() for value in versions.values()):
-        raise PipelineBlockedError("approved versions must be non-empty")
     return {
         **raw,
         "runtime_root": runtime.resolve(strict=False),
         "history_start_date": history_start.isoformat(),
         "risk_policy_path": risk_path.resolve(),
         "risk_policy": risk,
-        "manual_exposure_component_paths": normalized_component_paths,
-        "required_manual_exposure_brokers": sorted(required_brokers),
-        "approved_technical_tree_sha256": validate_sha256(
-            raw["approved_technical_tree_sha256"],
-            "approved_technical_tree_sha256",
-        ),
-        "approved_trader_tree_sha256": validate_sha256(
-            raw["approved_trader_tree_sha256"],
-            "approved_trader_tree_sha256",
-        ),
+        "exposure_component_paths": normalized_component_paths,
+        "exposure_component_max_age_seconds": max_age,
         "config_path": path.resolve(),
     }
 
@@ -298,204 +279,6 @@ def normalize_config(raw: Any, path: Path) -> dict[str, Any]:
 def load_config(path: Path) -> dict[str, Any]:
     regular_nonsymlink(path, "daily config")
     return normalize_config(load_json(path, "daily config"), path)
-
-
-def source_tree_digest(root: Path) -> tuple[str, list[dict[str, Any]]]:
-    if root.is_symlink() or not root.is_dir():
-        raise PipelineBlockedError(f"skill root must be a non-symlink directory: {root}")
-    entries: list[tuple[bytes, str, str]] = []
-    ignored: list[dict[str, Any]] = []
-    for path in root.rglob("*"):
-        relative = path.relative_to(root)
-        relative_text = "./" + relative.as_posix()
-        metadata = path.lstat()
-        if stat.S_ISLNK(metadata.st_mode):
-            raise PipelineBlockedError(f"skill tree contains symlink: {relative_text}")
-        if stat.S_ISDIR(metadata.st_mode):
-            continue
-        if not stat.S_ISREG(metadata.st_mode):
-            raise PipelineBlockedError(
-                f"skill tree contains special file: {relative_text}"
-            )
-        in_pycache = "__pycache__" in relative.parts
-        if in_pycache and path.suffix == ".pyc":
-            ignored.append(
-                {
-                    "path": relative_text,
-                    "bytes": metadata.st_size,
-                    "sha256": sha256_file(path),
-                    "classification": "IGNORED_DERIVED_ARTIFACT",
-                }
-            )
-            continue
-        if path.suffix in {".pyc", ".pyo"}:
-            raise PipelineBlockedError(
-                f"bytecode exists outside an allowed __pycache__: {relative_text}"
-            )
-        entries.append(
-            (
-                relative_text.encode("utf-8"),
-                sha256_file(path),
-                relative_text,
-            )
-        )
-    entries.sort(key=lambda item: item[0])
-    listing = "".join(f"{digest}  {relative}\n" for _, digest, relative in entries)
-    return hashlib.sha256(listing.encode("utf-8")).hexdigest(), sorted(
-        ignored, key=lambda item: item["path"].encode("utf-8")
-    )
-
-
-def raw_tree_digest(root: Path) -> str:
-    if root.is_symlink() or not root.is_dir():
-        raise PipelineBlockedError(f"skill root must be a non-symlink directory: {root}")
-    entries: list[tuple[bytes, str, str]] = []
-    for path in root.rglob("*"):
-        relative_text = "./" + path.relative_to(root).as_posix()
-        metadata = path.lstat()
-        if stat.S_ISLNK(metadata.st_mode):
-            raise PipelineBlockedError(f"skill tree contains symlink: {relative_text}")
-        if stat.S_ISDIR(metadata.st_mode):
-            continue
-        if not stat.S_ISREG(metadata.st_mode):
-            raise PipelineBlockedError(
-                f"skill tree contains special file: {relative_text}"
-            )
-        entries.append(
-            (
-                relative_text.encode("utf-8"),
-                sha256_file(path),
-                relative_text,
-            )
-        )
-    entries.sort(key=lambda item: item[0])
-    listing = "".join(f"{digest}  {relative}\n" for _, digest, relative in entries)
-    return hashlib.sha256(listing.encode("utf-8")).hexdigest()
-
-
-def plugin_manifest(skill_root: Path) -> tuple[Path, dict[str, Any]]:
-    for parent in (skill_root.parent.parent, skill_root.parent.parent.parent):
-        candidate = parent / ".claude-plugin" / "plugin.json"
-        if candidate.is_file() and not candidate.is_symlink():
-            return candidate, load_json(candidate, "plugin manifest")
-    raise PipelineBlockedError(f"plugin manifest not found for {skill_root}")
-
-
-def verify_one_skill(
-    skill_root: Path,
-    *,
-    expected_name: str,
-    expected_version: str,
-    expected_digest: str,
-) -> dict[str, Any]:
-    manifest_path, manifest = plugin_manifest(skill_root)
-    if manifest.get("name") != expected_name:
-        raise PipelineBlockedError(
-            f"installed plugin name mismatch for {expected_name}"
-        )
-    if manifest.get("version") != expected_version:
-        raise PipelineBlockedError(
-            f"{expected_name} version {manifest.get('version')} does not match "
-            f"approved {expected_version}"
-        )
-    raw_digest = raw_tree_digest(skill_root)
-    digest, ignored = source_tree_digest(skill_root)
-    if digest != expected_digest:
-        raise PipelineBlockedError(
-            f"{expected_name} source tree digest {digest} does not match "
-            f"approved {expected_digest}"
-        )
-    required = [
-        skill_root / "SKILL.md",
-        manifest_path,
-    ]
-    if expected_name == "quant-stock-technical":
-        required.extend(
-            skill_root / "scripts" / name
-            for name in (
-                "fetch_kis_kr_eod.py",
-                "fetch_kis_us_eod.py",
-                "build_universe_manifest.py",
-                "screen_universe.py",
-            )
-        )
-    else:
-        required.extend(
-            skill_root / "scripts" / name
-            for name in (
-                "market_calendar.py",
-                "daily_pipeline.py",
-                "account_snapshot.py",
-                "plan_orders.py",
-                "run_session.py",
-                "reconcile.py",
-                "systemd_units.py",
-            )
-        )
-    for path in required:
-        regular_nonsymlink(path, f"{expected_name} required file")
-    return {
-        "name": expected_name,
-        "version": expected_version,
-        "raw_tree_digest": raw_digest,
-        "source_tree_digest": digest,
-        "manifest_path": str(manifest_path.resolve()),
-        "ignored_derived_artifacts": ignored,
-    }
-
-
-def verify_provenance(
-    config: dict[str, Any],
-    technical_root: Path,
-    trader_root: Path,
-) -> dict[str, Any]:
-    approved_root = (config["runtime_root"] / "approved").resolve(strict=False)
-    for root, label in (
-        (technical_root, "technical_skill_root"),
-        (trader_root, "trader_skill_root"),
-    ):
-        try:
-            root.resolve().relative_to(approved_root)
-        except ValueError as exc:
-            raise PipelineBlockedError(
-                f"{label} must be inside the isolated runtime approved directory"
-            ) from exc
-    technical = verify_one_skill(
-        technical_root,
-        expected_name="quant-stock-technical",
-        expected_version=config["approved_technical_version"],
-        expected_digest=config["approved_technical_tree_sha256"],
-    )
-    trader = verify_one_skill(
-        trader_root,
-        expected_name="quant-stock-polling-trader",
-        expected_version=config["approved_trader_version"],
-        expected_digest=config["approved_trader_tree_sha256"],
-    )
-    if technical["ignored_derived_artifacts"] or trader[
-        "ignored_derived_artifacts"
-    ]:
-        raise PipelineBlockedError(
-            "isolated staged skill roots must not contain derived bytecode"
-        )
-    without_hash = {
-        "schema": PROVENANCE_SCHEMA,
-        "status": "PASS",
-        "technical": technical,
-        "trader": trader,
-        "python_flags": "-B -s",
-        "pythonpath_unset": True,
-        "pythonhome_unset": True,
-        "dont_write_bytecode": True,
-        "live_enabled": False,
-        "api_mutation_count": 0,
-    }
-    return {
-        **without_hash,
-        "receipt_hash": hashlib.sha256(
-            canonical_json(without_hash).encode("utf-8")
-        ).hexdigest(),
-    }
 
 
 def subprocess_environment() -> dict[str, str]:
@@ -536,7 +319,7 @@ def current_descriptor_path(config: dict[str, Any], market: str) -> Path:
     return config["runtime_root"] / "current" / f"{market.lower()}.json"
 
 
-def terminal_receipt(
+def stage_status(
     *,
     stage: str,
     status: str,
@@ -545,8 +328,8 @@ def terminal_receipt(
     reason: str = "",
     details: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    without_hash = {
-        "schema": RECEIPT_SCHEMA,
+    return {
+        "schema": STATUS_SCHEMA,
         "stage": stage,
         "status": status,
         "market": market,
@@ -556,12 +339,6 @@ def terminal_receipt(
         "recorded_at": datetime.now(timezone.utc).isoformat(),
         "live_enabled": False,
         "api_mutation_count": 0,
-    }
-    return {
-        **without_hash,
-        "receipt_hash": hashlib.sha256(
-            canonical_json(without_hash).encode("utf-8")
-        ).hexdigest(),
     }
 
 
@@ -682,9 +459,9 @@ def ensure_eod(
     analysis_date: str,
     kr_sources: dict[str, Any],
     us_sources: dict[str, Any],
-    provenance_id: str,
+    cache_namespace: str,
 ) -> tuple[Path, Path]:
-    eod_base = config["runtime_root"] / "eod" / analysis_date / provenance_id[:16]
+    eod_base = config["runtime_root"] / "eod" / analysis_date / cache_namespace
     kr_output = eod_base / "kr"
     us_output = eod_base / "us"
     kr_receipt_path = kr_output / "eod-bundle-receipt.json"
@@ -811,10 +588,13 @@ def prepare(
     workflow = workflow_directory(config, market, session)
     workflow.mkdir(parents=True, exist_ok=True)
     current_path = current_descriptor_path(config, market)
-    provenance: dict[str, Any] | None = None
     if current_path.is_file() and not current_path.is_symlink():
         current = load_json(current_path, "current daily descriptor")
-        if current.get("market") == market and current.get("session_date") == session:
+        if (
+            current.get("schema") == DESCRIPTOR_SCHEMA
+            and current.get("market") == market
+            and current.get("session_date") == session
+        ):
             current_status = current.get("status")
             if current_status in {"BLOCKED", "MANUAL_BLOCK"}:
                 raise PipelineBlockedError(
@@ -826,50 +606,20 @@ def prepare(
             if current_status in {
                 "MARKET_CLOSED",
                 "PREPARED",
-                "ARMED_SHADOW",
+                "PLANNED",
                 "READY",
             }:
-                provenance = verify_provenance(
-                    config,
-                    technical_root,
-                    trader_root,
+                return load_json(
+                    workflow / "prepare-status.json",
+                    "existing prepare status",
                 )
-                stored_provenance = load_json(
-                    workflow / "provenance.json",
-                    "existing prepare provenance",
-                )
-                descriptor_provenance_hash = current.get(
-                    "provenance_receipt_hash"
-                )
-                if current_status == "MARKET_CLOSED":
-                    descriptor_provenance_hash = stored_provenance.get(
-                        "receipt_hash"
-                    )
-                provenance_matches = (
-                    stored_provenance == provenance
-                    and descriptor_provenance_hash
-                    == provenance["receipt_hash"]
-                )
-                if provenance_matches:
-                    return load_json(
-                        workflow / "prepare-receipt.json",
-                        "existing prepare receipt",
-                    )
-                if current_status in {"ARMED_SHADOW", "READY"}:
-                    raise PipelineBlockedError(
-                        "approved provenance changed after the session left "
-                        "PREPARED"
-                    )
-    if provenance is None:
-        provenance = verify_provenance(config, technical_root, trader_root)
-    atomic_write_json(workflow / "provenance.json", provenance)
     calendar = market_calendar.snapshot(
         market=market,
         session_date=session,
         output_directory=workflow / "calendar",
     )
     if calendar["status"] == "MARKET_CLOSED":
-        receipt = terminal_receipt(
+        receipt = stage_status(
             stage="prepare",
             status="MARKET_CLOSED",
             market=market,
@@ -877,16 +627,16 @@ def prepare(
             details={"calendar_receipt": calendar},
         )
         descriptor = {
-            "schema": "qta-daily-shadow-descriptor/v1",
+            "schema": DESCRIPTOR_SCHEMA,
             "status": "MARKET_CLOSED",
             "market": market,
             "session_date": session,
             "workflow_directory": str(workflow.resolve()),
-            "prepare_receipt": str((workflow / "prepare-receipt.json").resolve()),
+            "prepare_status": str((workflow / "prepare-status.json").resolve()),
             "live_enabled": False,
             "api_mutation_count": 0,
         }
-        atomic_write_json(workflow / "prepare-receipt.json", receipt)
+        atomic_write_json(workflow / "prepare-status.json", receipt)
         atomic_write_json(current_path, descriptor)
         return receipt
     if calendar["status"] != "READY":
@@ -906,15 +656,7 @@ def prepare(
         parse_iso_date(analysis_date, "analysis_date")
     ):
         raise PipelineBlockedError("history_start_date must precede analysis_date")
-    provenance_id = hashlib.sha256(
-        (
-            provenance["technical"]["source_tree_digest"]
-            + provenance["trader"]["source_tree_digest"]
-        ).encode("ascii")
-    ).hexdigest()
-    source_root = (
-        config["runtime_root"] / "sources" / session / provenance_id[:16]
-    )
+    source_root = config["runtime_root"] / "sources" / session
     kr_sources = ensure_source_snapshot(
         market="KR",
         as_of=session,
@@ -935,7 +677,7 @@ def prepare(
         analysis_date=analysis_date,
         kr_sources=kr_sources,
         us_sources=us_sources,
-        provenance_id=provenance_id,
+        cache_namespace="official",
     )
     if datetime.now(timezone.utc) >= deadline.astimezone(timezone.utc):
         raise PipelineBlockedError(
@@ -978,13 +720,7 @@ def prepare(
     screen = load_json(screen_path, "screen")
     if screen.get("screen_status") != "READY":
         raise PipelineBlockedError("qta-screen/v2 is not READY")
-    final_technical_digest, _ = source_tree_digest(technical_root)
-    final_trader_digest, _ = source_tree_digest(trader_root)
-    if final_technical_digest != provenance["technical"]["source_tree_digest"] or (
-        final_trader_digest != provenance["trader"]["source_tree_digest"]
-    ):
-        raise PipelineBlockedError("installed skill source changed during prepare")
-    receipt = terminal_receipt(
+    receipt = stage_status(
         stage="prepare",
         status="READY",
         market=market,
@@ -994,11 +730,10 @@ def prepare(
             "manifest_hash": manifest["manifest_hash"],
             "screen_hash": screen["screen_hash"],
             "calendar_session_hash": market_session["session_hash"],
-            "provenance_receipt_hash": provenance["receipt_hash"],
         },
     )
     descriptor = {
-        "schema": "qta-daily-shadow-descriptor/v1",
+        "schema": DESCRIPTOR_SCHEMA,
         "status": "PREPARED",
         "market": market,
         "session_date": session,
@@ -1009,41 +744,35 @@ def prepare(
         "screen_path": str(screen_path.resolve()),
         "manifest_hash": manifest["manifest_hash"],
         "screen_hash": screen["screen_hash"],
-        "provenance_receipt_hash": provenance["receipt_hash"],
         "live_enabled": False,
         "api_mutation_count": 0,
     }
-    atomic_write_json(workflow / "prepare-receipt.json", receipt)
+    atomic_write_json(workflow / "prepare-status.json", receipt)
     atomic_write_json(current_path, descriptor)
     return receipt
 
 
-def resolve_manual_components(
+def resolve_exposure_components(
     config: dict[str, Any], session_date: str
 ) -> list[Path]:
     paths: list[Path] = []
-    for value in config["manual_exposure_component_paths"]:
+    for value in config["exposure_component_paths"]:
         path = Path(value.replace("{session_date}", session_date))
-        regular_nonsymlink(path, "manual exposure component")
+        regular_nonsymlink(path, "configured exposure component")
         paths.append(path.resolve())
     brokers: set[str] = set()
     for path in paths:
-        component = load_json(path, "manual exposure component")
+        component = load_json(path, "configured exposure component")
         broker = component.get("broker")
         if broker not in {"toss", "nh"}:
             raise PipelineBlockedError(
-                f"manual exposure component broker is invalid: {path}"
+                f"configured exposure component broker is invalid: {path}"
             )
         if broker in brokers:
             raise PipelineBlockedError(
-                f"manual exposure broker appears more than once: {broker}"
+                f"configured exposure broker appears more than once: {broker}"
             )
         brokers.add(broker)
-    missing = set(config["required_manual_exposure_brokers"]) - brokers
-    if missing:
-        raise PipelineBlockedError(
-            f"fresh manual exposure components are missing for {sorted(missing)}"
-        )
     return paths
 
 
@@ -1068,31 +797,23 @@ def read_ledger_states(ledger_path: Path) -> list[dict[str, str]]:
 
 
 def state_market_directory(
-    runtime_root: Path, identity_hash: str, market: str
+    runtime_root: Path, account_alias: str, market: str
 ) -> Path:
-    identity_root = runtime_root / identity_hash
-    if identity_root.exists() and (
-        identity_root.is_symlink() or not identity_root.is_dir()
+    account_root = runtime_root / "state" / account_alias
+    if account_root.exists() and (
+        account_root.is_symlink() or not account_root.is_dir()
     ):
         raise PipelineBlockedError(
-            "account identity state root must be a non-symlink directory"
+            "account state root must be a non-symlink directory"
         )
-    lower = identity_root / market.lower()
-    upper = identity_root / market
-    for candidate in (lower, upper):
-        if candidate.exists() and (
-            candidate.is_symlink() or not candidate.is_dir()
-        ):
-            raise PipelineBlockedError(
-                "market state root must be a non-symlink directory"
-            )
-    if lower.exists() and upper.exists() and lower.resolve() != upper.resolve():
+    market_root = account_root / market.lower()
+    if market_root.exists() and (
+        market_root.is_symlink() or not market_root.is_dir()
+    ):
         raise PipelineBlockedError(
-            "both uppercase and lowercase market state roots exist"
+            "market state root must be a non-symlink directory"
         )
-    if upper.exists():
-        return upper
-    return lower
+    return market_root
 
 
 def unresolved_state_directories(
@@ -1124,46 +845,6 @@ def unresolved_state_directories(
     return output
 
 
-def block_unresolved_other_identities(
-    *,
-    runtime_root: Path,
-    current_identity_hash: str,
-    market: str,
-) -> None:
-    if not runtime_root.is_dir() or runtime_root.is_symlink():
-        raise PipelineBlockedError("runtime root must be a non-symlink directory")
-    for identity_root in sorted(runtime_root.iterdir(), key=lambda item: item.name):
-        if (
-            identity_root.name == current_identity_hash
-            or len(identity_root.name) != 64
-            or any(
-                character not in "0123456789abcdef"
-                for character in identity_root.name
-            )
-        ):
-            continue
-        if identity_root.is_symlink() or not identity_root.is_dir():
-            raise PipelineBlockedError(
-                "another account identity state root is not a regular directory"
-            )
-        roots = [
-            candidate
-            for candidate in (
-                identity_root / market.lower(),
-                identity_root / market,
-            )
-            if candidate.exists()
-        ]
-        if len(roots) > 1:
-            raise PipelineBlockedError(
-                "another identity has duplicate market state roots"
-            )
-        if roots and unresolved_state_directories(roots[0]):
-            raise PipelineBlockedError(
-                "unresolved state exists under another broker account identity"
-            )
-
-
 def prior_descriptor_for_state(
     config: dict[str, Any], market: str, state_directory: Path
 ) -> dict[str, Any]:
@@ -1188,8 +869,6 @@ def reconcile_one(
         trader_root / "scripts" / "reconcile.py",
         "--plan",
         descriptor["plan_path"],
-        "--arm",
-        descriptor["arm_path"],
         "--broker",
         "kis-live",
         "--state-dir",
@@ -1244,12 +923,12 @@ def reconcile_prior_states(
     config: dict[str, Any],
     trader_root: Path,
     market: str,
-    identity_hash: str,
+    account_alias: str,
     current_session: str,
     receipt_directory: Path,
 ) -> None:
     market_root = state_market_directory(
-        config["runtime_root"], identity_hash, market
+        config["runtime_root"], account_alias, market
     )
     unresolved = unresolved_state_directories(
         market_root, exclude_date=current_session
@@ -1311,28 +990,25 @@ def snapshot_and_plan(
             )
         )
     if descriptor.get("status") == "MARKET_CLOSED":
-        receipt = terminal_receipt(
+        receipt = stage_status(
             stage="snapshot",
             status="MARKET_CLOSED",
             market=market,
             session_date=session,
         )
         atomic_write_json(
-            Path(descriptor["workflow_directory"]) / "snapshot-receipt.json",
+            Path(descriptor["workflow_directory"]) / "snapshot-status.json",
             receipt,
         )
         return receipt
-    if descriptor.get("status") == "ARMED_SHADOW":
+    if descriptor.get("status") == "PLANNED":
         return load_json(
-            Path(descriptor["workflow_directory"]) / "snapshot-receipt.json",
-            "existing snapshot receipt",
+            Path(descriptor["workflow_directory"]) / "snapshot-status.json",
+            "existing snapshot status",
         )
     if descriptor.get("status") != "PREPARED":
         raise PipelineBlockedError("daily prepare stage is not PREPARED")
     workflow = Path(descriptor["workflow_directory"])
-    provenance = verify_provenance(config, technical_root, trader_root)
-    if provenance["receipt_hash"] != descriptor["provenance_receipt_hash"]:
-        raise PipelineBlockedError("runtime provenance differs from prepare")
     market_session = load_json(
         Path(descriptor["market_session_path"]), "market session"
     )
@@ -1346,61 +1022,40 @@ def snapshot_and_plan(
         raise PipelineBlockedError(
             "account snapshot started too early for snapshot_max_age_seconds"
         )
-    components = resolve_manual_components(config, session)
+    components = resolve_exposure_components(config, session)
     account_directory = workflow / "account"
     account_directory.mkdir(parents=True, exist_ok=True)
-    identity_path = account_directory / "account-identity.json"
-    run_command(
-        python_command(
-            trader_root / "scripts" / "run_session.py",
-            "account-identity",
-            "--broker",
-            "kis-live",
-            "--environment",
-            "shadow",
-            "--output",
-            str(identity_path),
-        ),
-        "broker account identity",
-    )
-    identity = load_json(identity_path, "account identity")
-    identity_hash = identity.get("broker_account_identity_hash")
-    validate_sha256(identity_hash, "broker account identity hash")
-    block_unresolved_other_identities(
-        runtime_root=config["runtime_root"],
-        current_identity_hash=identity_hash,
-        market=market,
-    )
+    account_alias = config["account_aliases"][market]
     reconcile_prior_states(
         config=config,
         trader_root=trader_root,
         market=market,
-        identity_hash=identity_hash,
+        account_alias=account_alias,
         current_session=session,
         receipt_directory=workflow / "reconciliation",
     )
     state_market_root = state_market_directory(
-        config["runtime_root"], identity_hash, market
+        config["runtime_root"], account_alias, market
     )
     state_directory = state_market_root / session
     account_path = account_directory / "account.json"
     exposure_path = account_directory / "exposure.json"
-    account_receipt_path = account_directory / "receipt.json"
+    account_status_path = account_directory / "status.json"
     account_job = {
-        "schema": "qta-account-snapshot-job/v1",
+        "schema": "qta-account-snapshot-job/v2",
         "broker": "kis-live",
         "mode": "shadow",
         "market": market,
-        "account_alias": config["account_aliases"][market],
+        "account_alias": account_alias,
         "universe_manifest": descriptor["manifest_path"],
         "fx_to_krw": "1" if market == "KR" else "KIS_PRESENT_BALANCE",
         "manual_exposure_components": [str(path) for path in components],
         "manual_component_max_age_seconds": config[
-            "manual_component_max_age_seconds"
+            "exposure_component_max_age_seconds"
         ],
         "output_account_path": str(account_path.resolve()),
         "output_exposure_path": str(exposure_path.resolve()),
-        "output_receipt_path": str(account_receipt_path.resolve()),
+        "output_status_path": str(account_status_path.resolve()),
     }
     account_job_path = workflow / "jobs" / "account-snapshot.json"
     atomic_write_json(account_job_path, account_job)
@@ -1413,13 +1068,12 @@ def snapshot_and_plan(
         ),
         "KIS and cross-broker account snapshot",
     )
-    account_receipt = load_json(account_receipt_path, "account snapshot receipt")
+    account_status = load_json(account_status_path, "account snapshot status")
     if (
-        account_receipt.get("status") != "READY"
-        or account_receipt.get("api_mutation_count") != 0
-        or account_receipt.get("broker_account_identity_hash") != identity_hash
+        account_status.get("status") != "READY"
+        or account_status.get("api_mutation_count") != 0
     ):
-        raise PipelineBlockedError("account snapshot receipt is not READY/read-only")
+        raise PipelineBlockedError("account snapshot status is not READY/read-only")
     execution = {
         "schema": "qta-execution-policy/v1",
         "market": market,
@@ -1457,31 +1111,6 @@ def snapshot_and_plan(
     plan = load_json(plan_path, "order plan")
     if plan.get("plan_status") not in {"READY", "NO_ORDERS"}:
         raise PipelineBlockedError("order plan is not READY or NO_ORDERS")
-    if plan.get("context", {}).get("broker_account_identity_hash") != identity_hash:
-        raise PipelineBlockedError("plan account identity does not match runtime")
-    arm_path = workflow / "trading-arm.json"
-    run_command(
-        python_command(
-            trader_root / "scripts" / "run_session.py",
-            "arm",
-            "--plan",
-            str(plan_path),
-            "--broker",
-            "kis-live",
-            "--mode",
-            "shadow",
-            "--output",
-            str(arm_path),
-        ),
-        "plan-bound trading arm",
-    )
-    arm = load_json(arm_path, "trading arm")
-    if (
-        arm.get("plan_hash") != plan.get("plan_hash")
-        or arm.get("broker_account_identity_hash") != identity_hash
-        or arm.get("mode") != "shadow"
-    ):
-        raise PipelineBlockedError("trading arm does not match plan/account/shadow")
     preview_path = workflow / "submit-preview.json"
     run_command(
         python_command(
@@ -1496,50 +1125,39 @@ def snapshot_and_plan(
         ),
         "venue and submit serialization preflight",
     )
-    final_technical_digest, _ = source_tree_digest(technical_root)
-    final_trader_digest, _ = source_tree_digest(trader_root)
-    if (
-        final_technical_digest != config["approved_technical_tree_sha256"]
-        or final_trader_digest != config["approved_trader_tree_sha256"]
-    ):
-        raise PipelineBlockedError("installed skill source changed during snapshot")
-    receipt = terminal_receipt(
+    receipt = stage_status(
         stage="snapshot",
         status="READY",
         market=market,
         session_date=session,
         details={
             "plan_hash": plan["plan_hash"],
-            "arm_hash": arm["arm_hash"],
-            "broker_account_identity_hash": identity_hash,
-            "settled_cash": account_receipt["settled_cash"],
+            "settled_cash": account_status["settled_cash"],
             "borrowed_buying_power_excluded": True,
-            "fx_to_krw": account_receipt["fx_to_krw"],
+            "fx_to_krw": account_status["fx_to_krw"],
+            "additional_exposure_components": len(components),
             "state_directory": str(state_directory.resolve()),
         },
     )
     full_descriptor = {
         **descriptor,
-        "status": "ARMED_SHADOW",
-        "account_identity_path": str(identity_path.resolve()),
+        "status": "PLANNED",
+        "account_alias": account_alias,
         "account_path": str(account_path.resolve()),
         "exposure_path": str(exposure_path.resolve()),
-        "account_receipt_path": str(account_receipt_path.resolve()),
+        "account_status_path": str(account_status_path.resolve()),
         "execution_policy_path": str(execution_path.resolve()),
         "plan_path": str(plan_path.resolve()),
         "plan_hash": plan["plan_hash"],
-        "arm_path": str(arm_path.resolve()),
-        "arm_hash": arm["arm_hash"],
-        "broker_account_identity_hash": identity_hash,
         "state_directory": str(state_directory.resolve()),
-        "session_receipt_path": str((workflow / "session-receipt.json").resolve()),
-        "reconciliation_receipt_path": str(
-            (workflow / "reconciliation-receipt.json").resolve()
+        "session_status_path": str((workflow / "session-status.json").resolve()),
+        "reconciliation_status_path": str(
+            (workflow / "reconciliation-status.json").resolve()
         ),
         "live_enabled": False,
         "api_mutation_count": 0,
     }
-    atomic_write_json(workflow / "snapshot-receipt.json", receipt)
+    atomic_write_json(workflow / "snapshot-status.json", receipt)
     atomic_write_json(workflow / "descriptor.json", full_descriptor)
     atomic_write_json(descriptor_path, full_descriptor)
     return receipt
@@ -1576,7 +1194,7 @@ def reconcile_current(
         "read-only reconciliation exhausted 20 attempts",
     )
     states = read_ledger_states(state_directory / "ledger.sqlite3")
-    manual = terminal_receipt(
+    manual = stage_status(
         stage="reconcile",
         status="MANUAL_BLOCK",
         market=descriptor["market"],
@@ -1597,8 +1215,8 @@ def build_final_report(
 ) -> dict[str, Any]:
     plan = load_json(Path(descriptor["plan_path"]), "order plan")
     screen = load_json(Path(descriptor["screen_path"]), "screen")
-    account_receipt = load_json(
-        Path(descriptor["account_receipt_path"]), "account receipt"
+    account_status = load_json(
+        Path(descriptor["account_status_path"]), "account status"
     )
     states = read_ledger_states(
         Path(descriptor["state_directory"]) / "ledger.sqlite3"
@@ -1658,7 +1276,7 @@ def build_final_report(
             - Decimal(plan["settled_cash_unreserved"]),
             "f",
         ),
-        "settled_cash_available": account_receipt["settled_cash"],
+        "settled_cash_available": account_status["settled_cash"],
         "borrowed_cash_excluded": load_json(
             Path(descriptor["account_path"]), "account"
         )["borrowed_buying_power"],
@@ -1689,26 +1307,24 @@ def entry(
             )
         )
     if descriptor.get("status") == "MARKET_CLOSED":
-        receipt = terminal_receipt(
+        receipt = stage_status(
             stage="entry",
             status="MARKET_CLOSED",
             market=market,
             session_date=session,
         )
         atomic_write_json(
-            Path(descriptor["workflow_directory"]) / "entry-receipt.json",
+            Path(descriptor["workflow_directory"]) / "entry-status.json",
             receipt,
         )
         return receipt
-    if descriptor.get("status") != "ARMED_SHADOW":
-        raise PipelineBlockedError("daily snapshot/plan/arm stage is not ready")
-    provenance = verify_provenance(config, technical_root, trader_root)
-    if provenance["receipt_hash"] != descriptor["provenance_receipt_hash"]:
-        raise PipelineBlockedError("runtime provenance differs from prepared plan")
-    identity_hash = descriptor["broker_account_identity_hash"]
-    validate_sha256(identity_hash, "descriptor broker identity")
+    if descriptor.get("status") != "PLANNED":
+        raise PipelineBlockedError("daily snapshot and plan stage is not ready")
+    account_alias = config["account_aliases"][market]
+    if descriptor.get("account_alias") != account_alias:
+        raise PipelineBlockedError("current plan account alias does not match config")
     expected_state = (
-        state_market_directory(config["runtime_root"], identity_hash, market)
+        state_market_directory(config["runtime_root"], account_alias, market)
         / session
     ).resolve()
     if Path(descriptor["state_directory"]).resolve() != expected_state:
@@ -1722,7 +1338,7 @@ def entry(
             reconciliation = reconcile_current(
                 descriptor=descriptor,
                 trader_root=trader_root,
-                output_path=Path(descriptor["reconciliation_receipt_path"]),
+                output_path=Path(descriptor["reconciliation_status_path"]),
             )
             if reconciliation.get("status") != "READY":
                 raise PipelineBlockedError(
@@ -1743,7 +1359,6 @@ def entry(
             "market": market,
             "session_date": session,
             "plan_hash": descriptor["plan_hash"],
-            "arm_hash": descriptor["arm_hash"],
             "started_at": datetime.now(timezone.utc).isoformat(),
             "live_enabled": False,
             "api_mutation_count": 0,
@@ -1754,8 +1369,6 @@ def entry(
         "run",
         "--plan",
         descriptor["plan_path"],
-        "--arm",
-        descriptor["arm_path"],
         "--broker",
         "kis-live",
         "--mode",
@@ -1763,7 +1376,7 @@ def entry(
         "--state-dir",
         descriptor["state_directory"],
         "--output",
-        descriptor["session_receipt_path"],
+        descriptor["session_status_path"],
     )
     if max_cycles is not None:
         if max_cycles <= 0:
@@ -1777,20 +1390,13 @@ def entry(
         env=subprocess_environment(),
     )
     session_receipt = load_json(
-        Path(descriptor["session_receipt_path"]), "session receipt"
+        Path(descriptor["session_status_path"]), "session status"
     )
     reconciliation = reconcile_current(
         descriptor=descriptor,
         trader_root=trader_root,
-        output_path=Path(descriptor["reconciliation_receipt_path"]),
+        output_path=Path(descriptor["reconciliation_status_path"]),
     )
-    final_technical_digest, _ = source_tree_digest(technical_root)
-    final_trader_digest, _ = source_tree_digest(trader_root)
-    if (
-        final_technical_digest != config["approved_technical_tree_sha256"]
-        or final_trader_digest != config["approved_trader_tree_sha256"]
-    ):
-        raise PipelineBlockedError("installed skill source changed during entry")
     report = build_final_report(
         config=config,
         descriptor=descriptor,
@@ -1817,33 +1423,30 @@ def entry(
 def self_test() -> None:
     with tempfile.TemporaryDirectory(prefix="qta-daily-pipeline-") as temporary:
         root = Path(temporary)
-        skill = root / "skill"
-        skill.mkdir()
-        atomic_write(skill / "SKILL.md", b"test\n")
-        first, ignored = source_tree_digest(skill)
-        first_raw = raw_tree_digest(skill)
-        if ignored:
-            raise AssertionError("unexpected ignored self-test files")
-        pycache = skill / "__pycache__"
-        pycache.mkdir()
-        atomic_write(pycache / "derived.cpython-314.pyc", b"derived\n")
-        second, ignored = source_tree_digest(skill)
-        second_raw = raw_tree_digest(skill)
-        if first != second or first_raw == second_raw or len(ignored) != 1:
-            raise AssertionError("derived-bytecode isolation failed")
-        receipt = terminal_receipt(
+        config = {
+            "runtime_root": root,
+            "exposure_component_paths": [],
+        }
+        if resolve_exposure_components(config, "2026-07-28") != []:
+            raise AssertionError("additional exposure components must be optional")
+        receipt = stage_status(
             stage="self-test",
             status="PASS",
             market="US",
             session_date="2026-07-28",
         )
         if receipt["api_mutation_count"] != 0 or receipt["live_enabled"]:
-            raise AssertionError("shadow safety receipt failed")
+            raise AssertionError("shadow safety status failed")
+        if "receipt_hash" in receipt:
+            raise AssertionError("daily status must not require a receipt signature")
     print(
         json.dumps(
             {
                 "self_test": "PASS",
-                "derived_bytecode_isolated": True,
+                "config_schema": CONFIG_SCHEMA,
+                "external_exposure_required": False,
+                "arm_required": False,
+                "provenance_required": False,
                 "live_enabled": False,
                 "api_mutation_count": 0,
             },
@@ -1905,7 +1508,7 @@ def main() -> int:
         ValueError,
         json.JSONDecodeError,
     ) as exc:
-        receipt = terminal_receipt(
+        receipt = stage_status(
             stage=args.command,
             status="BLOCKED",
             market=market,
@@ -1922,9 +1525,9 @@ def main() -> int:
                 session,
             )
             blocked_path = workflow / f"{args.command}-blocked.json"
-            stage_receipt_path = workflow / f"{args.command}-receipt.json"
+            stage_status_path = workflow / f"{args.command}-status.json"
             atomic_write_json(blocked_path, receipt)
-            atomic_write_json(stage_receipt_path, receipt)
+            atomic_write_json(stage_status_path, receipt)
             descriptor_path = current_descriptor_path(
                 {"runtime_root": workflow.parents[2]},
                 market,
@@ -1944,14 +1547,14 @@ def main() -> int:
             )
             blocked_descriptor = {
                 **existing,
-                "schema": "qta-daily-shadow-descriptor/v1",
+                "schema": DESCRIPTOR_SCHEMA,
                 "status": final_status,
                 "market": market,
                 "session_date": session,
                 "workflow_directory": str(workflow.resolve()),
                 "blocked_stage": args.command,
                 "blocked_reason": str(exc),
-                "blocked_receipt_path": str(blocked_path.resolve()),
+                "blocked_status_path": str(blocked_path.resolve()),
                 "live_enabled": False,
                 "api_mutation_count": 0,
             }

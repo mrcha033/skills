@@ -1,11 +1,7 @@
-# Daily shadow pipeline contract
+# Daily shadow pipeline
 
-`daily_pipeline.py` is the date-producing layer between recurring systemd
-timers and the existing frozen execution artifacts. Use it for recurring
-automation. Do not point a recurring timer directly at a date-stamped EOD job,
-plan, arm, state directory, or receipt.
-
-The only supported production pair is:
+`daily_pipeline.py` turns one stable configuration into the current market
+date's artifacts. It supports only:
 
 ```text
 broker=kis-live
@@ -14,29 +10,28 @@ live_enabled=false
 api_mutation_count=0
 ```
 
-The three deterministic stages are:
+The stages are:
 
-1. `prepare` resolves the current date in the market timezone, freezes and
-   hashes the official calendar, exits `MARKET_CLOSED` before KIS calls when
-   appropriate, freezes KRX/Nasdaq Trader/KIS masters, updates resumable
-   adjusted EOD, builds `qta-universe-manifest/v2`, and produces
-   `qta-screen/v2`.
-2. `snapshot` requires fresh Toss and NH components before KIS account calls,
-   freezes the KIS account and cross-broker exposure, resolves the KIS-observed
-   USD/KRW rate for the U.S. account, creates the deterministic plan, creates
-   the account-bound shadow arm, and serializes every potential request.
-3. `entry` validates provenance and state again, starts before the 30-second
-   warm-up, runs the first-hour Python runner, and performs bounded read-only
-   reconciliation. It never retries a mutation. Shadow mode has no order,
-   correction, or cancellation mutation.
+1. `prepare`: freeze the official market calendar, stop normally on
+   `MARKET_CLOSED`, refresh official membership/KIS masters/adjusted EOD and
+   benchmarks, build the four-exchange universe, and screen it.
+2. `snapshot`: read KIS settled cash, positions, and open orders; merge any
+   explicitly configured additional exposure files; create the execution
+   policy and deterministic plan; and preview request serialization.
+3. `entry`: start the deterministic first-hour shadow runner, then perform
+   bounded read-only reconciliation.
+
+There is no source-approval digest, provenance receipt, account-identity HMAC,
+or trading-arm artifact in this workflow. Those artifacts are not needed for
+a no-mutation shadow session and must not be made prerequisites.
 
 ## Stable configuration
 
-Supply one exact `qta-daily-shadow-config/v1` object at a stable absolute path:
+Use `qta-daily-shadow-config/v2`:
 
 ```json
 {
-  "schema": "qta-daily-shadow-config/v1",
+  "schema": "qta-daily-shadow-config/v2",
   "runtime_root": "/secure/qta",
   "broker": "kis-live",
   "mode": "shadow",
@@ -74,7 +69,7 @@ Supply one exact `qta-daily-shadow-config/v1` object at a stable absolute path:
       "NYSE": 0,
       "NASDAQ": 0
     },
-    "max_blocked_fraction": "0"
+    "max_blocked_fraction": "0.02"
   },
   "risk_policy_path": "/secure/qta/config/risk-policy.json",
   "execution_policy": {
@@ -90,85 +85,53 @@ Supply one exact `qta-daily-shadow-config/v1` object at a stable absolute path:
     "allow_partial_fill": true,
     "cancel_remainder_at_window_end": true
   },
-  "manual_exposure_component_paths": [
-    "/secure/qta/manual/{session_date}/toss.json",
-    "/secure/qta/manual/{session_date}/nh.json"
-  ],
-  "required_manual_exposure_brokers": ["toss", "nh"],
-  "manual_component_max_age_seconds": 86400,
   "account_aliases": {
     "KR": "kis-live-kr",
     "US": "kis-live-us"
   },
-  "prepare_complete_seconds_before_open": 600,
-  "approved_technical_version": "replace-with-installed-version",
-  "approved_technical_tree_sha256": "replace-with-approved-lowercase-sha256",
-  "approved_trader_version": "replace-with-installed-version",
-  "approved_trader_tree_sha256": "replace-with-approved-lowercase-sha256"
+  "prepare_complete_seconds_before_open": 600
 }
 ```
 
-Every field is required. The risk file must keep existing additions, borrowed
-cash, margin, shorting, and automatic FX disabled. The U.S. FX rate is still
-read from KIS present balance; this prohibition means the pipeline cannot
-perform an FX conversion.
+Only the fields shown above are required. Two optional fields may be added:
 
-The EOD receipt binds its original build spec and remains immutable. Before
-manifest construction, `prepare` verifies that bound spec and derives a
-workflow-local copy whose `catalog_coverage_contract` comes from the current
-stable config. This lets an explicit coverage-policy update take effect
-without mutating or recollecting an otherwise complete EOD bundle.
+```json
+{
+  "exposure_component_paths": [
+    "/secure/qta/manual/{session_date}/toss.json",
+    "/secure/qta/manual/{session_date}/nh.json"
+  ],
+  "exposure_component_max_age_seconds": 86400
+}
+```
 
-`{session_date}` is the only allowed path template. The files must be
-`qta-exposure-component/v1` objects whose brokers are exactly `toss` and `nh`.
-Missing, stale, duplicated, or unverified components block before the KIS
-account snapshot. Never synthesize empty components merely to pass this gate.
+If a path is configured, it must exist and pass validation. If no path is
+configured, the pipeline uses the KIS account view and continues. It never
+creates fake empty exposure files.
 
 ## State and restart behavior
 
-The only order-intent ledger directory is:
+The intent ledger is:
 
 ```text
-RUNTIME_ROOT/<broker-account-identity-hash>/<market>/<session-date>
+RUNTIME_ROOT/state/<account-alias>/<market>/<session-date>
 ```
 
-The implementation preserves an existing lower-case market directory created
-by an earlier release and refuses simultaneous upper- and lower-case roots.
-All other workflow, source, and EOD artifacts live outside that ledger path.
-Before a new account snapshot, prior ledgers are inspected read-only. Existing
-`MANUAL_BLOCK` stops entry. `UNKNOWN` and `CANCEL_PENDING` are reconciled at
-15-second intervals for at most 20 attempts; an unresolved result is converted
-to `MANUAL_BLOCK` with an emergency receipt.
+The workflow descriptor is
+`RUNTIME_ROOT/current/<market>.json`, and date-specific artifacts are under
+`RUNTIME_ROOT/workflows/<market>/<session-date>`.
 
-The stable `current/kr.json` and `current/us.json` descriptors are replaced
-atomically. They refer only to the current local session and contain hashes,
-paths, and the HMAC account identity—not account numbers or credentials.
-An existing current-session ledger is never entered a second time. A repeated
-`prepare` may reuse a same-session receipt only when the stored provenance
-object and the descriptor's provenance hash exactly match the currently
-verified approved roots. If approved provenance changes while the session is
-only `PREPARED`, preparation runs again. A provenance change after the session
-becomes `ARMED_SHADOW` or `READY` is `BLOCKED` rather than re-arming or
-re-entering the session.
+The stages move through `PREPARED`, `PLANNED`, and `READY`. A same-date stage
+may reuse its completed output. Entry writes an attempt marker before polling
+and refuses a second entry for the same session.
 
-## Provenance
+The runner still keeps a single-writer ledger, treats ambiguous paper
+mutations as `UNKNOWN`, and reconciles nonterminal states. These rules protect
+paper-mode compatibility; daily shadow mode itself sends zero mutations.
 
-Before every stage, calculate the byte-ordered SHA-256 listing of the complete
-skill tree. Ignore only `.pyc` files inside `__pycache__`; record them as
-derived artifacts and never execute them. Reject symlinks, special files, and
-bytecode outside `__pycache__`. Require the installed plugin name, version,
-and source digest to match the stable config. Recheck source digests after
-prepare, snapshot, and entry.
+## Status
 
-Run from an isolated, byte-identical staged plugin copy with:
-
-```text
-python3 -B -s
-PYTHONDONTWRITEBYTECODE=1
-PYTHONPATH unset
-PYTHONHOME unset
-```
-
-The systemd generator enforces the Python flags and environment boundary.
-The release/installation procedure is responsible for creating and verifying
-the isolated staged plugin copy before generating the bundle.
+Each stage writes one readable JSON status containing its stage, status,
+market, session date, reason, details, timestamp, `live_enabled`, and
+`api_mutation_count`. Status files are operational records, not signatures;
+they do not contain receipt hashes.
