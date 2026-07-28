@@ -80,6 +80,8 @@ jobs:
         run: python -B tests/test_systemd_units.py
       - name: Run KIS U.S. EOD regression
         run: python -B tests/test_kis_us_eod.py
+      - name: Run KIS Korea EOD regression
+        run: python -B tests/test_kis_kr_eod.py
       - name: Run official market calendar regression
         run: python -B tests/test_market_calendar.py
       - name: Run recurring daily pipeline regression

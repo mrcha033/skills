@@ -239,6 +239,19 @@ def normalize_job(raw: Any, job_directory: Path) -> dict[str, Any]:
     }
 
 
+def build_spec_sources(
+    sources: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Project normalized records back to the exact build-spec input schema."""
+    return [
+        {
+            field: source[field]
+            for field in sorted(universe.SOURCE_FIELDS)
+        }
+        for source in sources
+    ]
+
+
 def inspect_secrets_file(path: Path) -> bool:
     try:
         metadata = path.lstat()
@@ -913,8 +926,8 @@ def build_bundle(
         "schema": universe.BUILD_SPEC_SCHEMA,
         "as_of": job["as_of"],
         "analysis_date": job["analysis_date"],
-        "official_sources": job["official_sources"],
-        "broker_sources": job["broker_sources"],
+        "official_sources": build_spec_sources(job["official_sources"]),
+        "broker_sources": build_spec_sources(job["broker_sources"]),
         "eod_catalog": {
             "source_id": f"kis-eod-catalog-{job['as_of']}",
             "provider": "KIS",

@@ -1,6 +1,12 @@
 This release contains the versioned distribution packages declared in
 `release/catalog.json`.
 
+- Distribution 2.3.1 updates `quant-stock-technical` to 0.4.2. Korean and
+  U.S. EOD collectors now project normalized source descriptors back to the
+  exact `qta-universe-build-spec/v2` input schema, so the derived `role`
+  metadata used during validation cannot invalidate the collectors' own build
+  spec. Both collectors have regression coverage for the exact round trip.
+
 - Distribution 2.3.0 updates `quant-stock-polling-trader` to 0.4.0 and
   `quant-stock-technical` to 0.4.1. Recurring systemd jobs now use a stable
   daily config to produce the current official calendar, four-exchange EOD

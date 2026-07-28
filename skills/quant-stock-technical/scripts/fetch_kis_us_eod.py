@@ -683,8 +683,8 @@ def build_bundle(
         "schema": universe.BUILD_SPEC_SCHEMA,
         "as_of": job["as_of"],
         "analysis_date": job["analysis_date"],
-        "official_sources": job["official_sources"],
-        "broker_sources": job["broker_sources"],
+        "official_sources": shared.build_spec_sources(job["official_sources"]),
+        "broker_sources": shared.build_spec_sources(job["broker_sources"]),
         "eod_catalog": {
             "source_id": f"kis-cross-market-eod-catalog-{job['as_of']}",
             "provider": "KIS",
