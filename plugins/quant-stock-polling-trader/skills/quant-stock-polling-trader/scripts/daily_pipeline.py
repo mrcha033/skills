@@ -644,8 +644,28 @@ def seed_eod_cache(
             candidate_date = date.fromisoformat(relative_parts[0])
         except (ValueError, IndexError):
             continue
-        if candidate_date < target_date:
-            candidates.append((candidate_date, catalog.parent))
+        candidate_root = catalog.parent
+        if candidate_date > target_date or candidate_root.resolve() == target_root.resolve():
+            continue
+        receipt_path = candidate_root / "eod-bundle-receipt.json"
+        if (
+            receipt_path.is_symlink()
+            or not receipt_path.is_file()
+            or catalog.is_symlink()
+        ):
+            continue
+        try:
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if (
+            not isinstance(receipt, dict)
+            or receipt.get("status") != "READY"
+            or receipt.get("analysis_date") != candidate_date.isoformat()
+            or receipt.get("api_mutation_count") != 0
+        ):
+            continue
+        candidates.append((candidate_date, candidate_root))
     if not candidates:
         return
     source_root = max(candidates, key=lambda item: (item[0], str(item[1])))[1]

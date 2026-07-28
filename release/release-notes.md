@@ -1,6 +1,12 @@
 This release contains the versioned distribution packages declared in
 `release/catalog.json`.
 
+- Distribution 2.3.3 updates `quant-stock-polling-trader` to 0.4.1. A new
+  approved implementation may seed from a same-analysis-date EOD bundle only
+  when its receipt is `READY`, date-matched, read-only, and non-symlinked.
+  Incomplete and blocked candidates remain ineligible, preventing redundant
+  same-day full-market refreshes without weakening provenance.
+
 - Distribution 2.3.2 updates `quant-stock-technical` to 0.4.3. Complete KR and
   U.S. EOD cache files are no longer rewritten byte-for-byte during resumable
   runs. Changed, incomplete, trimmed, or invalid files still update

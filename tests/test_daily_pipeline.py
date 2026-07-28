@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import importlib.util
 import os
 import subprocess
 import sys
@@ -21,6 +22,13 @@ SCRIPT = (
     / "scripts"
     / "daily_pipeline.py"
 )
+sys.path.insert(0, str(SCRIPT.parent))
+SPEC = importlib.util.spec_from_file_location("daily_pipeline_contract", SCRIPT)
+if SPEC is None or SPEC.loader is None:
+    raise RuntimeError(f"cannot load {SCRIPT}")
+MODULE = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = MODULE
+SPEC.loader.exec_module(MODULE)
 
 
 class DailyPipelineTests(unittest.TestCase):
@@ -88,6 +96,61 @@ class DailyPipelineTests(unittest.TestCase):
             self.assertEqual(
                 json.loads(receipt_path.read_text(encoding="utf-8"))["status"],
                 "BLOCKED",
+            )
+
+    def test_same_analysis_date_ready_cache_is_seeded(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="qta-daily-cache-") as temporary:
+            runtime = Path(temporary)
+            ready_root = runtime / "eod" / "2026-07-27" / "approved-a" / "kr"
+            blocked_root = runtime / "eod" / "2026-07-27" / "approved-z" / "kr"
+            target_root = runtime / "eod" / "2026-07-27" / "current" / "kr"
+            for candidate_root, status in (
+                (ready_root, "READY"),
+                (blocked_root, "BLOCKED"),
+            ):
+                (candidate_root / "stocks" / "KOSPI").mkdir(parents=True)
+                (candidate_root / "benchmarks").mkdir()
+                (candidate_root / "stocks" / "KOSPI" / "005930.csv").write_text(
+                    f"{status}\n",
+                    encoding="utf-8",
+                )
+                (candidate_root / "benchmarks" / "KOSPI_COMPOSITE.csv").write_text(
+                    f"{status}\n",
+                    encoding="utf-8",
+                )
+                (candidate_root / "eod-catalog.csv").write_text(
+                    "catalog\n",
+                    encoding="utf-8",
+                )
+                (candidate_root / "eod-bundle-receipt.json").write_text(
+                    json.dumps(
+                        {
+                            "status": status,
+                            "analysis_date": "2026-07-27",
+                            "api_mutation_count": 0,
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+
+            MODULE.seed_eod_cache(
+                runtime,
+                target_root,
+                "2026-07-27",
+                "kr",
+            )
+
+            self.assertEqual(
+                (target_root / "stocks" / "KOSPI" / "005930.csv").read_text(
+                    encoding="utf-8"
+                ),
+                "READY\n",
+            )
+            self.assertEqual(
+                (
+                    target_root / "benchmarks" / "KOSPI_COMPOSITE.csv"
+                ).read_text(encoding="utf-8"),
+                "READY\n",
             )
 
 
