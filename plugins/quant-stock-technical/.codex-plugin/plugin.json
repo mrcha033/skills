@@ -1,6 +1,6 @@
 {
   "name": "quant-stock-technical",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "Acquire audited KIS Korean and U.S. EOD data and screen a deterministic four-exchange stock universe.",
   "author": {
     "name": "mrcha033",

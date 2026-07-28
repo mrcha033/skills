@@ -1,6 +1,11 @@
 This release contains the versioned distribution packages declared in
 `release/catalog.json`.
 
+- Distribution 2.3.2 updates `quant-stock-technical` to 0.4.3. Complete KR and
+  U.S. EOD cache files are no longer rewritten byte-for-byte during resumable
+  runs. Changed, incomplete, trimmed, or invalid files still update
+  atomically, and regression tests cover the no-op cache path.
+
 - Distribution 2.3.1 updates `quant-stock-technical` to 0.4.2. Korean and
   U.S. EOD collectors now project normalized source descriptors back to the
   exact `qta-universe-build-spec/v2` input schema, so the derived `role`

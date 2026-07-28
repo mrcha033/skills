@@ -289,7 +289,8 @@ def update_stock_file(
 ) -> tuple[list[dict[str, str]], int, list[dict[str, Any]]]:
     invalid_rows: list[dict[str, Any]] = []
     cached: list[dict[str, str]] = []
-    for row in shared.read_csv_rows(path):
+    cached_rows = shared.read_csv_rows(path)
+    for row in cached_rows:
         try:
             validate_ohlc_geometry(row)
         except InvalidOhlcGeometry as exc:
@@ -335,7 +336,8 @@ def update_stock_file(
         raise UsEodBlockedError(
             f"{symbol} needs {minimum_sessions} sessions; found {len(rows)}"
         )
-    shared.write_csv_rows(path, rows)
+    if rows != cached_rows:
+        shared.write_csv_rows(path, rows)
     return rows, client.request_count - before, invalid_rows
 
 
@@ -461,7 +463,8 @@ def update_benchmark_file(
         raise UsEodBlockedError(
             f"benchmark {symbol} needs {minimum_sessions} sessions; found {len(rows)}"
         )
-    shared.write_csv_rows(path, rows)
+    if rows != cached:
+        shared.write_csv_rows(path, rows)
     return rows
 
 
