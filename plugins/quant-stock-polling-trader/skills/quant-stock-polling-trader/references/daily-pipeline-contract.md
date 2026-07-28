@@ -113,6 +113,12 @@ cash, margin, shorting, and automatic FX disabled. The U.S. FX rate is still
 read from KIS present balance; this prohibition means the pipeline cannot
 perform an FX conversion.
 
+The EOD receipt binds its original build spec and remains immutable. Before
+manifest construction, `prepare` verifies that bound spec and derives a
+workflow-local copy whose `catalog_coverage_contract` comes from the current
+stable config. This lets an explicit coverage-policy update take effect
+without mutating or recollecting an otherwise complete EOD bundle.
+
 `{session_date}` is the only allowed path template. The files must be
 `qta-exposure-component/v1` objects whose brokers are exactly `toss` and `nh`.
 Missing, stale, duplicated, or unverified components block before the KIS

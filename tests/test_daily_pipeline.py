@@ -153,6 +153,66 @@ class DailyPipelineTests(unittest.TestCase):
                 "READY\n",
             )
 
+    def test_cached_eod_build_spec_rebinds_current_coverage_policy(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="qta-daily-build-spec-") as temporary:
+            root = Path(temporary)
+            us_output = root / "eod" / "us"
+            workflow = root / "workflow"
+            source_path = us_output / "universe-build-spec.json"
+            original_contract = {
+                "schema": "qta-catalog-coverage-contract/v1",
+                "minimum_ratio_by_exchange": {
+                    exchange: "1"
+                    for exchange in ("KOSPI", "KOSDAQ", "NYSE", "NASDAQ")
+                },
+                "minimum_screenable_ratio_by_exchange": {
+                    exchange: "0.5"
+                    for exchange in ("KOSPI", "KOSDAQ", "NYSE", "NASDAQ")
+                },
+            }
+            current_contract = json.loads(json.dumps(original_contract))
+            current_contract["minimum_screenable_ratio_by_exchange"][
+                "NASDAQ"
+            ] = "0.35"
+            source = {
+                "schema": "qta-universe-build-spec/v1",
+                "as_of": "2026-07-28",
+                "analysis_date": "2026-07-27",
+                "official_sources": [],
+                "broker_sources": [],
+                "eod_catalog": {},
+                "catalog_coverage_contract": original_contract,
+            }
+            MODULE.atomic_write_json(source_path, source)
+            MODULE.atomic_write_json(
+                us_output / "eod-bundle-receipt.json",
+                {
+                    "build_spec": {
+                        "path": str(source_path.resolve()),
+                        "sha256": MODULE.sha256_file(source_path),
+                    }
+                },
+            )
+
+            derived_path = MODULE.derive_universe_build_spec(
+                config={"catalog_coverage_contract": current_contract},
+                us_output=us_output,
+                workflow=workflow,
+            )
+
+            self.assertEqual(
+                json.loads(derived_path.read_text(encoding="utf-8"))[
+                    "catalog_coverage_contract"
+                ],
+                current_contract,
+            )
+            self.assertEqual(
+                json.loads(source_path.read_text(encoding="utf-8"))[
+                    "catalog_coverage_contract"
+                ],
+                original_contract,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

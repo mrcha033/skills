@@ -1,6 +1,12 @@
 This release contains the versioned distribution packages declared in
 `release/catalog.json`.
 
+- Distribution 2.3.4 updates `quant-stock-polling-trader` to 0.4.2. Prepare now
+  verifies the immutable EOD receipt-to-build-spec hash, then derives a
+  workflow-local build spec with the current stable coverage contract. An
+  explicit coverage-policy change therefore takes effect without mutating or
+  recollecting a completed EOD bundle.
+
 - Distribution 2.3.3 updates `quant-stock-polling-trader` to 0.4.1. A new
   approved implementation may seed from a same-analysis-date EOD bundle only
   when its receipt is `READY`, date-matched, read-only, and non-symlinked.
