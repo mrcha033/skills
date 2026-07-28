@@ -53,7 +53,10 @@ Every generated execution acquires a nonblocking, non-symlink regular-file
 market lock below a non-symlink `runtime_directory/locks`. Daily preparation
 updates one four-exchange universe and therefore acquires both locks in
 byte-stable order. Snapshot and entry acquire only their market lock. Failure
-to acquire a lock is `BLOCKED`, not a retry or a second writer.
+to acquire a lock is `BLOCKED`, not a retry or a second writer. The wrapper
+sets every opened lock file to mode `0600`, including a regular lock file that
+predates the current bundle, and verifies the resulting mode before acquiring
+it.
 
 Generate into a new or empty output directory so stale service/timer files
 cannot survive from an older bundle. The generated `systemd-bundle.json` is a

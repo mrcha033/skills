@@ -642,6 +642,18 @@ def acquire_market_locks(
                 os.close(descriptor)
                 raise UnitBlockedError("market lock must be a regular file")
             try:
+                os.fchmod(descriptor, 0o600)
+            except OSError as exc:
+                os.close(descriptor)
+                raise UnitBlockedError(
+                    f"cannot restrict the {market} market lock permissions"
+                ) from exc
+            if stat.S_IMODE(os.fstat(descriptor).st_mode) != 0o600:
+                os.close(descriptor)
+                raise UnitBlockedError(
+                    f"{market} market lock permissions must be 0600"
+                )
+            try:
                 fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError as exc:
                 os.close(descriptor)
@@ -781,6 +793,19 @@ def self_test() -> None:
             raise AssertionError("systemd self-test timer failed")
         if read_bundle(output / "systemd-bundle.json") != bundle:
             raise AssertionError("generated bundle is not executable by the reader")
+        permissive_lock = runtime / "locks" / "us.lock"
+        permissive_lock.parent.mkdir(mode=0o700)
+        permissive_lock.write_bytes(b"")
+        permissive_lock.chmod(0o644)
+        descriptors = acquire_market_locks(runtime, ["US"])
+        try:
+            if stat.S_IMODE(permissive_lock.stat().st_mode) != 0o600:
+                raise AssertionError(
+                    "existing market lock permissions were not restricted"
+                )
+        finally:
+            for descriptor in descriptors:
+                os.close(descriptor)
         print(
             json.dumps(
                 {

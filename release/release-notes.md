@@ -1,6 +1,11 @@
 This release contains the versioned distribution packages declared in
 `release/catalog.json`.
 
+- Distribution 2.3.5 updates `quant-stock-polling-trader` to 0.4.3. The
+  systemd execution wrapper now restricts every opened market lock to mode
+  `0600` and verifies that mode before acquiring the lock, including lock
+  files created by an older or manually invoked bundle.
+
 - Distribution 2.3.4 updates `quant-stock-polling-trader` to 0.4.2. Prepare now
   verifies the immutable EOD receipt-to-build-spec hash, then derives a
   workflow-local build spec with the current stable coverage contract. An
