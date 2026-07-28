@@ -29,11 +29,14 @@ The job is nonsecret JSON. Every path must be absolute:
 }
 ```
 
-Use the exact observed USD/KRW conversion value for a U.S. job. Never insert a
-placeholder or silently reuse an old rate. The collector validates the
-manifest hash and uses its `broker_symbol -> exchange` mapping. Anything held
-or working outside KOSPI, KOSDAQ, NYSE, and NASDAQ is `BLOCKED`; extend the
-exposure schema instead of assigning a false exchange.
+For a U.S. job, set `fx_to_krw` to `KIS_PRESENT_BALANCE` so the same
+`CTRP6504R` snapshot supplies its positive `frst_bltn_exrt` value. A caller may
+instead bind an exact observed positive numeric value, in which case the
+receipt records `fx_source: JOB_INPUT`. Never insert a placeholder or silently
+reuse an old rate. The collector validates the manifest hash and uses its
+`broker_symbol -> exchange` mapping. Anything held or working outside KOSPI,
+KOSDAQ, NYSE, and NASDAQ is `BLOCKED`; extend the exposure schema instead of
+assigning a false exchange.
 
 KIS credentials follow the resolution contract in `SKILL.md`. Account routing
 values and secrets are never written. Only the HMAC-derived account identity

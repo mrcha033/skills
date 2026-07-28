@@ -148,7 +148,11 @@ def load_job(path: Path) -> dict[str, Any]:
     if not isinstance(alias, str) or not alias.strip() or alias != alias.strip():
         raise BlockedError("account_alias must be a non-empty trimmed string")
     manifest = validate_absolute_path(value["universe_manifest"], "universe_manifest")
-    fx = positive_decimal(value["fx_to_krw"], "fx_to_krw")
+    raw_fx = value["fx_to_krw"]
+    if market == "US" and raw_fx == "KIS_PRESENT_BALANCE":
+        fx: Decimal | None = None
+    else:
+        fx = positive_decimal(raw_fx, "fx_to_krw")
     if market == "KR" and fx != 1:
         raise BlockedError("KR fx_to_krw must be 1")
     components = value["manual_exposure_components"]
@@ -491,8 +495,14 @@ def collect_kr(
 def collect_us(
     broker: KisBroker,
     mapping: dict[str, str],
-    fx_to_krw: Decimal,
-) -> tuple[Decimal, Decimal, list[dict[str, Any]], list[dict[str, Any]]]:
+    fx_to_krw: Decimal | None,
+) -> tuple[
+    Decimal,
+    Decimal,
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    Decimal,
+]:
     present = request_pages(
         broker,
         path="/uapi/overseas-stock/v1/trading/inquire-present-balance",
@@ -517,6 +527,11 @@ def collect_us(
     if len(usd_cash_rows) != 1:
         raise BlockedError("KIS US present balance requires exactly one USD cash row")
     cash = usd_cash_rows[0]
+    observed_fx = positive_decimal(
+        cash.get("frst_bltn_exrt"),
+        "US frst_bltn_exrt",
+    )
+    effective_fx = fx_to_krw if fx_to_krw is not None else observed_fx
     settled_cash = minimum_nonnegative(
         [
             (cash.get("frcr_dncl_amt_2"), "US frcr_dncl_amt_2"),
@@ -550,7 +565,7 @@ def collect_us(
                 "exchange": exchange,
                 "symbol": symbol,
                 "quantity": format(quantity, "f"),
-                "market_value_krw": format(market_value_usd * fx_to_krw, "f"),
+                "market_value_krw": format(market_value_usd * effective_fx, "f"),
             }
         )
     orders = request_pages(
@@ -588,7 +603,7 @@ def collect_us(
                 "symbol": symbol,
             }
         )
-    return settled_cash, borrowed, positions, open_orders
+    return settled_cash, borrowed, positions, open_orders, effective_fx
 
 
 def collect(
@@ -610,9 +625,16 @@ def collect(
     )
     if job["market"] == "KR":
         settled, borrowed, positions, open_orders = collect_kr(broker, mapping)
+        effective_fx = Decimal(1)
+        fx_source = "FIXED_KRW"
     else:
-        settled, borrowed, positions, open_orders = collect_us(
+        settled, borrowed, positions, open_orders, effective_fx = collect_us(
             broker, mapping, job["fx_to_krw"]
+        )
+        fx_source = (
+            "KIS_PRESENT_BALANCE:frst_bltn_exrt"
+            if job["fx_to_krw"] is None
+            else "JOB_INPUT"
         )
     positions = aggregate_positions(positions)
     freeze_time = frozen_at or datetime.now(timezone.utc)
@@ -643,7 +665,7 @@ def collect(
             "as_of": as_of,
             "settled_cash": format(settled, "f"),
             "borrowed_buying_power": format(borrowed, "f"),
-            "fx_to_krw": format(job["fx_to_krw"], "f"),
+            "fx_to_krw": format(effective_fx, "f"),
             "positions": account_positions,
             "open_orders": open_orders,
         },
@@ -709,6 +731,8 @@ def collect(
         "exposure_path": str(job["output_exposure_path"]),
         "exposure_sha256": sha256_file(job["output_exposure_path"]),
         "manual_components": component_receipts,
+        "fx_to_krw": account["fx_to_krw"],
+        "fx_source": fx_source,
         "settled_cash": account["settled_cash"],
         "borrowed_buying_power_excluded": True,
         "position_count": len(account["positions"]),
@@ -883,7 +907,7 @@ def self_test() -> dict[str, Any]:
             **job_raw,
             "market": "US",
             "account_alias": "kis-live-us",
-            "fx_to_krw": "1400",
+            "fx_to_krw": "KIS_PRESENT_BALANCE",
             "output_account_path": str(directory / "account-us.json"),
             "output_exposure_path": str(directory / "exposure-us.json"),
             "output_receipt_path": str(directory / "receipt-us.json"),
@@ -920,6 +944,7 @@ def self_test() -> dict[str, Any]:
                             "frcr_dncl_amt_2": "1500",
                             "frcr_drwg_psbl_amt_1": "1200",
                             "nxdy_frcr_drwg_psbl_amt": "1100",
+                            "frst_bltn_exrt": "1400",
                         }
                     ],
                     "output3": [{}],
@@ -976,6 +1001,8 @@ def self_test() -> dict[str, Any]:
         assert us_receipt["status"] == "READY"
         assert us_account["settled_cash"] == "1100"
         assert us_account["positions"][0]["market_value_krw"] == "350000"
+        assert us_account["fx_to_krw"] == "1400"
+        assert us_receipt["fx_source"] == "KIS_PRESENT_BALANCE:frst_bltn_exrt"
         assert us_account["open_orders"][0]["exchange"] == "NYSE"
         assert us_account["open_orders"][0]["side"] == "SELL"
 

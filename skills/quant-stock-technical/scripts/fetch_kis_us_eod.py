@@ -8,17 +8,17 @@ import json
 import sys
 import tempfile
 import zipfile
+from collections.abc import Callable, Mapping
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Callable, Mapping, Optional
+from typing import Any, Optional
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 import build_universe_manifest as universe
 import fetch_kis_kr_eod as shared
-
 
 JOB_SCHEMA = "qta-kis-us-eod-job/v1"
 RECEIPT_SCHEMA = "qta-kis-us-eod-receipt/v1"
@@ -44,6 +44,32 @@ YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart"
 
 class UsEodBlockedError(shared.EodBlockedError):
     """Raised when a U.S. EOD bundle cannot be completed without guessing."""
+
+
+class InvalidOhlcGeometry(UsEodBlockedError):
+    """One parseable provider row has OHLC values that cannot be admitted."""
+
+    def __init__(self, reason: str, row: dict[str, str]):
+        super().__init__(reason)
+        self.reason = reason
+        self.row = row
+
+
+def validate_ohlc_geometry(row: dict[str, str]) -> None:
+    if Decimal(row["high"]) < max(
+        Decimal(row["open"]), Decimal(row["low"]), Decimal(row["close"])
+    ):
+        raise InvalidOhlcGeometry(
+            "KIS overseas row high is inconsistent",
+            row,
+        )
+    if Decimal(row["low"]) > min(
+        Decimal(row["open"]), Decimal(row["high"]), Decimal(row["close"])
+    ):
+        raise InvalidOhlcGeometry(
+            "KIS overseas row low is inconsistent",
+            row,
+        )
 
 
 def normalize_job(raw: Any, job_directory: Path) -> dict[str, Any]:
@@ -151,14 +177,7 @@ def normalize_stock_row(raw: Mapping[str, Any]) -> dict[str, str]:
         ),
     }
     output["adjusted_close"] = output["close"]
-    if Decimal(output["high"]) < max(
-        Decimal(output["open"]), Decimal(output["low"]), Decimal(output["close"])
-    ):
-        raise UsEodBlockedError("KIS overseas row high is inconsistent")
-    if Decimal(output["low"]) > min(
-        Decimal(output["open"]), Decimal(output["high"]), Decimal(output["close"])
-    ):
-        raise UsEodBlockedError("KIS overseas row low is inconsistent")
+    validate_ohlc_geometry(output)
     return output
 
 
@@ -169,6 +188,7 @@ def fetch_stock_history(
     symbol: str,
     start: date,
     end: date,
+    invalid_rows: Optional[list[dict[str, Any]]] = None,
 ) -> list[dict[str, str]]:
     cursor = end
     output: dict[str, dict[str, str]] = {}
@@ -190,8 +210,51 @@ def fetch_stock_history(
             raise UsEodBlockedError("KIS overseas output2 must be an array")
         if not rows:
             break
-        normalized = [normalize_stock_row(row) for row in rows if isinstance(row, dict)]
+        page_dates: list[date] = []
+        normalized: list[dict[str, str]] = []
+        for raw_row in rows:
+            if not isinstance(raw_row, dict):
+                continue
+            try:
+                page_dates.append(
+                    datetime.strptime(str(raw_row["xymd"]), "%Y%m%d").date()
+                )
+            except (KeyError, ValueError) as exc:
+                raise UsEodBlockedError(
+                    "KIS overseas row has invalid xymd"
+                ) from exc
+            try:
+                normalized.append(normalize_stock_row(raw_row))
+            except InvalidOhlcGeometry as exc:
+                invalid_day = date.fromisoformat(exc.row["date"])
+                if invalid_day == end:
+                    raise UsEodBlockedError(
+                        f"{symbol} completed cutoff row has invalid OHLC geometry: "
+                        f"{exc.reason}"
+                    ) from exc
+                if invalid_rows is not None and start <= invalid_day <= end:
+                    invalid_rows.append(
+                        {
+                            "date": exc.row["date"],
+                            "reason": exc.reason,
+                            "row": exc.row,
+                            "row_sha256": shared.sha256_bytes(
+                                shared.canonical_json(exc.row).encode("utf-8")
+                            ),
+                        }
+                    )
         if not normalized:
+            if page_dates:
+                oldest = min(page_dates)
+                if oldest <= start:
+                    break
+                next_cursor = oldest - timedelta(days=1)
+                if next_cursor >= cursor:
+                    raise UsEodBlockedError(
+                        "KIS overseas pagination did not move backward"
+                    )
+                cursor = next_cursor
+                continue
             raise UsEodBlockedError("KIS overseas page has no valid rows")
         for row in normalized:
             day = date.fromisoformat(row["date"])
@@ -202,7 +265,7 @@ def fetch_stock_history(
                         f"KIS returned conflicting duplicate date {row['date']}"
                     )
                 output[row["date"]] = row
-        oldest = min(date.fromisoformat(row["date"]) for row in normalized)
+        oldest = min(page_dates)
         if oldest <= start:
             break
         next_cursor = oldest - timedelta(days=1)
@@ -223,8 +286,32 @@ def update_stock_file(
     start: date,
     end: date,
     minimum_sessions: int,
-) -> tuple[list[dict[str, str]], int]:
-    cached = shared.read_csv_rows(path)
+) -> tuple[list[dict[str, str]], int, list[dict[str, Any]]]:
+    invalid_rows: list[dict[str, Any]] = []
+    cached: list[dict[str, str]] = []
+    for row in shared.read_csv_rows(path):
+        try:
+            validate_ohlc_geometry(row)
+        except InvalidOhlcGeometry as exc:
+            invalid_day = date.fromisoformat(exc.row["date"])
+            if invalid_day == end:
+                raise UsEodBlockedError(
+                    f"{symbol} cached cutoff row has invalid OHLC geometry: "
+                    f"{exc.reason}"
+                ) from exc
+            if start <= invalid_day <= end:
+                invalid_rows.append(
+                    {
+                        "date": exc.row["date"],
+                        "reason": exc.reason,
+                        "row": exc.row,
+                        "row_sha256": shared.sha256_bytes(
+                            shared.canonical_json(exc.row).encode("utf-8")
+                        ),
+                    }
+                )
+            continue
+        cached.append(row)
     merged = {
         row["date"]: row
         for row in cached
@@ -233,7 +320,12 @@ def update_stock_file(
     before = client.request_count
     if end.isoformat() not in merged or len(merged) < minimum_sessions:
         for row in fetch_stock_history(
-            client, exchange=exchange, symbol=symbol, start=start, end=end
+            client,
+            exchange=exchange,
+            symbol=symbol,
+            start=start,
+            end=end,
+            invalid_rows=invalid_rows,
         ):
             merged[row["date"]] = row
     rows = [merged[key] for key in sorted(merged)]
@@ -244,7 +336,23 @@ def update_stock_file(
             f"{symbol} needs {minimum_sessions} sessions; found {len(rows)}"
         )
     shared.write_csv_rows(path, rows)
-    return rows, client.request_count - before
+    return rows, client.request_count - before, invalid_rows
+
+
+def load_invalid_row_audit(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise UsEodBlockedError("invalid-row audit is not readable JSON") from exc
+    if (
+        not isinstance(value, dict)
+        or value.get("schema") != "qta-kis-us-invalid-eod-rows/v1"
+        or not isinstance(value.get("records"), list)
+    ):
+        raise UsEodBlockedError("invalid-row audit has an unsupported schema")
+    return [item for item in value["records"] if isinstance(item, dict)]
 
 
 def fetch_yahoo_benchmark(symbol: str, start: date, end: date) -> list[dict[str, str]]:
@@ -433,6 +541,8 @@ def build_bundle(
 
     catalog = shared.load_base_catalog(job["base_eod_catalog"])
     failures: list[dict[str, str]] = []
+    invalid_audit_path = output_root / "invalid-eod-rows.json"
+    invalid_records = load_invalid_row_audit(invalid_audit_path)
     ready_count = 0
     eligible_count = 0
     cache_hits = 0
@@ -469,7 +579,7 @@ def build_bundle(
                 coverage[exchange]["eligible"] += 1
                 before = client.request_count
                 try:
-                    rows, _ = update_stock_file(
+                    rows, _, observed_invalid = update_stock_file(
                         client,
                         exchange=exchange,
                         symbol=symbol,
@@ -478,6 +588,23 @@ def build_bundle(
                         end=end,
                         minimum_sessions=minimum,
                     )
+                    if client.request_count != before or observed_invalid:
+                        invalid_records = [
+                            item
+                            for item in invalid_records
+                            if not (
+                                item.get("exchange") == exchange
+                                and item.get("symbol") == symbol
+                            )
+                        ]
+                        invalid_records.extend(
+                            {
+                                "exchange": exchange,
+                                "symbol": symbol,
+                                **item,
+                            }
+                            for item in observed_invalid
+                        )
                     if client.request_count == before:
                         cache_hits += 1
                     latest_close = rows[-1]["close"]
@@ -521,6 +648,37 @@ def build_bundle(
     ]
     catalog_path = output_root / "eod-catalog.csv"
     shared.write_catalog(catalog_path, rows)
+    invalid_records.sort(
+        key=lambda item: (
+            str(item.get("exchange", "")),
+            str(item.get("symbol", "")),
+            str(item.get("date", "")),
+        )
+    )
+    invalid_records = [
+        item
+        for _, item in {
+            (
+                str(item.get("exchange", "")),
+                str(item.get("symbol", "")),
+                str(item.get("date", "")),
+            ): item
+            for item in invalid_records
+        }.items()
+    ]
+    invalid_records.sort(
+        key=lambda item: (
+            str(item.get("exchange", "")),
+            str(item.get("symbol", "")),
+            str(item.get("date", "")),
+        )
+    )
+    invalid_audit = {
+        "schema": "qta-kis-us-invalid-eod-rows/v1",
+        "analysis_date": job["analysis_date"],
+        "records": invalid_records,
+    }
+    shared.atomic_write_json(invalid_audit_path, invalid_audit)
     build_spec = {
         "schema": universe.BUILD_SPEC_SCHEMA,
         "as_of": job["as_of"],
@@ -567,6 +725,12 @@ def build_bundle(
         "cache_hits": cache_hits,
         "coverage_by_exchange": coverage,
         "failed_symbols": failures,
+        "invalid_eod_rows": {
+            "path": str(invalid_audit_path.resolve()),
+            "sha256": shared.sha256_file(invalid_audit_path),
+            "count": len(invalid_records),
+            "policy": "EXCLUDED_WITHOUT_INTERPOLATION",
+        },
         "request_count": client.request_count,
         "retry_count": client.retry_count,
         "benchmarks": benchmark_results,

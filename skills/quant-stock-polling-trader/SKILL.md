@@ -86,6 +86,9 @@ submit, or enable live orders.
 1. Read `references/execution-contract.md`.
 2. Read `references/broker-contracts.md` for the chosen adapter.
 3. Read `references/policy-examples.md` when preparing frozen JSON inputs.
+   For recurring daily automation, also read
+   `references/daily-pipeline-contract.md`; do not assemble date-stamped
+   recurring jobs by hand.
 4. Freeze the screen, account snapshot, cross-broker exposure snapshot, risk
    policy, trading calendar, and execution policy before the session. Run
    `scripts/freeze_market_session.py` to bind the local calendar file and its
@@ -108,14 +111,17 @@ submit, or enable live orders.
    is missing. Never compensate with a guessed default.
 
 For deterministic Linux supervision, read `references/systemd-contract.md` and
-use `scripts/systemd_units.py generate`. It emits hardened user service/timer
-files and a hash receipt but does not activate them by itself. Generation is
-only an intermediate result when the user explicitly asks to install, enable,
-start, or automate the jobs: validate the generated units, install only the
-reviewed units, reload the user manager, perform the requested activation, and
-verify the resulting timer/service states. Do not activate entry or account
-snapshot units without their current session-bound inputs. Entry jobs permit
-KIS paper/paper and KIS live/shadow only; live mode remains blocked.
+use `scripts/systemd_units.py generate`. For recurring shadow automation,
+generate `daily-prepare`, `daily-snapshot`, and `daily-entry` jobs around one
+stable `qta-daily-shadow-config/v1`; `scripts/daily_pipeline.py` creates each
+current date's frozen artifacts. The generator emits hardened user
+service/timer files and a hash receipt but does not activate them by itself.
+Generation is only an intermediate result when the user explicitly asks to
+install, enable, start, or automate the jobs: validate the generated units,
+install only the reviewed units, reload the user manager, perform the requested
+activation, and verify the resulting timer/service states. Entry jobs permit
+KIS paper/paper and KIS live/shadow only; the daily pipeline permits only KIS
+live/shadow and fixes API mutation count to zero.
 
 Run all bundled self-tests after changing a script:
 
@@ -125,6 +131,8 @@ python3 scripts/freeze_market_session.py --self-test
 python3 scripts/broker_adapters.py --self-test
 python3 scripts/broker_credentials.py self-test
 python3 scripts/account_snapshot.py self-test
+python3 scripts/market_calendar.py self-test
+python3 scripts/daily_pipeline.py self-test
 python3 scripts/plan_orders.py --self-test
 python3 scripts/run_session.py self-test
 python3 scripts/reconcile.py --self-test

@@ -1,7 +1,7 @@
 {
   "name": "quant-stock-technical",
-  "version": "0.4.0",
-  "description": "Acquire KIS Korean and U.S. EOD data and screen a deterministic four-exchange stock universe.",
+  "version": "0.4.1",
+  "description": "Acquire audited KIS Korean and U.S. EOD data and screen a deterministic four-exchange stock universe.",
   "author": {
     "name": "mrcha033",
     "url": "https://github.com/mrcha033"
@@ -17,7 +17,7 @@
   "interface": {
     "displayName": "Quant Stock Technical",
     "shortDescription": "Four-exchange EOD acquisition and screening",
-    "longDescription": "Resumably acquire read-only KIS Korean and U.S. adjusted EOD data and build a source-hashed KOSPI, KOSDAQ, NYSE, and NASDAQ universe.",
+    "longDescription": "Acquire resumable read-only KIS Korean and U.S. adjusted EOD data, audit invalid provider rows without interpolation, and build a source-hashed KOSPI, KOSDAQ, NYSE, and NASDAQ universe.",
     "developerName": "mrcha033",
     "category": "Finance",
     "capabilities": [

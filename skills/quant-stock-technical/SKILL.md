@@ -53,7 +53,10 @@ directories and KIS overseas masters with
 outside the U.S. entry window. KIS stock history must use adjusted `MODP=1`;
 preserve exchange-specific membership, broker symbols, benchmarks, and tick
 mappings. Combine the completed Korean catalog and all four source descriptor
-pairs before claiming a complete v2 build spec.
+pairs before claiming a complete v2 build spec. If KIS supplies an interior
+adjusted row with invalid OHLC geometry, preserve its hash and values in the
+invalid-row audit and exclude only that real row without interpolation. An
+invalid cutoff row remains blocking.
 
 ## Workflow
 

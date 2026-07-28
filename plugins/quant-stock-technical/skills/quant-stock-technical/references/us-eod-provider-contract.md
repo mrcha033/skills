@@ -27,6 +27,15 @@ KIS overseas daily history uses
 atomic, resumable CSV files. Every admitted ticker and benchmark requires the
 exact cutoff and at least 756 sessions.
 
+KIS can return an interior adjusted row whose reported open, high, low, and
+close do not form valid OHLC geometry. Exclude that exact provider row without
+interpolation, record its exchange, symbol, date, normalized values, size, and
+SHA-256 in `invalid-eod-rows.json`, and continue only if the remaining real
+rows still meet the complete-session contract. An invalid row on the requested
+cutoff remains `BLOCKED`; never invent the latest completed candle. The
+receipt binds the audit file and reports policy
+`EXCLUDED_WITHOUT_INTERPOLATION`.
+
 The existing v2 universe contract names `NYSE_COMPOSITE` and
 `NASDAQ_COMPOSITE`. Their public benchmark symbols are `^NYA` and `^IXIC`.
 Benchmark downloads are source-labeled and hashed; a malformed, incomplete, or
