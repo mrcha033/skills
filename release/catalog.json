@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "distributionVersion": "2.3.2",
+  "distributionVersion": "2.3.3",
   "releaseTagPrefix": "skills-v",
   "guaranteeScope": "Package compatibility guarantees archive layout, manifest placement, and byte integrity. Runtime compatibility remains conditional on each skill's declared tools, authentication, network, and data requirements.",
   "formats": {
@@ -96,7 +96,7 @@
     },
     {
       "name": "quant-stock-polling-trader",
-      "version": "0.4.0",
+      "version": "0.4.1",
       "runtime": {
         "codex": "supported",
         "claudeCode": "supported",
@@ -112,7 +112,7 @@
         "frozen screen, account, exposure, calendar, risk, and execution-policy inputs",
         "systemd for generated Linux user units"
       ],
-      "notes": "The daily KIS live/shadow pipeline freezes official calendars and four-exchange inputs, builds date-bound screens/plans/arms, checks prior ledgers, and runs first-hour polling plus bounded reconciliation with API mutations fixed to zero. The systemd generator emits recurring daily prepare/snapshot/entry units from one stable config while preserving exact bundle round-trips, single-writer locks, isolated Python execution, and nonpersistent entry timers."
+      "notes": "The daily KIS live/shadow pipeline freezes official calendars and four-exchange inputs, builds date-bound screens/plans/arms, checks prior ledgers, and runs first-hour polling plus bounded reconciliation with API mutations fixed to zero. A byte-complete READY EOD cache from the same analysis date may seed a new approved implementation, avoiding a full redundant refresh while rejecting incomplete or blocked candidates. The systemd generator emits recurring daily prepare/snapshot/entry units from one stable config while preserving exact bundle round-trips, single-writer locks, isolated Python execution, and nonpersistent entry timers."
     },
     {
       "name": "quant-stock-technical",
