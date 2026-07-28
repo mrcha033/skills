@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "distributionVersion": "2.3.4",
+  "distributionVersion": "2.3.5",
   "releaseTagPrefix": "skills-v",
   "guaranteeScope": "Package compatibility guarantees archive layout, manifest placement, and byte integrity. Runtime compatibility remains conditional on each skill's declared tools, authentication, network, and data requirements.",
   "formats": {
@@ -96,7 +96,7 @@
     },
     {
       "name": "quant-stock-polling-trader",
-      "version": "0.4.2",
+      "version": "0.4.3",
       "runtime": {
         "codex": "supported",
         "claudeCode": "supported",
@@ -112,7 +112,7 @@
         "frozen screen, account, exposure, calendar, risk, and execution-policy inputs",
         "systemd for generated Linux user units"
       ],
-      "notes": "The daily KIS live/shadow pipeline freezes official calendars and four-exchange inputs, builds date-bound screens/plans/arms, checks prior ledgers, and runs first-hour polling plus bounded reconciliation with API mutations fixed to zero. A byte-complete READY EOD cache from the same analysis date may seed a new approved implementation, avoiding a full redundant refresh while rejecting incomplete or blocked candidates. The immutable EOD build spec is hash-verified before a workflow-local copy rebinds the current explicit coverage policy, so policy changes do not require data recollection. The systemd generator emits recurring daily prepare/snapshot/entry units from one stable config while preserving exact bundle round-trips, single-writer locks, isolated Python execution, and nonpersistent entry timers."
+      "notes": "The daily KIS live/shadow pipeline freezes official calendars and four-exchange inputs, builds date-bound screens/plans/arms, checks prior ledgers, and runs first-hour polling plus bounded reconciliation with API mutations fixed to zero. A byte-complete READY EOD cache from the same analysis date may seed a new approved implementation, avoiding a full redundant refresh while rejecting incomplete or blocked candidates. The immutable EOD build spec is hash-verified before a workflow-local copy rebinds the current explicit coverage policy, so policy changes do not require data recollection. The systemd generator emits recurring daily prepare/snapshot/entry units from one stable config while preserving exact bundle round-trips, single-writer locks, isolated Python execution, nonpersistent entry timers, and mode-0600 lock files even when a lock predates the active bundle."
     },
     {
       "name": "quant-stock-technical",
