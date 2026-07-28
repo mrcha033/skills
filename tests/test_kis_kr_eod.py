@@ -222,6 +222,21 @@ class KisKrEodTests(unittest.TestCase):
             self.assertTrue(Path(receipt["catalog"]["path"]).is_file())
             self.assertTrue(Path(receipt["build_spec"]["path"]).is_file())
             self.assertEqual(receipt["coverage_by_exchange"]["KOSPI"]["ready"], 1)
+            build_spec_path = Path(receipt["build_spec"]["path"])
+            build_spec = json.loads(build_spec_path.read_text(encoding="utf-8"))
+            for role, sources in (
+                ("OFFICIAL_MASTER", build_spec["official_sources"]),
+                ("BROKER_MASTER", build_spec["broker_sources"]),
+            ):
+                for index, source in enumerate(sources):
+                    self.assertEqual(set(source), MODULE.universe.SOURCE_FIELDS)
+                    MODULE.universe.normalize_source_descriptor(
+                        source,
+                        role,
+                        build_spec["as_of"],
+                        build_spec_path.parent,
+                        index,
+                    )
 
 
 if __name__ == "__main__":
