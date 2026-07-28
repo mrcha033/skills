@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "quant-stock-polling-trader",
   "displayName": "Quant Stock Polling Trader",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Build and supervise deterministic daily KIS shadow sessions from official calendars through reconciliation.",
   "author": {
     "name": "mrcha033",

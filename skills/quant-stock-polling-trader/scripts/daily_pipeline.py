@@ -768,6 +768,39 @@ def ensure_eod(
     return kr_output, us_output
 
 
+def derive_universe_build_spec(
+    *,
+    config: dict[str, Any],
+    us_output: Path,
+    workflow: Path,
+) -> Path:
+    receipt_path = us_output / "eod-bundle-receipt.json"
+    regular_nonsymlink(receipt_path, "U.S. EOD receipt")
+    receipt = load_json(receipt_path, "U.S. EOD receipt")
+    binding = receipt.get("build_spec")
+    if not isinstance(binding, dict):
+        raise PipelineBlockedError("U.S. EOD receipt build_spec must be an object")
+    exact_fields(binding, {"path", "sha256"}, "U.S. EOD receipt build_spec")
+    source_path = absolute_path(binding["path"], "U.S. EOD build spec path")
+    expected_path = (us_output / "universe-build-spec.json").resolve()
+    regular_nonsymlink(source_path, "U.S. EOD build spec")
+    if source_path.resolve() != expected_path:
+        raise PipelineBlockedError(
+            "U.S. EOD receipt build_spec path does not match its bundle"
+        )
+    expected_sha256 = validate_sha256(
+        binding["sha256"],
+        "U.S. EOD receipt build_spec.sha256",
+    )
+    if sha256_file(source_path) != expected_sha256:
+        raise PipelineBlockedError("U.S. EOD build spec hash mismatch")
+    derived = load_json(source_path, "U.S. EOD build spec")
+    derived["catalog_coverage_contract"] = config["catalog_coverage_contract"]
+    output_path = workflow / "universe-build-spec.json"
+    atomic_write_json(output_path, derived)
+    return output_path
+
+
 def prepare(
     config: dict[str, Any],
     market: str,
@@ -882,7 +915,11 @@ def prepare(
         raise PipelineBlockedError(
             "EOD preparation finished after the account snapshot deadline"
         )
-    build_spec = us_output / "universe-build-spec.json"
+    build_spec = derive_universe_build_spec(
+        config=config,
+        us_output=us_output,
+        workflow=workflow,
+    )
     manifest_path = workflow / "universe-manifest.json"
     run_command(
         python_command(
