@@ -143,7 +143,13 @@ to `MANUAL_BLOCK` with an emergency receipt.
 The stable `current/kr.json` and `current/us.json` descriptors are replaced
 atomically. They refer only to the current local session and contain hashes,
 paths, and the HMAC account identity—not account numbers or credentials.
-An existing current-session ledger is never entered a second time.
+An existing current-session ledger is never entered a second time. A repeated
+`prepare` may reuse a same-session receipt only when the stored provenance
+object and the descriptor's provenance hash exactly match the currently
+verified approved roots. If approved provenance changes while the session is
+only `PREPARED`, preparation runs again. A provenance change after the session
+becomes `ARMED_SHADOW` or `READY` is `BLOCKED` rather than re-arming or
+re-entering the session.
 
 ## Provenance
 

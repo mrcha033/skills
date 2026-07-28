@@ -811,31 +811,57 @@ def prepare(
     workflow = workflow_directory(config, market, session)
     workflow.mkdir(parents=True, exist_ok=True)
     current_path = current_descriptor_path(config, market)
+    provenance: dict[str, Any] | None = None
     if current_path.is_file() and not current_path.is_symlink():
         current = load_json(current_path, "current daily descriptor")
         if current.get("market") == market and current.get("session_date") == session:
-            if current.get("status") in {"BLOCKED", "MANUAL_BLOCK"}:
+            current_status = current.get("status")
+            if current_status in {"BLOCKED", "MANUAL_BLOCK"}:
                 raise PipelineBlockedError(
                     str(
                         current.get("blocked_reason")
                         or "current market session is terminally blocked"
                     )
                 )
-            if current.get("status") == "MARKET_CLOSED":
-                return load_json(
-                    workflow / "prepare-receipt.json",
-                    "market-closed prepare receipt",
-                )
-            if current.get("status") in {
+            if current_status in {
+                "MARKET_CLOSED",
                 "PREPARED",
                 "ARMED_SHADOW",
                 "READY",
             }:
-                return load_json(
-                    workflow / "prepare-receipt.json",
-                    "existing prepare receipt",
+                provenance = verify_provenance(
+                    config,
+                    technical_root,
+                    trader_root,
                 )
-    provenance = verify_provenance(config, technical_root, trader_root)
+                stored_provenance = load_json(
+                    workflow / "provenance.json",
+                    "existing prepare provenance",
+                )
+                descriptor_provenance_hash = current.get(
+                    "provenance_receipt_hash"
+                )
+                if current_status == "MARKET_CLOSED":
+                    descriptor_provenance_hash = stored_provenance.get(
+                        "receipt_hash"
+                    )
+                provenance_matches = (
+                    stored_provenance == provenance
+                    and descriptor_provenance_hash
+                    == provenance["receipt_hash"]
+                )
+                if provenance_matches:
+                    return load_json(
+                        workflow / "prepare-receipt.json",
+                        "existing prepare receipt",
+                    )
+                if current_status in {"ARMED_SHADOW", "READY"}:
+                    raise PipelineBlockedError(
+                        "approved provenance changed after the session left "
+                        "PREPARED"
+                    )
+    if provenance is None:
+        provenance = verify_provenance(config, technical_root, trader_root)
     atomic_write_json(workflow / "provenance.json", provenance)
     calendar = market_calendar.snapshot(
         market=market,

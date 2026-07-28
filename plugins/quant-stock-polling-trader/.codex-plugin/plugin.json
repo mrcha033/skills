@@ -1,6 +1,6 @@
 {
   "name": "quant-stock-polling-trader",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "Build and supervise deterministic daily KIS shadow sessions.",
   "author": {
     "name": "mrcha033",

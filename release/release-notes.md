@@ -1,6 +1,12 @@
 This release contains the versioned distribution packages declared in
 `release/catalog.json`.
 
+- Distribution 2.3.6 updates `quant-stock-polling-trader` to 0.4.4. A repeated
+  same-session prepare now verifies the stored provenance object and bound
+  descriptor hash before reusing an existing receipt. Changed approved roots
+  cause a fresh prepare while still `PREPARED`; changes after arming or session
+  completion fail closed instead of silently reusing the prior receipt.
+
 - Distribution 2.3.5 updates `quant-stock-polling-trader` to 0.4.3. The
   systemd execution wrapper now restricts every opened market lock to mode
   `0600` and verifies that mode before acquiring the lock, including lock

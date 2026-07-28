@@ -12,6 +12,7 @@ import tempfile
 import unittest
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -211,6 +212,71 @@ class DailyPipelineTests(unittest.TestCase):
                     "catalog_coverage_contract"
                 ],
                 original_contract,
+            )
+
+    def test_prepared_session_revalidates_changed_provenance(self) -> None:
+        with tempfile.TemporaryDirectory(
+            prefix="qta-daily-provenance-"
+        ) as temporary:
+            runtime = Path(temporary)
+            session = "2026-07-28"
+            workflow = runtime / "workflows" / "us" / session
+            current = runtime / "current" / "us.json"
+            workflow.mkdir(parents=True)
+            current.parent.mkdir(parents=True)
+            old_provenance = {
+                "schema": "qta-provenance-receipt/v1",
+                "receipt_hash": "a" * 64,
+            }
+            new_provenance = {
+                "schema": "qta-provenance-receipt/v1",
+                "receipt_hash": "b" * 64,
+            }
+            MODULE.atomic_write_json(workflow / "provenance.json", old_provenance)
+            MODULE.atomic_write_json(
+                workflow / "prepare-receipt.json",
+                {"status": "READY", "receipt_hash": "c" * 64},
+            )
+            MODULE.atomic_write_json(
+                current,
+                {
+                    "market": "US",
+                    "session_date": session,
+                    "status": "PREPARED",
+                    "provenance_receipt_hash": old_provenance["receipt_hash"],
+                },
+            )
+
+            with (
+                patch.object(MODULE, "current_market_date", return_value=session),
+                patch.object(
+                    MODULE,
+                    "verify_provenance",
+                    return_value=new_provenance,
+                ),
+                patch.object(
+                    MODULE.market_calendar,
+                    "snapshot",
+                    return_value={
+                        "status": "MARKET_CLOSED",
+                        "session_date": session,
+                    },
+                ) as calendar_snapshot,
+            ):
+                receipt = MODULE.prepare(
+                    {"runtime_root": runtime},
+                    "US",
+                    runtime / "technical",
+                    runtime / "trader",
+                )
+
+            self.assertEqual(receipt["status"], "MARKET_CLOSED")
+            calendar_snapshot.assert_called_once()
+            self.assertEqual(
+                json.loads(
+                    (workflow / "provenance.json").read_text(encoding="utf-8")
+                ),
+                new_provenance,
             )
 
 
