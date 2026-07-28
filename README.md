@@ -115,7 +115,12 @@ The General Student Council corpus is sourced from the public Drive linked by th
 
 `quant-stock-technical` calculates reproducible technical opinions, risk, entry, stop, target, and a historical technical-strength score from completed daily adjusted OHLCV data. It can also build and screen a deterministic, source-hashed intersection of KOSPI, KOSDAQ, NYSE, and NASDAQ listings without changing `qta-1.0.0`. It excludes news, fundamentals, sentiment, analyst opinion, discretionary model judgment, and broker mutations.
 
-`quant-stock-polling-trader` is a separately installable execution plugin. It consumes the frozen exchange-aware screen, routes broker symbols and venues, plans whole-share orders, and implements fail-closed Toss/KIS polling, ledger, and reconciliation contracts.
+`quant-stock-polling-trader` is a separately installable execution plugin. Its
+daily path is a direct `prepare → snapshot/plan → shadow entry → reconcile`
+workflow for KIS. It does not require approved source digests, provenance
+signatures, account-identity HMACs, trading-arm files, or Toss/NH exports.
+Additional Toss/NH exposure files may be supplied when the user wants them
+included, but they are not prerequisites.
 Its first-hour runner precomputes the slow path before the open, warms
 authentication 30 seconds early, admits only broker-rate-feasible candidate
 counts, polls on absolute rank-ordered cycles, and records cycle/quote/submit
@@ -155,7 +160,7 @@ python3 skills/quant-stock-polling-trader/scripts/broker_credentials.py status -
 python3 skills/quant-stock-polling-trader/scripts/broker_credentials.py auth-check --environment paper
 ```
 
-Authentication does not arm an order, and live mutation remains disabled.
+Authentication does not enable an order, and live mutation remains disabled.
 
 ### Stock Scenario Story
 

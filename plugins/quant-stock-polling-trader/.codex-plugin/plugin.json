@@ -1,7 +1,7 @@
 {
   "name": "quant-stock-polling-trader",
-  "version": "0.4.4",
-  "description": "Build and supervise deterministic daily KIS shadow sessions.",
+  "version": "0.5.0",
+  "description": "Run a direct deterministic daily KIS shadow workflow.",
   "author": {
     "name": "mrcha033",
     "url": "https://github.com/mrcha033"
@@ -17,8 +17,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Quant Stock Polling Trader",
-    "shortDescription": "Daily KIS shadow pipeline and systemd supervision",
-    "longDescription": "Freeze official calendars and four-exchange inputs, create date-bound account snapshots, plans, shadow arms, and hardened systemd jobs, poll deterministically, and reconcile with API mutations fixed to zero.",
+    "shortDescription": "Simple daily KIS shadow automation",
+    "longDescription": "Freeze official calendars and four-exchange inputs, create date-bound KIS snapshots and plans, run deterministic first-hour shadow polling, reconcile, and supervise with systemd without approval-digest or trading-arm gates.",
     "developerName": "mrcha033",
     "category": "Finance",
     "capabilities": [
@@ -28,7 +28,7 @@
     "websiteURL": "https://github.com/mrcha033/skills",
     "defaultPrompt": [
       "Securely guide KIS credential setup and verify authentication.",
-      "Prepare a deterministic KIS live/shadow polling session.",
+      "Prepare a direct deterministic KIS live/shadow polling session.",
       "Generate and explicitly activate verified daily KR and US shadow systemd jobs."
     ]
   }

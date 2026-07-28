@@ -8,7 +8,6 @@ import getpass
 import json
 import os
 import re
-import secrets
 import stat
 import sys
 import tempfile
@@ -23,7 +22,6 @@ from execution_core import BlockedError, canonical_json
 STATUS_SCHEMA = "qta-broker-credential-status/v1"
 DEFAULT_SECRETS_PATH = Path("~/.config/mrcha-skills/secrets.env").expanduser()
 SECRETS_PATH_ENV = "QTA_SECRETS_FILE"
-ACCOUNT_BINDING_KEY = "QTA_ACCOUNT_BINDING_KEY"
 FIELD_SUFFIXES = {
     "app_key": "APP_KEY",
     "app_secret": "APP_SECRET",
@@ -186,20 +184,6 @@ def load_kis_credentials(
         present.append(generic_name)
         sources[generic_name] = source
 
-    binding_value, binding_source = choose_value(
-        generic_name=ACCOUNT_BINDING_KEY,
-        scoped_variable=ACCOUNT_BINDING_KEY,
-        dotenv_values=dotenv_values,
-    )
-    if binding_value and binding_source:
-        os.environ[ACCOUNT_BINDING_KEY] = binding_value
-        if binding_source != f"environment:{ACCOUNT_BINDING_KEY}":
-            _INJECTED_ENVIRONMENT[ACCOUNT_BINDING_KEY] = binding_value
-        present.append(ACCOUNT_BINDING_KEY)
-        sources[ACCOUNT_BINDING_KEY] = binding_source
-    else:
-        missing.append(ACCOUNT_BINDING_KEY)
-
     return {
         "schema": STATUS_SCHEMA,
         "broker": "kis",
@@ -315,11 +299,6 @@ def configure_kis(environment: str, path: Path) -> dict[str, Any]:
         raise BlockedError("KIS account number prefix must be 8 digits")
     if len(updates[product_name]) != 2 or not updates[product_name].isdigit():
         raise BlockedError("KIS account product must be 2 digits")
-    if ACCOUNT_BINDING_KEY in existing:
-        updates[ACCOUNT_BINDING_KEY] = existing[ACCOUNT_BINDING_KEY]
-    elif not os.environ.get(ACCOUNT_BINDING_KEY):
-        updates[ACCOUNT_BINDING_KEY] = secrets.token_urlsafe(32)
-
     write_dotenv_updates(path, updates)
     report = load_kis_credentials(environment, secrets_path=path)
     require_kis_runtime_credentials(report)
@@ -372,7 +351,6 @@ def self_test() -> None:
                     'QTA_KIS_LIVE_APP_SECRET="fixture-live-secret"',
                     'QTA_KIS_LIVE_ACCOUNT_PREFIX="11111111"',
                     'QTA_KIS_LIVE_ACCOUNT_PRODUCT="01"',
-                    'QTA_ACCOUNT_BINDING_KEY="fixture-account-binding-key-0001"',
                     "",
                 )
             ),

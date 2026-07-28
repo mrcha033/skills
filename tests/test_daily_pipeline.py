@@ -43,6 +43,52 @@ class DailyPipelineTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["self_test"], "PASS")
 
+    def test_v2_config_needs_no_approval_or_external_broker_files(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="qta-daily-config-v2-") as temporary:
+            root = Path(temporary)
+            risk_path = (
+                ROOT
+                / "skills"
+                / "quant-stock-polling-trader"
+                / "references"
+                / "fixtures"
+                / "aggressive-2m-risk-policy.json"
+            )
+            raw = {
+                "schema": MODULE.CONFIG_SCHEMA,
+                "runtime_root": str(root / "runtime"),
+                "broker": "kis-live",
+                "mode": "shadow",
+                "history_start_date": "2021-01-01",
+                "minimum_sessions": 756,
+                "request_interval_ms": 120,
+                "catalog_coverage_contract": {},
+                "selector": {"selector_version": "qta-screen-1.1.0"},
+                "risk_policy_path": str(risk_path),
+                "execution_policy": {
+                    "snapshot_max_age_seconds": 1800,
+                    "poll_interval_seconds": 2,
+                    "quote_max_age_seconds": 5,
+                    "max_spread_bps": "25",
+                    "max_gap_bps": "20",
+                    "trigger_mode": "CROSS_FROM_BELOW",
+                    "order_ttl_seconds": 30,
+                    "order_type": "LIMIT",
+                    "time_in_force": "DAY",
+                    "allow_partial_fill": True,
+                    "cancel_remainder_at_window_end": True,
+                },
+                "account_aliases": {
+                    "KR": "kis-live-kr",
+                    "US": "kis-live-us",
+                },
+                "prepare_complete_seconds_before_open": 600,
+            }
+            normalized = MODULE.normalize_config(raw, root / "daily.json")
+            self.assertEqual(normalized["exposure_component_paths"], [])
+            self.assertNotIn("approved_trader_tree_sha256", normalized)
+            self.assertNotIn("required_manual_exposure_brokers", normalized)
+
     def test_blocked_stage_is_persisted_as_current_terminal_state(self) -> None:
         with tempfile.TemporaryDirectory(prefix="qta-daily-blocked-") as temporary:
             root = Path(temporary)
@@ -92,7 +138,7 @@ class DailyPipelineTests(unittest.TestCase):
                 / "workflows"
                 / "kr"
                 / session
-                / "prepare-receipt.json"
+                / "prepare-status.json"
             )
             self.assertEqual(
                 json.loads(receipt_path.read_text(encoding="utf-8"))["status"],
@@ -214,46 +260,26 @@ class DailyPipelineTests(unittest.TestCase):
                 original_contract,
             )
 
-    def test_prepared_session_revalidates_changed_provenance(self) -> None:
-        with tempfile.TemporaryDirectory(
-            prefix="qta-daily-provenance-"
-        ) as temporary:
+    def test_legacy_harness_descriptor_does_not_block_v2_prepare(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="qta-daily-v2-") as temporary:
             runtime = Path(temporary)
             session = "2026-07-28"
             workflow = runtime / "workflows" / "us" / session
             current = runtime / "current" / "us.json"
             workflow.mkdir(parents=True)
             current.parent.mkdir(parents=True)
-            old_provenance = {
-                "schema": "qta-provenance-receipt/v1",
-                "receipt_hash": "a" * 64,
-            }
-            new_provenance = {
-                "schema": "qta-provenance-receipt/v1",
-                "receipt_hash": "b" * 64,
-            }
-            MODULE.atomic_write_json(workflow / "provenance.json", old_provenance)
-            MODULE.atomic_write_json(
-                workflow / "prepare-receipt.json",
-                {"status": "READY", "receipt_hash": "c" * 64},
-            )
             MODULE.atomic_write_json(
                 current,
                 {
+                    "schema": "qta-daily-shadow-descriptor/v1",
                     "market": "US",
                     "session_date": session,
                     "status": "PREPARED",
-                    "provenance_receipt_hash": old_provenance["receipt_hash"],
                 },
             )
 
             with (
                 patch.object(MODULE, "current_market_date", return_value=session),
-                patch.object(
-                    MODULE,
-                    "verify_provenance",
-                    return_value=new_provenance,
-                ),
                 patch.object(
                     MODULE.market_calendar,
                     "snapshot",
@@ -273,10 +299,8 @@ class DailyPipelineTests(unittest.TestCase):
             self.assertEqual(receipt["status"], "MARKET_CLOSED")
             calendar_snapshot.assert_called_once()
             self.assertEqual(
-                json.loads(
-                    (workflow / "provenance.json").read_text(encoding="utf-8")
-                ),
-                new_provenance,
+                json.loads(current.read_text(encoding="utf-8"))["schema"],
+                MODULE.DESCRIPTOR_SCHEMA,
             )
 
 

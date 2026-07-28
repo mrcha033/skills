@@ -21,23 +21,20 @@ from execution_core import (
     emit_json,
     load_json_object,
     plan_orders as build_order_plan,
-    sha256_json,
 )
 from broker_credentials import load_kis_credentials, require_kis_runtime_credentials
 from plan_orders import fixture_inputs
 from run_session import (
-    create_trading_arm,
     create_broker,
     current_order,
     normalize_venue_map,
     parse_timestamp,
-    validate_account_authorization,
     validate_broker_binding,
     validate_plan,
     venue_for,
 )
 
-RECONCILIATION_SCHEMA = "qta-reconciliation-receipt/v1"
+RECONCILIATION_SCHEMA = "qta-reconciliation-status/v2"
 
 
 def latest_ack(ledger: Ledger, intent_id: str) -> dict[str, Any] | None:
@@ -54,13 +51,10 @@ def reconcile(
     venues: dict[str, str],
     state_directory: Path,
     *,
-    arm: dict[str, Any] | None = None,
     broker: Any | None = None,
 ) -> dict[str, Any]:
     validate_plan(plan)
     validate_broker_binding(plan, broker_name)
-    mode = arm.get("mode") if isinstance(arm, dict) else ""
-    validate_account_authorization(plan, broker_name, str(mode), arm)
     for intent in plan["intents"]:
         venue_for(venues, intent)
     state_directory.mkdir(parents=True, exist_ok=True)
@@ -228,14 +222,12 @@ def reconcile(
         "schema": RECONCILIATION_SCHEMA,
         "plan_hash": plan["plan_hash"],
         "broker": broker_name,
-        "broker_account_identity_hash": plan["context"]["broker_account_identity_hash"],
         "reconciled_at": datetime.now(timezone.utc).isoformat(),
         "status": "BLOCKED" if blocked else "READY",
         "changes": changes,
         "blocked": blocked,
         "intents": final,
     }
-    output["receipt_hash"] = sha256_json(output)
     return output
 
 
@@ -249,20 +241,13 @@ def self_test() -> None:
             "toss",
             venues,
             Path("/unused/reconcile-state"),
-            arm=None,
             broker=object(),
         )
     except BlockedError as exc:
         assert "plan broker does not match selected adapter" in str(exc)
     else:
         raise AssertionError("reconcile must bind the adapter to the plan broker")
-    fixture_environment = {
-        "QTA_ACCOUNT_BINDING_KEY": "fixture-account-binding-key-0001",
-        "QTA_KIS_ACCOUNT_PREFIX": "00000000",
-        "QTA_KIS_ACCOUNT_PRODUCT": "01",
-    }
-    with patch.dict("os.environ", fixture_environment, clear=False):
-        arm = create_trading_arm(plan, "kis-paper", "paper")
+    with patch.dict("os.environ", {}, clear=False):
         with tempfile.TemporaryDirectory(prefix="qta-reconcile-") as directory:
             ledger = Ledger(Path(directory) / "ledger.sqlite3")
             ledger.create_intent(plan["plan_hash"], intent)
@@ -287,7 +272,6 @@ def self_test() -> None:
                 "kis-paper",
                 venues,
                 Path(directory),
-                arm=arm,
                 broker=NeverCalledBroker(),
             )
             assert receipt["status"] == "BLOCKED"
@@ -327,7 +311,6 @@ def self_test() -> None:
                     "kis-paper",
                     venues,
                     Path(directory),
-                    arm=arm,
                     broker=PendingCancelBroker(),
                 )
                 assert receipt["status"] == "BLOCKED"
@@ -349,7 +332,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--broker", choices=("toss", "kis-paper", "kis-live"))
     parser.add_argument("--venue-map")
     parser.add_argument("--state-dir")
-    parser.add_argument("--arm")
     parser.add_argument("--output")
     parser.add_argument("--self-test", action="store_true")
     return parser.parse_args()
@@ -362,7 +344,7 @@ def main() -> int:
         return 0
     missing = [
         name
-        for name in ("plan", "broker", "state_dir", "arm")
+        for name in ("plan", "broker", "state_dir")
         if not getattr(args, name)
     ]
     if missing:
@@ -389,7 +371,6 @@ def main() -> int:
                 else {}
             ),
             Path(args.state_dir).resolve(),
-            arm=load_json_object(args.arm),
         )
     except (BlockedError, OSError, ValueError, json.JSONDecodeError) as exc:
         emit_json(

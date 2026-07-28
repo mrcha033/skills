@@ -137,7 +137,7 @@
       "displayName": "Quant Stock Polling Trader",
       "source": "./plugins/quant-stock-polling-trader",
       "description": "Build and supervise deterministic daily KIS shadow sessions from official calendars through reconciliation.",
-      "version": "0.4.4",
+      "version": "0.5.0",
       "author": {
         "name": "mrcha033"
       },

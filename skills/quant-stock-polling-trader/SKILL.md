@@ -1,27 +1,29 @@
 ---
 name: quant-stock-polling-trader
-description: Plan, validate, poll, and reconcile deterministic Korean and U.S. stock orders through broker adapters after a frozen quant-stock-technical screen. Use when the user wants a first-hour entry window, Toss Securities or 한국투자증권 (KIS) API integration, secure KIS credential setup, dotenv or OS secret-store resolution, credential status inspection, token authentication checks, paper/shadow/live promotion gates, cross-broker exposure snapshots, position sizing, order-state recovery, or fail-closed automated trading. Never infer missing risk, account, fee, FX, calendar, fractional-share, or broker semantics.
+description: Prepare and supervise deterministic Korean and U.S. KIS shadow sessions from a frozen quant-stock-technical screen. Use when the user wants secure KIS credential setup, pre-open screening, settled-cash sizing, first-hour quote polling, reconciliation, or recurring systemd automation. The daily path is shadow-only and sends no order, correction, or cancellation mutations.
 ---
 
 # Quant Stock Polling Trader
 
-Keep model calculation and broker mutation separate. Accept only a complete
-`qta-screen/v1` or exchange-aware `qta-screen/v2` artifact from
-`$quant-stock-technical`. Require `qta-exposure-snapshot/v2` with explicit
-exchange membership for a v2 screen. The current v2 universe is qualified from
-KIS stock-master snapshots, so v2 planning is KIS-only; block Toss until a
-separate Toss-qualified universe snapshot contract exists.
+Run a small, direct pipeline:
 
-## KIS credential setup
+```text
+prepare -> snapshot and plan -> first-hour shadow session -> reconcile
+```
 
-Keep credentials out of chat, plans, receipts, repositories, and shell
-arguments. Resolve them in this order:
+The default daily workflow does not use approved source digests, provenance
+signatures, account-identity HMACs, trading-arm files, or mandatory Toss/NH
+exports. Do not add those gates back unless the user explicitly asks for a
+separate audited deployment profile.
 
-1. existing process environment;
-2. an OS secret store that injects process environment;
-3. `~/.config/mrcha-skills/secrets.env` as a `0600` fallback.
+## Credentials
 
-Use separate paper and live values because KIS issues them independently:
+Keep credentials out of chat, repositories, command arguments, plans, and
+status files. Resolve them from the process environment first and
+`~/.config/mrcha-skills/secrets.env` second. The fallback file must be a
+regular user-owned `0600` file.
+
+Use separate KIS paper and live values:
 
 ```text
 QTA_KIS_PAPER_APP_KEY
@@ -32,98 +34,113 @@ QTA_KIS_LIVE_APP_KEY
 QTA_KIS_LIVE_APP_SECRET
 QTA_KIS_LIVE_ACCOUNT_PREFIX
 QTA_KIS_LIVE_ACCOUNT_PRODUCT
-QTA_ACCOUNT_BINDING_KEY
 ```
 
-Legacy process variables `QTA_KIS_APP_KEY`, `QTA_KIS_APP_SECRET`,
-`QTA_KIS_ACCOUNT_PREFIX`, and `QTA_KIS_ACCOUNT_PRODUCT` take precedence for
-one-off runtime injection. Override the fallback path with `QTA_SECRETS_FILE`
-when needed. Never persist an access token in the dotenv file.
+For the daily workflow use `live` credentials only to read the live account
+and market data while keeping `mode=shadow`.
 
-### Agent guidance contract
+Check presence first:
 
-When assisting a user with KIS credentials, follow this sequence exactly:
+```bash
+python3 scripts/broker_credentials.py status --environment live
+```
 
-1. Confirm whether the user means `paper` or `live`; never infer the credential
-   scope.
-2. Run the noninteractive presence check first:
+If configuration is missing, ask the user to run this in their own terminal:
 
-   ```bash
-   python3 scripts/broker_credentials.py status --environment paper
-   ```
+```bash
+python3 scripts/broker_credentials.py configure --environment live
+```
 
-3. If the result is `BLOCKED`, report only the missing variable names. Do not
-   run `configure` in an agent-owned, hidden, or delegated PTY, and never ask
-   the user to paste a key into chat.
-4. Tell the user to run the following command in their own interactive local
-   terminal, substituting `live` only when that scope was explicitly selected:
+Never ask the user to paste a credential into chat. Report missing variable
+names only. Wait for the user to confirm that interactive configuration has
+finished, then check presence again and authenticate:
 
-   ```bash
-   python3 scripts/broker_credentials.py configure --environment paper
-   ```
+```bash
+python3 scripts/broker_credentials.py status --environment live
+python3 scripts/broker_credentials.py auth-check --environment live
+```
 
-5. Wait for the user to confirm completion. Then rerun `status`; only when it
-   returns `READY`, run the token-only probe:
+Authentication is proven only when the result says `AUTHENTICATED`. An
+authenticated token does not enable live trading.
 
-   ```bash
-   python3 scripts/broker_credentials.py status --environment paper
-   python3 scripts/broker_credentials.py auth-check --environment paper
-   ```
+## Daily workflow
 
-6. Say authentication is proven only when `auth-check` returns a
-   `status` field of `AUTHENTICATED`. Distinguish missing configuration,
-   network failure, and broker rejection; never infer success from credential
-   presence alone.
+Read `references/daily-pipeline-contract.md`, then:
 
-The `configure` command writes through a local TTY so values do not enter chat
-or shell history. Use `live` instead of `paper` only for production
-credentials. An
-`AUTHENTICATED` result proves token issuance at that moment; it does not arm,
-submit, or enable live orders.
+1. Use one stable `qta-daily-shadow-config/v2` file.
+2. Run `scripts/daily_pipeline.py prepare` before the selected market opens.
+   It freezes the official calendar, stops normally on a closed market,
+   refreshes the official four-exchange universe and adjusted EOD cache, and
+   creates the deterministic screen.
+3. Run `scripts/daily_pipeline.py snapshot` shortly before the open. It reads
+   KIS settled cash, positions, and open orders, optionally merges any
+   explicitly configured external exposure files, and creates the plan.
+4. Run `scripts/daily_pipeline.py entry` before the 30-second authentication
+   warm-up. The Python runner polls the first hour mechanically and then
+   reconciles the local intent ledger.
+5. Use `scripts/systemd_units.py generate` for recurring user services and
+   timers. When the user asks to automate, generation is intermediate work:
+   verify, install, enable, start, and inspect the requested units.
 
-## Workflow
+The state path is:
 
-1. Read `references/execution-contract.md`.
-2. Read `references/broker-contracts.md` for the chosen adapter.
-3. Read `references/policy-examples.md` when preparing frozen JSON inputs.
-   For recurring daily automation, also read
-   `references/daily-pipeline-contract.md`; do not assemble date-stamped
-   recurring jobs by hand.
-4. Freeze the screen, account snapshot, cross-broker exposure snapshot, risk
-   policy, trading calendar, and execution policy before the session. Run
-   `scripts/freeze_market_session.py` to bind the local calendar file and its
-   hashes before embedding the result in the execution policy. Put only the
-   HMAC-derived `broker_account_identity_hash` in the account snapshot; keep
-   the account number, product code, account sequence, and binding key in the
-   secret environment.
-   For KIS live/shadow, read `references/account-snapshot-contract.md` and use
-   `scripts/account_snapshot.py collect` to fetch the KIS balance and working
-   orders and merge fresh Toss/NH exposure components. This collector is
-   read-only and records `api_mutation_count: 0`.
-5. Run `scripts/plan_orders.py` to create a side-effect-free plan.
-6. Generate the nonsecret account-identity receipt, create a plan-, account-,
-   mode-, and trading-date-bound arm artifact, then start
-   `scripts/run_session.py` before its 30-second pre-open authentication
-   warm-up in `paper` or `shadow` mode first.
-7. Run `scripts/reconcile.py` after every session and after any timeout,
-   restart, partial fill, cancel, or replace.
-8. Return `BLOCKED` when a required value, capability, or reconciliation fact
-   is missing. Never compensate with a guessed default.
+```text
+RUNTIME_ROOT/state/<account-alias>/<market>/<session-date>
+```
 
-For deterministic Linux supervision, read `references/systemd-contract.md` and
-use `scripts/systemd_units.py generate`. For recurring shadow automation,
-generate `daily-prepare`, `daily-snapshot`, and `daily-entry` jobs around one
-stable `qta-daily-shadow-config/v1`; `scripts/daily_pipeline.py` creates each
-current date's frozen artifacts. The generator emits hardened user
-service/timer files and a hash receipt but does not activate them by itself.
-Generation is only an intermediate result when the user explicitly asks to
-install, enable, start, or automate the jobs: validate the generated units,
-install only the reviewed units, reload the user manager, perform the requested
-activation, and verify the resulting timer/service states. Entry jobs permit
-KIS paper/paper and KIS live/shadow only; the daily pipeline permits only KIS
-live/shadow and fixes API mutation count to zero.
+The account alias is nonsecret and configured by the user. A current session
+is never entered twice. An unresolved broker mutation from a paper-mode run
+still requires reconciliation before another entry.
 
-Run all bundled self-tests after changing a script:
+## Direct planning and polling
+
+For a non-recurring session, read `references/execution-contract.md`,
+`references/account-snapshot-contract.md`, and
+`references/broker-contracts.md`.
+
+```bash
+python3 scripts/account_snapshot.py collect --job /absolute/account-job.json
+python3 scripts/plan_orders.py \
+  --screen /absolute/screen.json \
+  --account /absolute/account.json \
+  --exposure /absolute/exposure.json \
+  --risk /absolute/risk.json \
+  --execution /absolute/execution.json \
+  --output /absolute/order-plan.json
+python3 scripts/run_session.py run \
+  --plan /absolute/order-plan.json \
+  --broker kis-live \
+  --mode shadow \
+  --state-dir /absolute/state \
+  --output /absolute/session-status.json
+python3 scripts/reconcile.py \
+  --plan /absolute/order-plan.json \
+  --broker kis-live \
+  --state-dir /absolute/state \
+  --output /absolute/reconciliation-status.json
+```
+
+Additional Toss or NH exposure files are optional. If the user configures one,
+validate and merge it; if none is configured, continue with the KIS account
+view without fabricating an empty external-broker file.
+
+## Fixed safety boundary
+
+- The daily path accepts only `broker=kis-live`, `mode=shadow`.
+- `live_enabled` stays `false` and `api_mutation_count` stays `0`.
+- Do not submit, amend, or cancel an order in shadow mode.
+- Use settled cash only. Exclude borrowed buying power.
+- Keep margin, shorting, automatic FX, and additions to existing positions
+  disabled.
+- Use the official calendar snapshot; do not guess holidays, early closes,
+  timezones, or DST.
+- Use complete prior-session data; do not fill gaps with internet quotes or
+  estimates.
+- Keep ranking, sizing, quote checks, and cycle timing deterministic.
+- Do not put an LLM in the polling loop.
+- Never claim profit, guaranteed returns, or a recommendation.
+
+Run all bundled self-tests after changing the implementation:
 
 ```bash
 python3 scripts/execution_core.py --self-test
@@ -138,42 +155,3 @@ python3 scripts/run_session.py self-test
 python3 scripts/reconcile.py --self-test
 python3 scripts/systemd_units.py self-test
 ```
-
-## Safety boundary
-
-- Treat the first hour as a new-entry window, not an automatic liquidation
-  deadline. Continue protection and reconciliation after it closes.
-- Enforce `09:00–10:00 Asia/Seoul` for Korea and
-  `09:30–10:30 America/New_York` for the U.S. with `ZoneInfo`; reject a local
-  clock or UTC offset that does not match the market contract.
-- For v2, accept only the complete emitted screen contract. Bind account and
-  exposure views to one timezone-aware pre-window snapshot instant on the
-  entry session's local date. Require a readable, SHA-256-bound
-  `qta-market-session/v1` snapshot, bind the screen date to its
-  `previous_session_date`, and reject snapshots older than the execution
-  policy permits.
-- Persist the local intent before any broker mutation.
-- Keep the intraday path rank-ordered and mechanical. Reject a poll interval
-  that cannot fit the candidate count and broker pacing; record cycle,
-  quote/status, and submit latency in the session receipt, and freeze when a
-  quote exhausts its cycle budget.
-- Treat an HTTP timeout as `UNKNOWN`, not as rejection.
-- Do not retry an ambiguous mutation unless the adapter proves a safe,
-  body-identical idempotent replay.
-- Use settled unborrowed cash only. Keep lending limits, margin, shorting,
-  automatic FX, and existing-position liquidation disabled unless a later
-  signed policy explicitly enables and validates them.
-- Keep secrets in environment variables or an OS secret store. Never print,
-  persist, package, or ask the user to paste credentials into chat.
-- Treat the `0600` dotenv file as a local fallback, never as a distributable
-  asset. Let process environment override it and report only key presence and
-  source, never values.
-- Require the runtime account credentials to reproduce the frozen
-  `broker_account_identity_hash` before the first quote or mutation. A missing
-  arm artifact or an old account snapshot without this digest is `BLOCKED`.
-- Keep live mode fail-closed until account allowlisting, contract probes,
-  paper/shadow evidence, an external single-writer lock, and a matching arm
-  artifact all pass.
-
-An Agent Skill is not the scheduler. Use a deterministic process supervised by
-`launchd` or `systemd`; do not put an LLM in the polling or order path.

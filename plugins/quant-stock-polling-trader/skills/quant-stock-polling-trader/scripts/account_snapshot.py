@@ -26,13 +26,12 @@ from execution_core import (
     sha256_file,
     sha256_json,
 )
-from run_session import runtime_broker_account_identity_hash
 
-JOB_SCHEMA = "qta-account-snapshot-job/v1"
+JOB_SCHEMA = "qta-account-snapshot-job/v2"
 COMPONENT_SCHEMA = "qta-exposure-component/v1"
-RECEIPT_SCHEMA = "qta-account-snapshot-receipt/v1"
+STATUS_SCHEMA = "qta-account-snapshot-status/v2"
 MANIFEST_SCHEMA = "qta-universe-manifest/v2"
-ACCOUNT_SCHEMA = "qta-account-snapshot/v1"
+ACCOUNT_SCHEMA = "qta-account-snapshot/v2"
 EXPOSURE_SCHEMA = "qta-exposure-snapshot/v2"
 
 EXCHANGE_MARKET = {
@@ -134,7 +133,7 @@ def load_job(path: Path) -> dict[str, Any]:
         "manual_component_max_age_seconds",
         "output_account_path",
         "output_exposure_path",
-        "output_receipt_path",
+        "output_status_path",
     }
     exact_fields(value, required, "account snapshot job")
     if value["schema"] != JOB_SCHEMA:
@@ -172,11 +171,11 @@ def load_job(path: Path) -> dict[str, Any]:
         for key in (
             "output_account_path",
             "output_exposure_path",
-            "output_receipt_path",
+            "output_status_path",
         )
     }
     if len(set(output_paths.values())) != len(output_paths):
-        raise BlockedError("account, exposure, and receipt output paths must differ")
+        raise BlockedError("account, exposure, and status output paths must differ")
     return {
         **value,
         "market": market,
@@ -642,7 +641,6 @@ def collect(
         raise BlockedError("frozen_at must include a timezone")
     freeze_time = freeze_time.astimezone(timezone.utc)
     as_of = freeze_time.isoformat()
-    identity_hash = runtime_broker_account_identity_hash("kis-live", "shadow")
     account_positions = [
         {
             "market": item["market"],
@@ -659,7 +657,6 @@ def collect(
             "broker": "kis",
             "environment": "shadow",
             "account_alias": job["account_alias"],
-            "broker_account_identity_hash": identity_hash,
             "market": job["market"],
             "currency": "KRW" if job["market"] == "KR" else "USD",
             "as_of": as_of,
@@ -718,13 +715,12 @@ def collect(
     atomic_write_json(job["output_account_path"], account)
     atomic_write_json(job["output_exposure_path"], exposure)
     receipt = {
-        "schema": RECEIPT_SCHEMA,
+        "schema": STATUS_SCHEMA,
         "status": "READY",
         "broker": "kis",
         "mode": "shadow",
         "market": job["market"],
         "as_of": as_of,
-        "broker_account_identity_hash": identity_hash,
         "universe_manifest_hash": manifest_hash,
         "account_path": str(job["output_account_path"]),
         "account_sha256": sha256_file(job["output_account_path"]),
@@ -740,8 +736,7 @@ def collect(
         "cross_broker_position_count": len(exposure["positions"]),
         "api_mutation_count": 0,
     }
-    receipt["receipt_hash"] = sha256_json(receipt)
-    atomic_write_json(job["output_receipt_path"], receipt)
+    atomic_write_json(job["output_status_path"], receipt)
     return receipt
 
 
@@ -809,7 +804,7 @@ def self_test() -> dict[str, Any]:
             "manual_component_max_age_seconds": 3600,
             "output_account_path": str(directory / "account.json"),
             "output_exposure_path": str(directory / "exposure.json"),
-            "output_receipt_path": str(directory / "receipt.json"),
+            "output_status_path": str(directory / "status.json"),
         }
         job_path = directory / "job.json"
         atomic_write_json(job_path, job_raw)
@@ -868,7 +863,6 @@ def self_test() -> dict[str, Any]:
                 "QTA_KIS_APP_SECRET",
                 "QTA_KIS_ACCOUNT_PREFIX",
                 "QTA_KIS_ACCOUNT_PRODUCT",
-                "QTA_ACCOUNT_BINDING_KEY",
             )
         }
         os.environ.update(
@@ -877,7 +871,6 @@ def self_test() -> dict[str, Any]:
                 "QTA_KIS_APP_SECRET": "test-secret",
                 "QTA_KIS_ACCOUNT_PREFIX": "12345678",
                 "QTA_KIS_ACCOUNT_PRODUCT": "01",
-                "QTA_ACCOUNT_BINDING_KEY": "x" * 32,
             }
         )
         try:
@@ -910,7 +903,7 @@ def self_test() -> dict[str, Any]:
             "fx_to_krw": "KIS_PRESENT_BALANCE",
             "output_account_path": str(directory / "account-us.json"),
             "output_exposure_path": str(directory / "exposure-us.json"),
-            "output_receipt_path": str(directory / "receipt-us.json"),
+            "output_status_path": str(directory / "status-us.json"),
         }
         us_job_path = directory / "job-us.json"
         atomic_write_json(us_job_path, us_job_raw)
@@ -973,7 +966,6 @@ def self_test() -> dict[str, Any]:
                 "QTA_KIS_APP_SECRET",
                 "QTA_KIS_ACCOUNT_PREFIX",
                 "QTA_KIS_ACCOUNT_PRODUCT",
-                "QTA_ACCOUNT_BINDING_KEY",
             )
         }
         os.environ.update(
@@ -982,7 +974,6 @@ def self_test() -> dict[str, Any]:
                 "QTA_KIS_APP_SECRET": "test-secret",
                 "QTA_KIS_ACCOUNT_PREFIX": "12345678",
                 "QTA_KIS_ACCOUNT_PRODUCT": "01",
-                "QTA_ACCOUNT_BINDING_KEY": "x" * 32,
             }
         )
         try:

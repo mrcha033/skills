@@ -44,11 +44,10 @@ cash, margin, shorting, or live mutation.
 
 ```json
 {
-  "schema": "qta-account-snapshot/v1",
+  "schema": "qta-account-snapshot/v2",
   "broker": "kis",
   "environment": "paper",
   "account_alias": "kis-paper-kr",
-  "broker_account_identity_hash": "replace-with-64-char-hmac-sha256",
   "market": "KR",
   "currency": "KRW",
   "as_of": "2026-07-27T08:50:00+09:00",
@@ -61,49 +60,26 @@ cash, margin, shorting, or live mutation.
 ```
 
 Never put a real account number, account product code, Toss account sequence,
-app key, binding key, or secret in this file. Generate the digest with a
-stable, secret `QTA_ACCOUNT_BINDING_KEY` of at least 32 bytes and the runtime
-account-routing environment; copy only the 64-character digest here. The same
-key and routing credentials must reproduce it immediately before polling and
-reconciliation.
+app key, or secret in this file. `account_alias` is a nonsecret local label;
+the adapter reads the actual routing values from the credential environment.
 
-Generate only the nonsecret digest receipt, then copy its
-`broker_account_identity_hash` into the snapshot:
+After planning, run and reconcile directly:
 
 ```bash
-python3 scripts/run_session.py account-identity \
-  --broker kis-paper \
-  --environment paper \
-  --output /secure/runtime/account-identity.json
-```
-
-After planning, create the one-plan arm and supply the same file to the runner
-and reconciler:
-
-```bash
-python3 scripts/run_session.py arm \
-  --plan /secure/runtime/order-plan.json \
-  --broker kis-paper \
-  --mode paper \
-  --output /secure/runtime/trading-arm.json
-
 python3 scripts/run_session.py run \
   --plan /secure/runtime/order-plan.json \
-  --arm /secure/runtime/trading-arm.json \
   --broker kis-paper \
   --mode paper \
   --state-dir /secure/runtime/state
 
 python3 scripts/reconcile.py \
   --plan /secure/runtime/order-plan.json \
-  --arm /secure/runtime/trading-arm.json \
   --broker kis-paper \
   --state-dir /secure/runtime/state
 ```
 
-All four commands must run with the same binding key and matching broker
-account-routing environment. Store those values in an OS secret store or
-process environment; do not write them into these JSON files.
+Both commands use the broker-routing environment. Store those values in an OS
+secret store or process environment; do not write them into these JSON files.
 
 ## Execution policy
 

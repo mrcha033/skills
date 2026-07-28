@@ -1,8 +1,8 @@
 # Account snapshot collector contract
 
 Use `scripts/account_snapshot.py` only for KIS live credentials in shadow mode.
-It sends read-only requests and emits one `qta-account-snapshot/v1`, one
-`qta-exposure-snapshot/v2`, and one hash receipt with
+It sends read-only requests and emits one `qta-account-snapshot/v2`, one
+`qta-exposure-snapshot/v2`, and one readable status with
 `api_mutation_count: 0`.
 
 ## Inputs
@@ -11,7 +11,7 @@ The job is nonsecret JSON. Every path must be absolute:
 
 ```json
 {
-  "schema": "qta-account-snapshot-job/v1",
+  "schema": "qta-account-snapshot-job/v2",
   "broker": "kis-live",
   "mode": "shadow",
   "market": "KR",
@@ -25,7 +25,7 @@ The job is nonsecret JSON. Every path must be absolute:
   "manual_component_max_age_seconds": 1800,
   "output_account_path": "/secure/runtime/account-kr.json",
   "output_exposure_path": "/secure/runtime/exposure-kr.json",
-  "output_receipt_path": "/secure/runtime/account-kr-receipt.json"
+  "output_status_path": "/secure/runtime/account-kr-status.json"
 }
 ```
 
@@ -38,15 +38,14 @@ reuse an old rate. The collector validates the manifest hash and uses its
 KOSDAQ, NYSE, and NASDAQ is `BLOCKED`; extend the exposure schema instead of
 assigning a false exchange.
 
-KIS credentials follow the resolution contract in `SKILL.md`. Account routing
-values and secrets are never written. Only the HMAC-derived account identity
-appears in outputs.
+KIS credentials follow the resolution rules in `SKILL.md`. Account routing
+values and secrets are never written. The nonsecret `account_alias` identifies
+the local account view.
 
-## Toss and NH components
+## Optional additional exposure
 
-Until an authenticated account API is available, create a component in the
-user's own terminal and fill it from a broker export or a freshly verified
-account view:
+Toss and NH files are optional. Use them only when the user wants those
+holdings included and has a fresh export or verified account view:
 
 ```bash
 python3 scripts/account_snapshot.py manual-template \
@@ -55,7 +54,7 @@ python3 scripts/account_snapshot.py manual-template \
   --output /secure/runtime/exposure/toss.json
 ```
 
-Each component has exactly:
+Each configured component has exactly:
 
 ```json
 {
@@ -76,10 +75,10 @@ Each component has exactly:
 ```
 
 `quantity` may be `null` only when the source genuinely omits it. Include
-fractional holdings. The collector rejects future-dated components, components
-older than the job's explicit maximum age, unsupported exchanges, duplicate
-output paths, and malformed decimals. It does not scrape a browser, infer a
-symbol from a Korean display name, or fabricate a source time.
+fractional holdings. The collector rejects invalid configured components, but
+an empty `manual_exposure_components` list is valid and means “use KIS only.”
+It does not scrape a browser, infer a symbol from a Korean display name, or
+fabricate a source time.
 
 ## Cash derivation
 
@@ -102,7 +101,7 @@ python3 scripts/account_snapshot.py collect \
   --job /secure/runtime/account-snapshot-kr-job.json
 ```
 
-The collector freezes one common `as_of` only after the KIS reads and manual
+The collector freezes one common `as_of` after the KIS reads and any configured
 component validation complete. The account and exposure objects therefore
 meet the planner's exact timestamp equality requirement. Missing or stale
-inputs return `BLOCKED` and do not produce a receipt claiming readiness.
+configured inputs return `BLOCKED`; unconfigured external brokers do not.

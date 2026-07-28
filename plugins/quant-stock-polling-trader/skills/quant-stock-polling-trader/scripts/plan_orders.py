@@ -75,9 +75,6 @@ def fixture_inputs() -> tuple[dict[str, Any], ...]:
         "broker": "kis",
         "environment": "paper",
         "account_alias": "paper-kr",
-        "broker_account_identity_hash": (
-            "5fb0e7c56b21e275d437f5fc8835ab1a8673813af62257601ffc901224d594ab"
-        ),
         "market": "KR",
         "currency": "KRW",
         "as_of": "2026-07-27T08:50:00+09:00",

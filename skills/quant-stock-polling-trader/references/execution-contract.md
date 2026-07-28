@@ -8,7 +8,7 @@ Keep three independent contracts:
 qta-1.0.0          completed T-1 adjusted daily data -> technical payload
 qta-screen-1.0.0   legacy KR/US manifest -> deterministic candidates
 qta-screen-1.1.0   four-exchange manifest -> exchange-ranked candidates
-open1h-exec-1.0.0  broker/account snapshots -> intents and order lifecycle
+open1h-exec-2.0.0  broker/account snapshots -> intents and order lifecycle
 ```
 
 The entry window is `09:00–10:00 Asia/Seoul` for Korea and
@@ -24,8 +24,7 @@ from the frozen calendar snapshot.
 ## Required frozen inputs
 
 - `qta-screen/v1` or `qta-screen/v2` artifact and canonical hash;
-- broker, environment, account alias, HMAC-derived broker account identity,
-  market, and trading date;
+- broker, environment, nonsecret account alias, market, and trading date;
 - broker account snapshot including settled cash, positions, open orders, and
   snapshot time;
 - cross-broker exposure snapshot, including fractional holdings even when
@@ -135,23 +134,10 @@ to equal the supplied plan. Recomputing only `plan_hash`, or even making a
 self-consistent quantity/cash/intent rehash, cannot change the result without
 also changing the frozen inputs.
 
-These hashes prove deterministic internal consistency, not who supplied an
-input. Do not put account numbers or secrets in frozen inputs. Derive
-`broker_account_identity_hash` as HMAC-SHA-256 over the canonical broker,
-environment, and account-routing identity, using a separately stored
-`QTA_ACCOUNT_BINDING_KEY` of at least 32 bytes. KIS identity includes both
-`CANO` and `ACNT_PRDT_CD`; Toss identity includes `accountSeq`. The plan copies
-only the digest into its context.
-
-Before the first quote or mutation, require an exact `qta-trading-arm/v1`
-artifact bound to `plan_hash`, selected adapter, environment, mode, trading
-date, and the same account identity digest. Recompute the digest from the
-runtime credentials and compare it with both plan and arm. Missing legacy
-fields, a missing arm, the wrong KIS account/product, or the wrong Toss account
-sequence is `BLOCKED`; never include a raw identifier in a plan, receipt,
-event, or error. This development arm has an integrity hash but is not an
-external signature; live promotion still requires the separately signed
-authorization listed below.
+These hashes prove deterministic internal consistency only. They are not
+signatures or authorization gates. Keep account numbers and secrets out of
+frozen inputs. Use the nonsecret account alias for the local state path; broker
+routing values go directly from the credential loader to the adapter.
 
 ## Trigger and polling
 
@@ -221,9 +207,9 @@ If an adapter does not provide bid/ask, do not substitute a market order.
 Either obtain the order book through the broker-specific endpoint or block the
 candidate.
 
-At the window end, freeze new entries, cancel outstanding entry orders, and
-reconcile. Continue managing already filled positions. Automatic market
-flattening is a distinct, explicitly armed policy.
+At the window end, freeze new entries, cancel outstanding paper-mode entry
+orders, and reconcile. Continue managing already filled paper positions.
+Automatic market flattening is not implemented.
 
 ## State machine
 
@@ -253,38 +239,18 @@ cancel request, keep the local state at `CANCEL_PENDING`, return `BLOCKED`, and
 monitor again. A cancel acknowledgement is not terminal proof that the
 original order can no longer fill.
 
-## Live promotion
+## Live trading
 
-Keep live readiness false until all are true:
+Live trading is not supported. `kis-live/shadow` may read live account and
+market data, but `live_enabled` remains false and the adapter sends no order,
+correction, or cancellation mutation. Enabling live mutations requires a
+separate implementation and a separate user request; it is not a hidden
+promotion state in this skill.
 
-- exact account and environment allowlist match;
-- all numeric policy fields are present and borrowed cash is disabled;
-- QTA, screen, planner, adapter, ledger, and crash-recovery tests pass;
-- broker paper mode has no duplicate or unresolved order lifecycle;
-- production shadow mode matches paper decisions without mutations;
-- production-shadow authentication, quote, persistence, and order-history
-  telemetry proves the configured candidate count fits the interval at the
-  accepted latency percentile, with no unreported skipped cycles;
-- accepted-then-timeout, partial-fill, cancel/fill, rate-limit, and restart
-  faults produce no duplicate order;
-- order-history pagination, broker-status normalization, and app-key/account
-  shared pacing are complete for every enabled broker and environment;
-- the calendar snapshot collector is authenticated, provider responses are
-  archived, and emergency-closure/market-halt handling is fault-tested;
-- append-only receipt and final broker/local reconciliation are complete;
-- a plan-hash-bound arm artifact authorizes that account and trading date.
-
-The current implementation intentionally blocks every live run. In particular,
-`order_ttl_seconds`, `allow_partial_fill`, and `max_daily_loss_krw` are frozen
-and hashed but are not yet complete runtime enforcement loops. Paper and
-shadow receipts are development evidence only; they do not satisfy the live
-promotion contract until those controls and their restart/fault tests exist.
-
-An offline request preview uses a deliberately fake account identifier. Its
-request hash proves deterministic serialization for that placeholder only; it
-is not the account-bound hash that will be persisted immediately before an
-actual submission. A preview lists potential requests for all planned intents
-and does not claim that an intraday trigger was observed.
+An offline request preview uses a placeholder account identifier. Its request
+hash proves deterministic serialization for that placeholder only. A preview
+lists potential requests for all planned intents and does not claim that an
+intraday trigger was observed.
 
 Default kill behavior is `ENTRY_FREEZE`: stop mutations, cancel known open
 entry orders when safe, preserve protective orders, and reconcile. Never infer

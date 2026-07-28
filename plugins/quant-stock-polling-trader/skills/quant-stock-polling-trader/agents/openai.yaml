@@ -1,4 +1,4 @@
 interface:
   display_name: "Quant Stock Polling Trader"
-  short_description: "KIS/Toss polling and systemd supervision"
-  default_prompt: "Use $quant-stock-polling-trader to securely guide KIS credential setup, verify token authentication, prepare fail-closed polling, and generate or explicitly activate verified systemd jobs."
+  short_description: "Simple KIS shadow polling and systemd automation"
+  default_prompt: "Use $quant-stock-polling-trader to configure a direct KIS shadow workflow, prepare the market, snapshot and plan, run first-hour polling, reconcile, and automate it with systemd without approval-digest or trading-arm gates."
