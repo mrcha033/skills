@@ -276,9 +276,15 @@ fetched or guessed during the entry window.
 python3 -B skills/quant-stock-technical/scripts/analyze_stock.py --self-test
 python3 -B skills/quant-stock-technical/scripts/build_universe_manifest.py --self-test
 python3 -B skills/quant-stock-technical/scripts/screen_universe.py --self-test
+python3 -B skills/quant-stock-technical/scripts/fetch_kis_kr_eod.py --self-test
+python3 -B skills/quant-stock-technical/scripts/fetch_kis_us_eod.py --self-test
 python3 -B skills/quant-stock-polling-trader/scripts/execution_core.py --self-test
 python3 -B skills/quant-stock-polling-trader/scripts/broker_adapters.py --self-test
 python3 -B skills/quant-stock-polling-trader/scripts/broker_credentials.py self-test
+python3 -B skills/quant-stock-polling-trader/scripts/account_snapshot.py self-test
+python3 -B skills/quant-stock-polling-trader/scripts/market_calendar.py self-test
+python3 -B skills/quant-stock-polling-trader/scripts/daily_pipeline.py self-test
+python3 -B skills/quant-stock-polling-trader/scripts/systemd_units.py self-test
 python3 -B skills/quant-stock-polling-trader/scripts/plan_orders.py --self-test
 python3 -B skills/quant-stock-polling-trader/scripts/run_session.py self-test
 python3 -B skills/quant-stock-polling-trader/scripts/reconcile.py --self-test
@@ -298,6 +304,10 @@ python3 -B tests/test_advisor_review.py
 python3 -B tests/test_universe_builder.py
 python3 -B tests/test_screen_universe.py
 python3 -B tests/test_quant_execution.py
+python3 -B tests/test_kis_us_eod.py
+python3 -B tests/test_market_calendar.py
+python3 -B tests/test_daily_pipeline.py
+python3 -B tests/test_systemd_units.py
 python3 -B scripts/sync_distribution.py --check
 python3 -B tests/test_marketplace_packaging.py
 python3 -B tests/test_release_packaging.py

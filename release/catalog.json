@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "distributionVersion": "2.2.1",
+  "distributionVersion": "2.3.0",
   "releaseTagPrefix": "skills-v",
   "guaranteeScope": "Package compatibility guarantees archive layout, manifest placement, and byte integrity. Runtime compatibility remains conditional on each skill's declared tools, authentication, network, and data requirements.",
   "formats": {
@@ -96,7 +96,7 @@
     },
     {
       "name": "quant-stock-polling-trader",
-      "version": "0.3.1",
+      "version": "0.4.0",
       "runtime": {
         "codex": "supported",
         "claudeCode": "supported",
@@ -112,11 +112,11 @@
         "frozen screen, account, exposure, calendar, risk, and execution-policy inputs",
         "systemd for generated Linux user units"
       ],
-      "notes": "Credential and token checks are local and never persist access tokens. The read-only account collector freezes KIS state and fresh Toss/NH exposure components without API mutations. The systemd generator now emits an execution-readable exact bundle, rejects stale output directories and symlink locks, clears Python path overrides before wrapper startup, and treats explicitly requested activation as a required operator step after verification. Live mutation remains fail-closed until every declared execution gate passes."
+      "notes": "The daily KIS live/shadow pipeline freezes official calendars and four-exchange inputs, builds date-bound screens/plans/arms, checks prior ledgers, and runs first-hour polling plus bounded reconciliation with API mutations fixed to zero. The systemd generator emits recurring daily prepare/snapshot/entry units from one stable config while preserving exact bundle round-trips, single-writer locks, isolated Python execution, and nonpersistent entry timers."
     },
     {
       "name": "quant-stock-technical",
-      "version": "0.4.0",
+      "version": "0.4.1",
       "runtime": {
         "codex": "supported",
         "claudeCode": "supported",
@@ -128,7 +128,7 @@
         "user-provided finalized OHLCV and benchmark files, or KIS Open API credentials for read-only Korean and U.S. EOD acquisition",
         "outbound KRX, Nasdaq Trader, KIS, and benchmark source access"
       ],
-      "notes": "The Korean and U.S. EOD collectors are resumable and read-only; web runtimes must support bundled Python scripts, persistent storage, secret injection, and outbound source access."
+      "notes": "The Korean and U.S. EOD collectors are resumable and read-only. KIS interior adjusted rows with invalid OHLC geometry are source-hashed and excluded without interpolation, while an invalid cutoff still blocks. Web runtimes must support bundled Python scripts, persistent storage, secret injection, and outbound source access."
     },
     {
       "name": "stock-scenario-story",

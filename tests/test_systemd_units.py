@@ -13,7 +13,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = (
     ROOT / "skills" / "quant-stock-polling-trader" / "scripts" / "systemd_units.py"
@@ -47,6 +46,18 @@ class SystemdUnitTests(unittest.TestCase):
             MODULE.SCHEDULES[("snapshot", "US")],
             "Mon..Fri *-*-* 09:20:00 America/New_York",
         )
+        self.assertEqual(
+            MODULE.SCHEDULES[("daily-prepare", "KR")],
+            "Mon..Fri *-*-* 07:00:00 Asia/Seoul",
+        )
+        self.assertEqual(
+            MODULE.SCHEDULES[("daily-prepare", "US")],
+            "Mon..Fri *-*-* 08:00:00 America/New_York",
+        )
+        self.assertEqual(
+            MODULE.SCHEDULES[("daily-entry", "US")],
+            "Mon..Fri *-*-* 09:29:00 America/New_York",
+        )
 
     def test_systemd_escaping_disables_specifiers(self) -> None:
         self.assertEqual(MODULE.systemd_quote("/tmp/100%"), '"/tmp/100%%"')
@@ -70,6 +81,8 @@ class SystemdUnitTests(unittest.TestCase):
                 technical / "scripts" / "fetch_kis_kr_eod.py",
                 technical / "scripts" / "fetch_kis_us_eod.py",
                 trader / "scripts" / "account_snapshot.py",
+                trader / "scripts" / "daily_pipeline.py",
+                trader / "scripts" / "market_calendar.py",
                 trader / "scripts" / "run_session.py",
                 trader / "scripts" / "systemd_units.py",
                 runtime / "us-eod.json",
@@ -172,6 +185,88 @@ class SystemdUnitTests(unittest.TestCase):
             ):
                 MODULE.generate({}, output)
 
+    def test_daily_pipeline_bundle_uses_dynamic_config_and_dependencies(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="qta-systemd-daily-") as temporary:
+            root = Path(temporary)
+            technical = root / "technical"
+            trader = root / "trader"
+            runtime = root / "runtime"
+            output = root / "generated"
+            for path in (technical / "scripts", trader / "scripts", runtime):
+                path.mkdir(parents=True)
+            for path in (
+                technical / "scripts" / "fetch_kis_kr_eod.py",
+                technical / "scripts" / "fetch_kis_us_eod.py",
+                trader / "scripts" / "account_snapshot.py",
+                trader / "scripts" / "daily_pipeline.py",
+                trader / "scripts" / "market_calendar.py",
+                trader / "scripts" / "run_session.py",
+                trader / "scripts" / "systemd_units.py",
+            ):
+                path.write_text("{}\n", encoding="utf-8")
+            config = runtime / "daily-config.json"
+            config.write_text("{}\n", encoding="utf-8")
+            environment = root / "secrets.env"
+            environment.write_text("QTA_TEST=1\n", encoding="utf-8")
+            environment.chmod(0o600)
+
+            def job(name: str, kind: str, max_cycles: int = 0) -> dict[str, object]:
+                return {
+                    "name": name,
+                    "kind": kind,
+                    "market": "US",
+                    "input_path": str(config),
+                    "plan_path": "",
+                    "arm_path": "",
+                    "state_directory": "",
+                    "output_path": "",
+                    "broker": "kis-live",
+                    "mode": "shadow",
+                    "venue_map": "",
+                    "max_cycles": max_cycles,
+                    "timeout_start_seconds": 7200,
+                }
+
+            bundle = MODULE.normalize_bundle(
+                {
+                    "schema": MODULE.BUNDLE_SCHEMA,
+                    "unit_prefix": "qta",
+                    "python_executable": str(Path(sys.executable).resolve()),
+                    "technical_skill_root": str(technical),
+                    "trader_skill_root": str(trader),
+                    "environment_file": str(environment),
+                    "runtime_directory": str(runtime),
+                    "jobs": [
+                        job("daily-prepare-us", "daily-prepare"),
+                        job("daily-snapshot-us", "daily-snapshot"),
+                        job("daily-entry-us", "daily-entry", 3),
+                    ],
+                }
+            )
+            MODULE.generate(bundle, output)
+            entry = next(
+                item for item in bundle["jobs"] if item["kind"] == "daily-entry"
+            )
+            command = MODULE.command_for(bundle, entry)
+            self.assertIn("daily_pipeline.py", command[3])
+            self.assertEqual(command[4:8], ["entry", "--config", str(config), "--market"])
+            self.assertEqual(command[-2:], ["--max-cycles", "3"])
+            service = (output / "qta-daily-entry-us.service").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn(
+                "After=network-online.target qta-daily-snapshot-us.service",
+                service,
+            )
+            prepare_timer = (
+                output / "qta-daily-prepare-us.timer"
+            ).read_text(encoding="utf-8")
+            entry_timer = (output / "qta-daily-entry-us.timer").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn("Persistent=yes", prepare_timer)
+            self.assertIn("Persistent=no", entry_timer)
+
     def test_symlink_lock_directory_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory(prefix="qta-systemd-lock-") as temporary:
             root = Path(temporary)
@@ -190,6 +285,8 @@ class SystemdUnitTests(unittest.TestCase):
                 technical / "scripts" / "fetch_kis_kr_eod.py",
                 technical / "scripts" / "fetch_kis_us_eod.py",
                 trader / "scripts" / "account_snapshot.py",
+                trader / "scripts" / "daily_pipeline.py",
+                trader / "scripts" / "market_calendar.py",
                 trader / "scripts" / "run_session.py",
                 trader / "scripts" / "systemd_units.py",
                 runtime / "kr-eod.json",
@@ -247,6 +344,8 @@ class SystemdUnitTests(unittest.TestCase):
                 technical / "scripts" / "fetch_kis_kr_eod.py",
                 technical / "scripts" / "fetch_kis_us_eod.py",
                 trader / "scripts" / "account_snapshot.py",
+                trader / "scripts" / "daily_pipeline.py",
+                trader / "scripts" / "market_calendar.py",
                 trader / "scripts" / "run_session.py",
                 trader / "scripts" / "systemd_units.py",
                 runtime / "kr-eod.json",

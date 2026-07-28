@@ -15,25 +15,30 @@ The input is one exact `qta-systemd-bundle/v1` JSON object. It binds:
 - a user-owned, regular, non-symlink mode-0600 environment file;
 - one absolute runtime directory containing all mutable jobs, plans, arms,
   state, venue maps, and receipts;
-- unique EOD, account-snapshot, or entry jobs for KR and US.
+- unique static EOD/account-snapshot/entry jobs or daily
+  prepare/snapshot/entry jobs for KR and US.
 
-EOD schedules are 07:00 Asia/Seoul and 18:00 America/New_York on weekdays.
-Entry services start at 08:59 Asia/Seoul and 09:29 America/New_York so the
+Daily preparation schedules are 07:00 Asia/Seoul and 08:00
+America/New_York on weekdays. Entry services start at 08:59 Asia/Seoul and
+09:29 America/New_York so the
 runner can complete its 30-second token warm-up before the exchange open.
 Account snapshot services run at 08:50 Asia/Seoul and 09:20
 America/New_York, use KIS live credentials in shadow mode, and must complete
 before their market's entry service.
 Entry timers are never persistent: a sleeping or offline host must not replay a
 missed opening session. Account snapshot timers are also never persistent.
-EOD timers are persistent and their jobs still require an exact
-completed-session cutoff.
+Daily preparation and legacy EOD timers are persistent; late daily preparation
+still fails its pre-open deadline rather than replaying an entry. Entry and
+snapshot timers are never persistent.
 
-Recurring EOD automation requires a deterministic daily producer that
-atomically refreshes a stable job-input path. A timer bound to a date-stamped
-job file is session-specific and must not be reported as future-date
-automation. Account snapshot and entry inputs are session-bound; never reuse a
-prior session's plan, arm, calendar, state directory, or output path on a later
-date.
+For recurring automation, use `daily-prepare`, `daily-snapshot`, and
+`daily-entry` jobs whose `input_path` is the stable
+`qta-daily-shadow-config/v1` file described in
+`daily-pipeline-contract.md`. The daily runner calculates the session date and
+atomically publishes current descriptors. A timer bound to a date-stamped job
+file remains session-specific and must not be reported as future-date
+automation. Never reuse a prior session's plan, arm, calendar, state directory,
+or output path on a later date.
 
 The generator accepts only KIS paper/paper or KIS live/shadow entry pairs.
 It refuses live mode. The generated service executes Python directly without a
@@ -45,9 +50,10 @@ directory.
 ## Single writer
 
 Every generated execution acquires a nonblocking, non-symlink regular-file
-market lock below a non-symlink `runtime_directory/locks`. KR EOD and entry
-work cannot overlap each other; the same applies to US. Failure to acquire the
-lock is `BLOCKED`, not a retry or a second writer.
+market lock below a non-symlink `runtime_directory/locks`. Daily preparation
+updates one four-exchange universe and therefore acquires both locks in
+byte-stable order. Snapshot and entry acquire only their market lock. Failure
+to acquire a lock is `BLOCKED`, not a retry or a second writer.
 
 Generate into a new or empty output directory so stale service/timer files
 cannot survive from an older bundle. The generated `systemd-bundle.json` is a
@@ -71,6 +77,8 @@ intended filenames explicitly; do not install a wildcard that could include a
 stale or unreviewed unit. After an explicitly requested activation, run
 `systemctl --user daemon-reload`, enable/start only the approved timers or
 services, and verify `is-enabled`, `is-active`, `list-timers`, and the service
-journal. Entry or snapshot activation must not occur until the daily plan/arm
-producer, calendar snapshots, credentials, runtime ownership, and provenance
-approval are all bound.
+journal. Entry or snapshot activation must not occur until the daily config,
+credentials, runtime ownership, isolated plugin roots, and provenance approval
+are all bound. The daily producer itself creates the date-bound calendar,
+plan, arm, and state path before entry; a missing stage descriptor is
+`BLOCKED`.

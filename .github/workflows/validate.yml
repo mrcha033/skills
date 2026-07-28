@@ -32,6 +32,18 @@ jobs:
         run: python -B skills/quant-stock-technical/scripts/build_universe_manifest.py --self-test
       - name: Run deterministic universe screen self-test
         run: python -B skills/quant-stock-technical/scripts/screen_universe.py --self-test
+      - name: Run KIS Korea EOD collector self-test
+        run: python -B skills/quant-stock-technical/scripts/fetch_kis_kr_eod.py --self-test
+      - name: Run KIS U.S. EOD collector self-test
+        run: python -B skills/quant-stock-technical/scripts/fetch_kis_us_eod.py --self-test
+      - name: Run account snapshot collector self-test
+        run: python -B skills/quant-stock-polling-trader/scripts/account_snapshot.py self-test
+      - name: Run official market calendar self-test
+        run: python -B skills/quant-stock-polling-trader/scripts/market_calendar.py self-test
+      - name: Run recurring daily pipeline self-test
+        run: python -B skills/quant-stock-polling-trader/scripts/daily_pipeline.py self-test
+      - name: Run systemd generator self-test
+        run: python -B skills/quant-stock-polling-trader/scripts/systemd_units.py self-test
       - name: Run mandatory handoff-gate self-test
         run: python -B skills/stock-scenario-story/scripts/validate_quant_handoff.py --self-test
       - name: Run numbers-free story gate self-test
@@ -66,6 +78,12 @@ jobs:
         run: python -B tests/test_quant_execution.py
       - name: Run systemd unit generator regression
         run: python -B tests/test_systemd_units.py
+      - name: Run KIS U.S. EOD regression
+        run: python -B tests/test_kis_us_eod.py
+      - name: Run official market calendar regression
+        run: python -B tests/test_market_calendar.py
+      - name: Run recurring daily pipeline regression
+        run: python -B tests/test_daily_pipeline.py
       - name: Validate marketplace packaging
         run: python -B tests/test_marketplace_packaging.py
       - name: Validate deterministic release packaging

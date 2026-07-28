@@ -8,10 +8,9 @@ import json
 import sys
 import tempfile
 import unittest
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "skills" / "quant-stock-technical" / "scripts"
@@ -49,6 +48,135 @@ class KisUsEodTests(unittest.TestCase):
     def test_benchmark_identity_is_exchange_specific(self) -> None:
         self.assertEqual(MODULE.BENCHMARK_SYMBOLS["NYSE"], "^NYA")
         self.assertEqual(MODULE.BENCHMARK_SYMBOLS["NASDAQ"], "^IXIC")
+
+    def test_interior_invalid_geometry_is_audited_without_interpolation(self) -> None:
+        end = date(2026, 7, 24)
+        rows = MODULE.shared._synthetic_rows(end, 800, index=False)
+        overseas_rows = [
+            {
+                "xymd": item["stck_bsop_date"],
+                "open": item["stck_oprc"],
+                "high": item["stck_hgpr"],
+                "low": item["stck_lwpr"],
+                "clos": item["stck_clpr"],
+                "tvol": item["acml_vol"],
+            }
+            for item in rows
+        ]
+        invalid = overseas_rows[400]
+        invalid["low"] = str(Decimal(invalid["open"]) + Decimal("1"))
+
+        def transport(method, url, headers, body):
+            del headers, body
+            self.assertEqual(method, "GET")
+            query = dict(item.split("=", 1) for item in url.split("?", 1)[1].split("&"))
+            cursor = datetime.strptime(query["BYMD"], "%Y%m%d").date()
+            selected = [
+                row
+                for row in overseas_rows
+                if datetime.strptime(row["xymd"], "%Y%m%d").date() <= cursor
+            ][:100]
+            return 200, {"rt_cd": "0", "output2": selected}
+
+        client = MODULE.shared.KisReadClient(
+            environment="live",
+            app_key="fixture",
+            app_secret="fixture",
+            interval_ms=100,
+            access_token="fixture-token",
+            transport=transport,
+        )
+        client.interval_seconds = 0
+        audit = []
+        result = MODULE.fetch_stock_history(
+            client,
+            exchange="NYSE",
+            symbol="A",
+            start=end - timedelta(days=1200),
+            end=end,
+            invalid_rows=audit,
+        )
+        self.assertEqual(len(result), 799)
+        self.assertEqual(len(audit), 1)
+        self.assertEqual(audit[0]["date"], datetime.strptime(invalid["xymd"], "%Y%m%d").date().isoformat())
+        self.assertNotIn(audit[0]["date"], {row["date"] for row in result})
+
+    def test_invalid_completed_cutoff_remains_blocked(self) -> None:
+        end = date(2026, 7, 24)
+        row = {
+            "xymd": end.strftime("%Y%m%d"),
+            "open": "10",
+            "high": "11",
+            "low": "10.5",
+            "clos": "10.25",
+            "tvol": "100",
+        }
+
+        def transport(method, url, headers, body):
+            del method, url, headers, body
+            return 200, {"rt_cd": "0", "output2": [row]}
+
+        client = MODULE.shared.KisReadClient(
+            environment="live",
+            app_key="fixture",
+            app_secret="fixture",
+            interval_ms=100,
+            access_token="fixture-token",
+            transport=transport,
+        )
+        client.interval_seconds = 0
+        with self.assertRaisesRegex(
+            MODULE.UsEodBlockedError,
+            "completed cutoff row has invalid OHLC geometry",
+        ):
+            MODULE.fetch_stock_history(
+                client,
+                exchange="NYSE",
+                symbol="A",
+                start=end - timedelta(days=10),
+                end=end,
+                invalid_rows=[],
+            )
+
+    def test_cached_invalid_geometry_is_excluded_and_audited(self) -> None:
+        end = date(2026, 7, 24)
+        rows = [
+            {
+                "date": (end - timedelta(days=offset)).isoformat(),
+                "open": "10",
+                "high": "11",
+                "low": "9",
+                "close": "10.5",
+                "adjusted_close": "10.5",
+                "volume": "100",
+            }
+            for offset in range(3)
+        ]
+        rows[1]["low"] = "10.25"
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "cached.csv"
+            MODULE.shared.write_csv_rows(path, sorted(rows, key=lambda row: row["date"]))
+            client = MODULE.shared.KisReadClient(
+                environment="live",
+                app_key="fixture",
+                app_secret="fixture",
+                interval_ms=100,
+                access_token="fixture-token",
+                transport=lambda *args: self.fail("cache should satisfy the job"),
+            )
+            result, requests, audit = MODULE.update_stock_file(
+                client,
+                exchange="NYSE",
+                symbol="A",
+                path=path,
+                start=end - timedelta(days=3),
+                end=end,
+                minimum_sessions=2,
+            )
+            self.assertEqual(requests, 0)
+            self.assertEqual(len(result), 2)
+            self.assertEqual(len(audit), 1)
+            self.assertNotIn(audit[0]["date"], {row["date"] for row in result})
 
     def test_offline_bundle_emits_cross_market_inputs(self) -> None:
         end = date(2026, 7, 24)

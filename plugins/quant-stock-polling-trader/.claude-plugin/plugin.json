@@ -2,8 +2,8 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "quant-stock-polling-trader",
   "displayName": "Quant Stock Polling Trader",
-  "version": "0.3.1",
-  "description": "Validate and supervise fail-closed KIS/Toss polling with execution-readable hardened systemd units.",
+  "version": "0.4.0",
+  "description": "Build and supervise deterministic daily KIS shadow sessions from official calendars through reconciliation.",
   "author": {
     "name": "mrcha033",
     "url": "https://github.com/mrcha033"

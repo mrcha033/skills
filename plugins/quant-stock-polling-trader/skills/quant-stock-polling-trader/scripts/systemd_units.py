@@ -49,6 +49,12 @@ SCHEDULES = {
     ("snapshot", "US"): "Mon..Fri *-*-* 09:20:00 America/New_York",
     ("entry", "KR"): "Mon..Fri *-*-* 08:59:00 Asia/Seoul",
     ("entry", "US"): "Mon..Fri *-*-* 09:29:00 America/New_York",
+    ("daily-prepare", "KR"): "Mon..Fri *-*-* 07:00:00 Asia/Seoul",
+    ("daily-prepare", "US"): "Mon..Fri *-*-* 08:00:00 America/New_York",
+    ("daily-snapshot", "KR"): "Mon..Fri *-*-* 08:50:00 Asia/Seoul",
+    ("daily-snapshot", "US"): "Mon..Fri *-*-* 09:20:00 America/New_York",
+    ("daily-entry", "KR"): "Mon..Fri *-*-* 08:59:00 Asia/Seoul",
+    ("daily-entry", "US"): "Mon..Fri *-*-* 09:29:00 America/New_York",
 }
 UNIT_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,47}$")
 
@@ -163,6 +169,8 @@ def normalize_bundle(raw: Any) -> dict[str, Any]:
         technical_root / "scripts" / "fetch_kis_kr_eod.py",
         technical_root / "scripts" / "fetch_kis_us_eod.py",
         trader_root / "scripts" / "account_snapshot.py",
+        trader_root / "scripts" / "daily_pipeline.py",
+        trader_root / "scripts" / "market_calendar.py",
         trader_root / "scripts" / "run_session.py",
         trader_root / "scripts" / "systemd_units.py",
     )
@@ -225,7 +233,33 @@ def normalize_bundle(raw: Any) -> dict[str, Any]:
         }
         broker = str(job["broker"])
         mode = str(job["mode"])
-        if kind == "eod":
+        if kind.startswith("daily-"):
+            if path_values["input_path"] is None:
+                raise UnitBlockedError(
+                    f"{label}.input_path is required for a daily pipeline job"
+                )
+            if any(
+                path_values[field] is not None
+                for field in (
+                    "plan_path",
+                    "arm_path",
+                    "state_directory",
+                    "output_path",
+                    "venue_map",
+                )
+            ):
+                raise UnitBlockedError(
+                    f"{label} has static paths on a daily pipeline job"
+                )
+            if broker != "kis-live" or mode != "shadow":
+                raise UnitBlockedError(
+                    f"{label} daily pipeline requires kis-live/shadow"
+                )
+            if kind != "daily-entry" and max_cycles:
+                raise UnitBlockedError(
+                    f"{label}.max_cycles is allowed only for daily-entry"
+                )
+        elif kind == "eod":
             if path_values["input_path"] is None:
                 raise UnitBlockedError(f"{label}.input_path is required for EOD")
             if any(
@@ -289,7 +323,7 @@ def normalize_bundle(raw: Any) -> dict[str, Any]:
                 "kind": kind,
                 "market": market,
                 "schedule": SCHEDULES[(kind, market)],
-                "persistent": kind == "eod",
+                "persistent": kind in {"eod", "daily-prepare"},
                 "input_path": str(path_values["input_path"] or ""),
                 "plan_path": str(path_values["plan_path"] or ""),
                 "arm_path": str(path_values["arm_path"] or ""),
@@ -374,10 +408,29 @@ def service_text(bundle: dict[str, Any], job: dict[str, Any], bundle_path: Path)
             job["name"],
         )
     )
+    dependencies: list[str] = ["network-online.target"]
+    predecessor_kind = {
+        "daily-snapshot": "daily-prepare",
+        "daily-entry": "daily-snapshot",
+    }.get(job["kind"])
+    if predecessor_kind is not None:
+        predecessor = next(
+            (
+                item
+                for item in bundle["jobs"]
+                if item["kind"] == predecessor_kind
+                and item["market"] == job["market"]
+            ),
+            None,
+        )
+        if predecessor is not None:
+            dependencies.append(
+                f"{bundle['unit_prefix']}-{predecessor['name']}.service"
+            )
     return (
         "[Unit]\n"
         f"Description=QTA {job['kind']} {job['market']} ({job['name']})\n"
-        "After=network-online.target\n"
+        f"After={' '.join(dependencies)}\n"
         "Wants=network-online.target\n"
         + ("\n".join(conditions) + "\n" if conditions else "")
         + "\n[Service]\n"
@@ -482,6 +535,30 @@ def generate(bundle: dict[str, Any], output_directory: Path) -> dict[str, Any]:
 
 def command_for(bundle: dict[str, Any], job: dict[str, Any]) -> list[str]:
     python = bundle["python_executable"]
+    if job["kind"].startswith("daily-"):
+        stage = job["kind"].removeprefix("daily-")
+        command = [
+            python,
+            "-B",
+            "-s",
+            str(
+                Path(bundle["trader_skill_root"])
+                / "scripts"
+                / "daily_pipeline.py"
+            ),
+            stage,
+            "--config",
+            job["input_path"],
+            "--market",
+            job["market"],
+            "--technical-skill-root",
+            bundle["technical_skill_root"],
+            "--trader-skill-root",
+            bundle["trader_skill_root"],
+        ]
+        if job["kind"] == "daily-entry" and job["max_cycles"]:
+            command.extend(["--max-cycles", str(job["max_cycles"])])
+        return command
     if job["kind"] == "eod":
         script_name = (
             "fetch_kis_kr_eod.py" if job["market"] == "KR" else "fetch_kis_us_eod.py"
@@ -535,11 +612,9 @@ def command_for(bundle: dict[str, Any], job: dict[str, Any]) -> list[str]:
     return command
 
 
-def execute(bundle: dict[str, Any], name: str) -> None:
-    job = next((item for item in bundle["jobs"] if item["name"] == name), None)
-    if job is None:
-        raise UnitBlockedError(f"unknown job: {name}")
-    runtime = Path(bundle["runtime_directory"])
+def acquire_market_locks(
+    runtime: Path, markets: list[str]
+) -> list[int]:
     lock_directory = runtime / "locks"
     try:
         lock_directory.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -550,25 +625,47 @@ def execute(bundle: dict[str, Any], name: str) -> None:
         lock_metadata.st_mode
     ):
         raise UnitBlockedError("lock directory must be a non-symlink directory")
-    lock_path = lock_directory / f"{job['market'].lower()}.lock"
-    lock_flags = os.O_RDWR | os.O_CREAT
-    if hasattr(os, "O_NOFOLLOW"):
-        lock_flags |= os.O_NOFOLLOW
+    descriptors: list[int] = []
     try:
-        descriptor = os.open(lock_path, lock_flags, 0o600)
-    except OSError as exc:
-        raise UnitBlockedError("cannot securely open the market lock") from exc
-    if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-        os.close(descriptor)
-        raise UnitBlockedError("market lock must be a regular file")
-    try:
-        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError as exc:
-        os.close(descriptor)
-        raise UnitBlockedError(
-            f"another {job['market']} QTA process owns the single-writer lock"
-        ) from exc
-    os.set_inheritable(descriptor, True)
+        for market in sorted(set(markets)):
+            lock_path = lock_directory / f"{market.lower()}.lock"
+            lock_flags = os.O_RDWR | os.O_CREAT
+            if hasattr(os, "O_NOFOLLOW"):
+                lock_flags |= os.O_NOFOLLOW
+            try:
+                descriptor = os.open(lock_path, lock_flags, 0o600)
+            except OSError as exc:
+                raise UnitBlockedError(
+                    f"cannot securely open the {market} market lock"
+                ) from exc
+            if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+                os.close(descriptor)
+                raise UnitBlockedError("market lock must be a regular file")
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as exc:
+                os.close(descriptor)
+                raise UnitBlockedError(
+                    f"another {market} QTA process owns the single-writer lock"
+                ) from exc
+            os.set_inheritable(descriptor, True)
+            descriptors.append(descriptor)
+    except BaseException:
+        for descriptor in descriptors:
+            os.close(descriptor)
+        raise
+    return descriptors
+
+
+def execute(bundle: dict[str, Any], name: str) -> None:
+    job = next((item for item in bundle["jobs"] if item["name"] == name), None)
+    if job is None:
+        raise UnitBlockedError(f"unknown job: {name}")
+    runtime = Path(bundle["runtime_directory"])
+    lock_markets = (
+        ["KR", "US"] if job["kind"] == "daily-prepare" else [job["market"]]
+    )
+    acquire_market_locks(runtime, lock_markets)
     environment = dict(os.environ)
     environment["PYTHONDONTWRITEBYTECODE"] = "1"
     environment.pop("PYTHONPATH", None)
@@ -596,6 +693,8 @@ def self_test() -> None:
             technical / "scripts" / "fetch_kis_us_eod.py",
             trader / "scripts" / "run_session.py",
             trader / "scripts" / "account_snapshot.py",
+            trader / "scripts" / "daily_pipeline.py",
+            trader / "scripts" / "market_calendar.py",
             trader / "scripts" / "systemd_units.py",
             runtime / "kr-eod.json",
             runtime / "kr-account-snapshot.json",

@@ -1,6 +1,17 @@
 This release contains the versioned distribution packages declared in
 `release/catalog.json`.
 
+- Distribution 2.3.0 updates `quant-stock-polling-trader` to 0.4.0 and
+  `quant-stock-technical` to 0.4.1. Recurring systemd jobs now use a stable
+  daily config to produce the current official calendar, four-exchange EOD
+  manifest/screen, KIS plus Toss/NH account snapshot, plan, account-bound
+  shadow arm, first-hour session, and bounded reconciliation. The previous
+  date-fixed EOD-only behavior is no longer presented as daily automation.
+  KIS U.S. interior adjusted rows with invalid OHLC geometry are audited and
+  excluded without interpolation; an invalid cutoff remains blocking. Daily
+  entry remains nonpersistent, `live_enabled=false`, and API mutation count is
+  fixed to zero.
+
 - Distribution 2.2.1 updates `quant-stock-polling-trader` to 0.3.1. Generated
   systemd bundles now round-trip through the same strict execution reader,
   derived timer fields are no longer serialized into job inputs, Python path
