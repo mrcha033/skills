@@ -25,6 +25,11 @@ SELECTOR_VERSION_V2 = "qta-screen-1.1.0"
 CATALOG_COVERAGE_SCHEMA = "qta-catalog-coverage-contract/v1"
 EXCHANGE_ORDER = ("KOSPI", "KOSDAQ", "NYSE", "NASDAQ")
 SUPPORTED_EXCHANGES = {"KOSPI", "KOSDAQ", "NYSE", "NASDAQ"}
+SUPPORTED_EXCHANGE_SCOPES = {
+    frozenset(("KOSPI", "KOSDAQ")),
+    frozenset(("NYSE", "NASDAQ")),
+    frozenset(SUPPORTED_EXCHANGES),
+}
 SUPPORTED_SETUP_STATUSES = {"READY", "CONDITIONAL"}
 EXCHANGE_CONTRACTS = {
     "KOSPI": {
@@ -741,6 +746,22 @@ def normalize_manifest_v2(manifest: dict[str, Any]) -> dict[str, Any]:
             raise ScreenBlockedError(
                 f"counts.by_exchange.{exchange}.excluded does not match exclusions"
             )
+    exchange_scope = frozenset(
+        exchange
+        for exchange in SUPPORTED_EXCHANGES
+        if counts["by_exchange"][exchange]["official"] > 0
+    )
+    if exchange_scope not in SUPPORTED_EXCHANGE_SCOPES:
+        raise ScreenBlockedError(
+            "manifest must cover exactly KOSPI/KOSDAQ, NYSE/NASDAQ, "
+            "or all four exchanges"
+        )
+    inactive_exchanges = SUPPORTED_EXCHANGES - exchange_scope
+    for exchange in inactive_exchanges:
+        if any(counts["by_exchange"][exchange].values()):
+            raise ScreenBlockedError(
+                f"inactive exchange {exchange} must have zero counts"
+            )
     expected_status = (
         "READY"
         if all(
@@ -755,14 +776,15 @@ def normalize_manifest_v2(manifest: dict[str, Any]) -> dict[str, Any]:
                 counts["by_exchange"][exchange]["official"],
                 coverage_contract["minimum_screenable_ratio_by_exchange"][exchange],
             )
-            for exchange in SUPPORTED_EXCHANGES
+            for exchange in exchange_scope
         )
         else "BLOCKED"
     )
     if manifest["build_status"] != expected_status:
         raise ScreenBlockedError(
-            "build_status must be READY only when every exchange has included rows "
-            "and meets its catalog mapping and screenable coverage contracts"
+            "build_status must be READY only when every active exchange has "
+            "included rows and meets its catalog mapping and screenable "
+            "coverage contracts"
         )
     normalized = {
         "schema": MANIFEST_SCHEMA_V2,
@@ -1528,6 +1550,65 @@ def self_test() -> None:
     assert decision_v2_by_symbol["AAA"]["selected"]
     assert decision_v2_by_symbol["CCC"]["exchange_rank"] == 2
     assert not decision_v2_by_symbol["CCC"]["selected"]
+    kr_exchanges = {"KOSPI", "KOSDAQ"}
+    kr_instruments = [
+        item for item in instruments_v2 if item["exchange"] in kr_exchanges
+    ]
+    kr_by_exchange = {
+        exchange: (
+            dict(by_exchange[exchange])
+            if exchange in kr_exchanges
+            else {
+                "official": 0,
+                "broker": 0,
+                "catalog_mapped": 0,
+                "included": 0,
+                "excluded": 0,
+            }
+        )
+        for exchange in EXCHANGE_ORDER
+    }
+    kr_manifest_without_hash = {
+        **manifest_v2_without_hash,
+        "source_hashes": [
+            item
+            for item in source_hashes
+            if item["exchange"] in kr_exchanges | {"GLOBAL"}
+        ],
+        "instruments": kr_instruments,
+        "counts": {
+            "official_rows": len(kr_instruments),
+            "broker_rows": len(kr_instruments),
+            "catalog_mapped_rows": len(kr_instruments),
+            "included": len(kr_instruments),
+            "excluded": 0,
+            "by_exchange": kr_by_exchange,
+        },
+    }
+    kr_manifest = normalize_manifest(
+        {
+            **kr_manifest_without_hash,
+            "manifest_hash": sha256_json(kr_manifest_without_hash),
+        }
+    )
+    kr_selector = normalize_selector(
+        {
+            **selector_v2,
+            "min_selected_by_exchange": {
+                "KOSPI": 1,
+                "KOSDAQ": 1,
+                "NYSE": 0,
+                "NASDAQ": 0,
+            },
+        }
+    )
+    kr_results = [
+        item for item in results_v2 if item["market"] == "KR"
+    ]
+    kr_screen = finalize_screen_v2(kr_manifest, kr_selector, kr_results)
+    assert kr_screen["screen_status"] == "READY"
+    assert not kr_screen["selected"]["NYSE"]
+    assert not kr_screen["selected"]["NASDAQ"]
     coverage_selector_v2 = normalize_selector(
         {
             "selector_version": SELECTOR_VERSION_V2,

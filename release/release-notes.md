@@ -1,6 +1,16 @@
 This release contains the versioned distribution packages declared in
 `release/catalog.json`.
 
+- Distribution 2.4.3 updates `quant-stock-technical` to 0.4.4 and
+  `quant-stock-polling-trader` to 0.5.3. The daily prepare stage now builds
+  only KOSPI/KOSDAQ for a Korean session or NYSE/NASDAQ for a U.S. session.
+  This removes the cross-market cutoff error that made a 01:00 Korean prepare
+  depend on unfinished U.S. EOD, avoids duplicate market-data reads, and lets
+  each job hold only its own market lock. Manifest v2 retains all four count
+  keys with zero counts for inactive exchanges and enforces coverage across
+  every active exchange. Shadow safety and optional ntfy behavior are
+  unchanged.
+
 - Distribution 2.4.2 updates `quant-stock-polling-trader` to 0.5.2. Daily
   preparation now starts at 01:00 in each market timezone, leaving eight hours
   before the Korean open and eight and a half hours before the U.S. open for

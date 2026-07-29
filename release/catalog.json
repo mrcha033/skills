@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "distributionVersion": "2.4.2",
+  "distributionVersion": "2.4.3",
   "releaseTagPrefix": "skills-v",
   "guaranteeScope": "Package compatibility guarantees archive layout, manifest placement, and byte integrity. Runtime compatibility remains conditional on each skill's declared tools, authentication, network, and data requirements.",
   "formats": {
@@ -96,7 +96,7 @@
     },
     {
       "name": "quant-stock-polling-trader",
-      "version": "0.5.2",
+      "version": "0.5.3",
       "runtime": {
         "codex": "supported",
         "claudeCode": "supported",
@@ -112,11 +112,11 @@
         "frozen screen, account, exposure, calendar, risk, and execution-policy inputs",
         "systemd for generated Linux user units"
       ],
-      "notes": "The daily KIS live/shadow pipeline is a direct prepare, snapshot/plan, entry, and reconciliation flow with API mutations fixed to zero. Daily preparation starts at 01:00 in each market timezone to leave a measured multi-hour refresh window, while initial multi-year bootstrap remains a separate prerequisite. Optional ntfy completion/block notifications read only a protected topic URL/token and cannot alter the worker result. The workflow does not require approved source digests, provenance signatures, account-identity HMACs, trading-arm artifacts, or Toss/NH files."
+      "notes": "The daily KIS live/shadow pipeline is a direct prepare, snapshot/plan, entry, and reconciliation flow with API mutations fixed to zero. Daily preparation starts at 01:00 in each market timezone and refreshes only KOSPI/KOSDAQ for KR or NYSE/NASDAQ for US, avoiding cross-market cutoff errors and duplicate reads. Optional ntfy completion/block notifications read only a protected topic URL/token and cannot alter the worker result. The workflow does not require approved source digests, provenance signatures, account-identity HMACs, trading-arm artifacts, or Toss/NH files."
     },
     {
       "name": "quant-stock-technical",
-      "version": "0.4.3",
+      "version": "0.4.4",
       "runtime": {
         "codex": "supported",
         "claudeCode": "supported",
@@ -128,7 +128,7 @@
         "user-provided finalized OHLCV and benchmark files, or KIS Open API credentials for read-only Korean and U.S. EOD acquisition",
         "outbound KRX, Nasdaq Trader, KIS, and benchmark source access"
       ],
-      "notes": "The Korean and U.S. EOD collectors are resumable and read-only. Complete byte-equivalent cache files are no longer rewritten, while changed, incomplete, or invalid files still update atomically. Normalized source descriptors are projected back to the exact manifest build-spec schema. KIS interior adjusted rows with invalid OHLC geometry are source-hashed and excluded without interpolation, while an invalid cutoff still blocks."
+      "notes": "The Korean and U.S. EOD collectors are resumable and read-only. qta-universe-manifest/v2 now accepts exactly a Korean pair, a U.S. pair, or all four exchanges while keeping all four count keys and zeroing inactive exchanges. Coverage is enforced for every active exchange. Complete byte-equivalent cache files are not rewritten, and invalid KIS adjusted rows remain source-audited without interpolation."
     },
     {
       "name": "stock-scenario-story",

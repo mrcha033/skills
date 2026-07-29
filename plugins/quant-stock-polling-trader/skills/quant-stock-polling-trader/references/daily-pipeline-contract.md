@@ -14,7 +14,8 @@ The stages are:
 
 1. `prepare`: freeze the official market calendar, stop normally on
    `MARKET_CLOSED`, refresh official membership/KIS masters/adjusted EOD and
-   benchmarks, build the four-exchange universe, and screen it.
+   benchmarks for KOSPI/KOSDAQ or NYSE/NASDAQ, build that market's universe,
+   and screen it.
 2. `snapshot`: read KIS settled cash, positions, and open orders; merge any
    explicitly configured additional exposure files; create the execution
    policy and deterministic plan; and preview request serialization.

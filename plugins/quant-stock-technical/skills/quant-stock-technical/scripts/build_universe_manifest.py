@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a deterministic four-exchange qta-universe-manifest/v2 offline."""
+"""Build a deterministic market-scoped qta-universe-manifest/v2 offline."""
 
 # Python 3.9 compatibility intentionally uses Optional instead of PEP 604 unions.
 # ruff: noqa: UP045
@@ -28,6 +28,11 @@ TICK_CONTRACT_KIND = "RESOLVED_PRICE_LADDER"
 CATALOG_COVERAGE_SCHEMA = "qta-catalog-coverage-contract/v1"
 
 EXCHANGES = ("KOSPI", "KOSDAQ", "NYSE", "NASDAQ")
+SUPPORTED_EXCHANGE_SCOPES = {
+    frozenset(("KOSPI", "KOSDAQ")),
+    frozenset(("NYSE", "NASDAQ")),
+    frozenset(EXCHANGES),
+}
 EXCHANGE_CONTRACTS: dict[str, dict[str, str]] = {
     "KOSPI": {
         "market": "KR",
@@ -655,19 +660,22 @@ def normalize_build_spec(raw: dict[str, Any], spec_directory: Path) -> dict[str,
         raise UniverseBlockedError(
             "official_sources may contain only one source per exchange"
         )
-    if set(official_by_exchange) != set(EXCHANGES):
+    exchange_scope = frozenset(official_by_exchange)
+    if exchange_scope not in SUPPORTED_EXCHANGE_SCOPES:
         raise UniverseBlockedError(
-            f"official_sources must contain exactly {list(EXCHANGES)}"
+            "official_sources must contain exactly KOSPI/KOSDAQ, "
+            "NYSE/NASDAQ, or all four exchanges"
         )
     broker_by_exchange = {item["exchange"]: item for item in broker}
     if len(broker_by_exchange) != len(broker):
         raise UniverseBlockedError(
             "broker_sources may contain only one source per exchange"
         )
-    if set(broker_by_exchange) != set(EXCHANGES):
+    if frozenset(broker_by_exchange) != exchange_scope:
         raise UniverseBlockedError(
-            f"broker_sources must contain exactly {list(EXCHANGES)}"
+            "broker_sources must cover the same exchanges as official_sources"
         )
+    exchanges = tuple(exchange for exchange in EXCHANGES if exchange in exchange_scope)
 
     source_ids = [item["source_id"] for item in official + broker]
     if len(source_ids) != len(set(source_ids)):
@@ -711,6 +719,7 @@ def normalize_build_spec(raw: dict[str, Any], spec_directory: Path) -> dict[str,
         ),
         "eod_catalog": catalog,
         "catalog_coverage_contract": coverage_contract,
+        "exchanges": exchanges,
     }
 
 
@@ -1409,6 +1418,7 @@ def exclusion_record(
 
 def build_manifest(raw_spec: dict[str, Any], spec_directory: Path) -> dict[str, Any]:
     spec = normalize_build_spec(raw_spec, spec_directory)
+    exchanges = spec["exchanges"]
     official_descriptors = {item["exchange"]: item for item in spec["official_sources"]}
     broker_descriptors = {item["exchange"]: item for item in spec["broker_sources"]}
     official_rows = {
@@ -1416,7 +1426,7 @@ def build_manifest(raw_spec: dict[str, Any], spec_directory: Path) -> dict[str, 
             row.symbol: row
             for row in parse_master_source(official_descriptors[exchange])
         }
-        for exchange in EXCHANGES
+        for exchange in exchanges
     }
     broker_rows = {
         exchange: {
@@ -1443,7 +1453,7 @@ def build_manifest(raw_spec: dict[str, Any], spec_directory: Path) -> dict[str, 
     exclusions: list[dict[str, Any]] = []
     path_hash_cache: dict[Path, str] = {}
 
-    for exchange in EXCHANGES:
+    for exchange in exchanges:
         official_descriptor = official_descriptors[exchange]
         broker_descriptor = broker_descriptors[exchange]
         broker_by_symbol = broker_rows[exchange]
@@ -1565,11 +1575,12 @@ def build_manifest(raw_spec: dict[str, Any], spec_directory: Path) -> dict[str, 
 
     by_exchange: dict[str, dict[str, int]] = {}
     for exchange in EXCHANGES:
+        exchange_official_rows = official_rows.get(exchange, {})
         catalog_mapped = sum(
-            (exchange, symbol) in catalog for symbol in official_rows[exchange]
+            (exchange, symbol) in catalog for symbol in exchange_official_rows
         )
         by_exchange[exchange] = {
-            "official": len(official_rows[exchange]),
+            "official": len(exchange_official_rows),
             "broker": len(broker_rows.get(exchange, {})),
             "catalog_mapped": catalog_mapped,
             "included": sum(item["exchange"] == exchange for item in instruments),
@@ -1592,7 +1603,7 @@ def build_manifest(raw_spec: dict[str, Any], spec_directory: Path) -> dict[str, 
             by_exchange[exchange]["official"],
             coverage_minimums[exchange],
         )
-        for exchange in EXCHANGES
+        for exchange in exchanges
     )
     screenable_minimums = spec["catalog_coverage_contract"][
         "minimum_screenable_ratio_by_exchange"
@@ -1603,13 +1614,13 @@ def build_manifest(raw_spec: dict[str, Any], spec_directory: Path) -> dict[str, 
             by_exchange[exchange]["official"],
             screenable_minimums[exchange],
         )
-        for exchange in EXCHANGES
+        for exchange in exchanges
     )
     build_status = (
         "READY"
         if coverage_ready
         and screenable_ready
-        and all(by_exchange[exchange]["included"] > 0 for exchange in EXCHANGES)
+        and all(by_exchange[exchange]["included"] > 0 for exchange in exchanges)
         else "BLOCKED"
     )
     output: dict[str, Any] = {
@@ -2014,6 +2025,29 @@ def self_test() -> None:
             {key: value for key, value in first.items() if key != "manifest_hash"}
         )
         assert first["manifest_hash"] == expected_hash
+        kr_only = build_manifest(
+            {
+                **spec,
+                "official_sources": [
+                    item
+                    for item in official_sources
+                    if item["exchange"] in {"KOSPI", "KOSDAQ"}
+                ],
+                "broker_sources": [
+                    item
+                    for item in broker_sources
+                    if item["exchange"] in {"KOSPI", "KOSDAQ"}
+                ],
+            },
+            root,
+        )
+        assert kr_only["build_status"] == "READY"
+        assert {item["market"] for item in kr_only["instruments"]} == {"KR"}
+        assert all(
+            value == 0
+            for exchange in ("NYSE", "NASDAQ")
+            for value in kr_only["counts"]["by_exchange"][exchange].values()
+        )
         relaxed_manifest = build_manifest(
             {
                 **spec,

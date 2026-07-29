@@ -1,8 +1,9 @@
-# Four-exchange universe contract
+# Exchange-scoped universe contract
 
 `qta-universe-manifest/v2` freezes a reproducible, screen-ready intersection
-across KOSPI, KOSDAQ, NYSE, and NASDAQ. It is not a live quote feed and it does
-not make every listed security eligible.
+for exactly one supported scope: KOSPI/KOSDAQ, NYSE/NASDAQ, or all four
+exchanges. It is not a live quote feed and it does not make every listed
+security eligible.
 
 ## Source boundary
 
@@ -35,7 +36,8 @@ catalog_coverage_contract
 ```
 
 `schema` is `qta-universe-build-spec/v1`. Supply exactly one official source
-and one KIS broker source for each exchange. Every source descriptor has
+and one KIS broker source for each exchange in the selected supported scope.
+Do not mix a single exchange from either market. Every source descriptor has
 exactly:
 
 ```text
@@ -177,9 +179,9 @@ catalog_coverage_contract, instruments, exclusions, counts, manifest_hash
 ```
 
 `schema` is `qta-universe-manifest/v2`. `build_status` is `READY` only when
-every one of the four exchanges has at least one included instrument and meets
-both hashed catalog-mapping and screenable-coverage minimums; otherwise it is
-`BLOCKED`.
+every active exchange has at least one included instrument and meets both
+hashed catalog-mapping and screenable-coverage minimums; otherwise it is
+`BLOCKED`. Inactive exchanges must have zero counts.
 
 Each instrument has exactly:
 
@@ -227,7 +229,8 @@ sorted, unique list.
 `counts` has exact totals `official_rows, broker_rows, catalog_mapped_rows,
 included, excluded` and a `by_exchange` object with all four exchanges. Each
 exchange has exact `official, broker, catalog_mapped, included, excluded`
-counts; totals must equal their sums. `catalog_mapped` counts official symbols
+counts; totals must equal their sums. Keys remain present with all-zero values
+for inactive exchanges so the v2 shape stays stable. `catalog_mapped` counts official symbols
 with a catalog row, regardless of whether that row later passes EOD, tick, or
 broker validation. `excluded` means exclusion-record count. It can include an
 EOD-catalog row that is no longer an official member, so it is not defined as

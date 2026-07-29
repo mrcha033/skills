@@ -52,8 +52,9 @@ directories and KIS overseas masters with
 `scripts/fetch_kis_us_eod.py snapshot-sources`, then run `collect --job ...`
 outside the U.S. entry window. KIS stock history must use adjusted `MODP=1`;
 preserve exchange-specific membership, broker symbols, benchmarks, and tick
-mappings. Combine the completed Korean catalog and all four source descriptor
-pairs before claiming a complete v2 build spec. If KIS supplies an interior
+mappings. A U.S.-scoped build uses NYSE/NASDAQ only; combine a completed
+Korean catalog only when the caller explicitly requests an all-four-exchange
+research universe. If KIS supplies an interior
 adjusted row with invalid OHLC geometry, preserve its hash and values in the
 invalid-row audit and exclude only that real row without interpolation. An
 invalid cutoff row remains blocking.
@@ -81,7 +82,7 @@ python3 scripts/analyze_stock.py \
 
 Use `--format json` for machine-readable output. Run `python3 scripts/analyze_stock.py --self-test` after modifying the calculator.
 
-For a four-exchange target universe, first read
+For a Korean, U.S., or all-four-exchange target universe, first read
 `references/universe-contract.md`, build `qta-universe-manifest/v2` with
 `scripts/build_universe_manifest.py`, then read `references/screen-contract.md`
 and run `scripts/screen_universe.py`. Use `qta-universe-manifest/v1` only for

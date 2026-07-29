@@ -70,7 +70,7 @@ Read `references/daily-pipeline-contract.md`, then:
 1. Use one stable `qta-daily-shadow-config/v2` file.
 2. Run `scripts/daily_pipeline.py prepare` before the selected market opens.
    It freezes the official calendar, stops normally on a closed market,
-   refreshes the official four-exchange universe and adjusted EOD cache, and
+   refreshes only that market's exchange pair and adjusted EOD cache, and
    creates the deterministic screen.
 3. Run `scripts/daily_pipeline.py snapshot` shortly before the open. It reads
    KIS settled cash, positions, and open orders, optionally merges any
@@ -84,7 +84,7 @@ Read `references/daily-pipeline-contract.md`, then:
 
 Daily preparation starts at `01:00` in each market timezone. This leaves eight
 hours before the Korean open and eight and a half hours before the U.S. open,
-instead of assuming that a full four-exchange refresh fits into two hours.
+without making a Korean session wait for U.S. EOD or vice versa.
 Finish an initial multi-year bootstrap before relying on a daily timer; the
 timer is intended to resume and increment an existing cache.
 

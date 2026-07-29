@@ -7,7 +7,7 @@ Keep three independent contracts:
 ```text
 qta-1.0.0          completed T-1 adjusted daily data -> technical payload
 qta-screen-1.0.0   legacy KR/US manifest -> deterministic candidates
-qta-screen-1.1.0   four-exchange manifest -> exchange-ranked candidates
+qta-screen-1.1.0   selected-market manifest -> exchange-ranked candidates
 open1h-exec-2.0.0  broker/account snapshots -> intents and order lifecycle
 ```
 

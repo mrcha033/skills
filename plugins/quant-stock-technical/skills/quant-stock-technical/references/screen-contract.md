@@ -84,12 +84,13 @@ Emit `qta-screen/v1` with:
 Use the output only as an input to a separate execution skill. It is not an
 order, suitability decision, or profit forecast.
 
-## Four-exchange v2 input
+## Exchange-scoped v2 input
 
 Read `universe-contract.md` first. Pass the complete, unmodified
 `qta-universe-manifest/v2` emitted by `build_universe_manifest.py`; the screen
 recomputes its canonical hash and verifies source, CSV, tick, count, and broker
-tradability metadata. It rejects a `BLOCKED` manifest.
+tradability metadata. The manifest may cover the Korean pair, the U.S. pair,
+or all four exchanges. It rejects a `BLOCKED` manifest.
 
 Pass this exact selector:
 

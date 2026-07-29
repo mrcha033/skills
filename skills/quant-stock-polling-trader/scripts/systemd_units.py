@@ -817,9 +817,7 @@ def execute(bundle: dict[str, Any], name: str) -> int:
     if job is None:
         raise UnitBlockedError(f"unknown job: {name}")
     runtime = Path(bundle["runtime_directory"])
-    lock_markets = (
-        ["KR", "US"] if job["kind"] == "daily-prepare" else [job["market"]]
-    )
+    lock_markets = [job["market"]]
     acquire_market_locks(runtime, lock_markets)
     environment = dict(os.environ)
     environment["PYTHONDONTWRITEBYTECODE"] = "1"
