@@ -774,11 +774,20 @@ def normalized_account_snapshot(
     borrowed = nonnegative_decimal(
         value["borrowed_buying_power"], "borrowed_buying_power"
     )
-    fx = positive_decimal(value["fx_to_krw"], "fx_to_krw")
     if not isinstance(value["positions"], list) or not isinstance(
         value["open_orders"], list
     ):
         raise BlockedError("positions and open_orders must be arrays")
+    raw_fx = value["fx_to_krw"]
+    if raw_fx is None:
+        if market != "US" or settled != 0 or value["positions"]:
+            raise BlockedError(
+                "fx_to_krw may be null only for an empty US account with "
+                "zero settled cash"
+            )
+        fx: Decimal | None = None
+    else:
+        fx = positive_decimal(raw_fx, "fx_to_krw")
     if screen_schema not in {SCREEN_SCHEMA, SCREEN_SCHEMA_V2}:
         raise BlockedError(f"unsupported screen schema: {screen_schema!r}")
 
@@ -866,7 +875,7 @@ def normalized_account_snapshot(
         "as_of": as_of.isoformat(),
         "settled_cash": format(settled, "f"),
         "borrowed_buying_power": format(borrowed, "f"),
-        "fx_to_krw": format(fx, "f"),
+        "fx_to_krw": format(fx, "f") if fx is not None else None,
         "positions": positions,
         "open_orders": open_orders,
     }
@@ -1878,9 +1887,16 @@ def plan_orders(
     selected = selected_for_execution(screen_raw, market)
 
     settled_cash = Decimal(account["settled_cash"])
-    fx = Decimal(account["fx_to_krw"])
-    per_trade_risk_native = Decimal(risk["per_trade_risk_krw"]) / fx
-    max_notional_native = Decimal(risk["max_symbol_notional_krw"]) / fx
+    raw_fx = account["fx_to_krw"]
+    if raw_fx is None:
+        if settled_cash != 0:
+            raise BlockedError("a positive settled cash balance requires fx_to_krw")
+        per_trade_risk_native = Decimal(0)
+        max_notional_native = Decimal(0)
+    else:
+        fx = Decimal(raw_fx)
+        per_trade_risk_native = Decimal(risk["per_trade_risk_krw"]) / fx
+        max_notional_native = Decimal(risk["max_symbol_notional_krw"]) / fx
     cost_bps = Decimal(risk["round_trip_cost_bps"])
     cash_buffer_bps = Decimal(risk["cash_buffer_bps"])
     gap_bps = Decimal(execution["max_gap_bps"])
@@ -2571,6 +2587,16 @@ def self_test() -> None:
     assert first["borrowed_buying_power_excluded"] == "5000"
     assert len(first["intents"]) == 1
     assert first["intents"][0]["quantity"] == "1"
+
+    empty_account = {
+        **account,
+        "settled_cash": "0",
+        "fx_to_krw": None,
+    }
+    empty_plan = plan_orders(screen, empty_account, exposure, risk, execution)
+    assert empty_plan["plan_status"] == "NO_ORDERS"
+    assert empty_plan["frozen_inputs"]["account"]["fx_to_krw"] is None
+    assert empty_plan["skipped"][0]["reason"] == "quantity_below_one"
 
     held = json.loads(canonical_json(exposure))
     held["positions"] = [

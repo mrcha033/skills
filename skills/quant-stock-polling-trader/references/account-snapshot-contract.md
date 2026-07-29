@@ -32,11 +32,19 @@ The job is nonsecret JSON. Every path must be absolute:
 For a U.S. job, set `fx_to_krw` to `KIS_PRESENT_BALANCE` so the same
 `CTRP6504R` snapshot supplies its positive `frst_bltn_exrt` value. A caller may
 instead bind an exact observed positive numeric value, in which case the
-receipt records `fx_source: JOB_INPUT`. Never insert a placeholder or silently
-reuse an old rate. The collector validates the manifest hash and uses its
-`broker_symbol -> exchange` mapping. Anything held or working outside KOSPI,
-KOSDAQ, NYSE, and NASDAQ is `BLOCKED`; extend the exposure schema instead of
-assigning a false exchange.
+receipt records `fx_source: JOB_INPUT`. KIS legitimately omits the USD cash
+row when the account has neither settled USD nor a U.S. position. In that
+case the collector freezes `settled_cash: "0"` and `fx_to_krw: null`, records
+`fx_source: NOT_APPLICABLE:NO_SETTLED_USD_OR_POSITION`, and the planner
+deterministically produces no positive quantity. It does not use
+auto-exchange buying power or invent an exchange rate. If a position exists
+without a USD cash row, the collector uses the position's positive
+`bass_exrt`; conflicting rates or cash rows are `BLOCKED`.
+
+Never insert a placeholder or silently reuse an old rate. The collector
+validates the manifest hash and uses its `broker_symbol -> exchange` mapping.
+Anything held or working outside KOSPI, KOSDAQ, NYSE, and NASDAQ is `BLOCKED`;
+extend the exposure schema instead of assigning a false exchange.
 
 KIS credentials follow the resolution rules in `SKILL.md`. Account routing
 values and secrets are never written. The nonsecret `account_alias` identifies
@@ -88,6 +96,8 @@ The account contract requires settled, unborrowed cash:
   `nxdy_excc_amt`, and `prvs_rcdl_excc_amt`.
 - US uses the minimum nonnegative USD value among `frcr_dncl_amt_2`,
   `frcr_drwg_psbl_amt_1`, and `nxdy_frcr_drwg_psbl_amt`.
+- An absent USD row means zero settled USD; it never authorizes KRW
+  auto-exchange buying power.
 - Loan amounts are preserved separately as `borrowed_buying_power` and never
   added to `settled_cash`.
 

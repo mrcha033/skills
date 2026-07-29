@@ -1,6 +1,22 @@
 This release contains the versioned distribution packages declared in
 `release/catalog.json`.
 
+- Distribution 2.4.1 updates `quant-stock-polling-trader` to 0.5.1. A KIS
+  live/shadow U.S. snapshot now treats the broker's documented empty USD cash
+  response as zero settled cash instead of blocking. The frozen FX field is
+  explicitly not applicable only when both settled USD and U.S. positions are
+  absent, so the deterministic planner emits no positive quantity and never
+  counts automatic-exchange buying power. Conflicting cash or FX rows remain
+  blocking, and all broker calls remain read-only.
+
+- Distribution 2.4.0 updates `quant-stock-polling-trader` to 0.5.0. The
+  default daily path is a direct prepare, snapshot/plan, entry, and
+  reconciliation workflow. Approval-digest provenance, account-identity HMAC,
+  trading-arm, and mandatory Toss/NH gates were removed; official calendars,
+  completed EOD inputs, settled-cash sizing, deterministic plans,
+  single-writer state, read-only shadow execution, and `live_enabled=false`
+  remain.
+
 - Distribution 2.3.6 updates `quant-stock-polling-trader` to 0.4.4. A repeated
   same-session prepare now verifies the stored provenance object and bound
   descriptor hash before reusing an existing receipt. Changed approved roots

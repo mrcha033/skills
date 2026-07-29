@@ -1,6 +1,6 @@
 {
   "name": "quant-stock-polling-trader",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Run a direct deterministic daily KIS shadow workflow.",
   "author": {
     "name": "mrcha033",

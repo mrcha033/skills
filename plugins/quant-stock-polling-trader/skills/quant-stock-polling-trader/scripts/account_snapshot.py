@@ -500,7 +500,8 @@ def collect_us(
     Decimal,
     list[dict[str, Any]],
     list[dict[str, Any]],
-    Decimal,
+    Decimal | None,
+    str,
 ]:
     present = request_pages(
         broker,
@@ -523,31 +524,80 @@ def collect_us(
         for row in present["output2"]
         if str(row.get("crcy_cd", "")).strip().upper() == "USD"
     ]
-    if len(usd_cash_rows) != 1:
-        raise BlockedError("KIS US present balance requires exactly one USD cash row")
-    cash = usd_cash_rows[0]
-    observed_fx = positive_decimal(
-        cash.get("frst_bltn_exrt"),
-        "US frst_bltn_exrt",
-    )
-    effective_fx = fx_to_krw if fx_to_krw is not None else observed_fx
-    settled_cash = minimum_nonnegative(
-        [
-            (cash.get("frcr_dncl_amt_2"), "US frcr_dncl_amt_2"),
-            (cash.get("frcr_drwg_psbl_amt_1"), "US frcr_drwg_psbl_amt_1"),
+    cash_snapshots: set[tuple[Decimal, Decimal, Decimal]] = set()
+    observed_cash_fx: set[Decimal] = set()
+    for index, cash in enumerate(usd_cash_rows):
+        cash_snapshots.add(
             (
-                cash.get("nxdy_frcr_drwg_psbl_amt"),
-                "US nxdy_frcr_drwg_psbl_amt",
-            ),
-        ]
-    )
-    positions: list[dict[str, Any]] = []
+                nonnegative_decimal(
+                    cash.get("frcr_dncl_amt_2"),
+                    f"US output2[{index}].frcr_dncl_amt_2",
+                ),
+                nonnegative_decimal(
+                    cash.get("frcr_drwg_psbl_amt_1"),
+                    f"US output2[{index}].frcr_drwg_psbl_amt_1",
+                ),
+                nonnegative_decimal(
+                    cash.get("nxdy_frcr_drwg_psbl_amt"),
+                    f"US output2[{index}].nxdy_frcr_drwg_psbl_amt",
+                ),
+            )
+        )
+        if fx_to_krw is None:
+            observed_cash_fx.add(
+                positive_decimal(
+                    cash.get("frst_bltn_exrt"),
+                    f"US output2[{index}].frst_bltn_exrt",
+                )
+            )
+    if len(cash_snapshots) > 1:
+        raise BlockedError("KIS US present balance returned conflicting USD cash rows")
+    if len(observed_cash_fx) > 1:
+        raise BlockedError("KIS US present balance returned conflicting USD FX rates")
+    settled_cash = min(next(iter(cash_snapshots))) if cash_snapshots else Decimal(0)
+
+    position_rows: list[tuple[dict[str, Any], Decimal]] = []
+    observed_position_fx: set[Decimal] = set()
     borrowed = Decimal(0)
-    for row in present["output1"]:
-        quantity = nonnegative_decimal(row.get("cblc_qty13"), "US cblc_qty13")
-        borrowed += nonnegative_decimal(row.get("loan_rmnd", "0"), "US loan_rmnd")
+    for index, row in enumerate(present["output1"]):
+        quantity = nonnegative_decimal(
+            row.get("cblc_qty13"), f"US output1[{index}].cblc_qty13"
+        )
+        borrowed += nonnegative_decimal(
+            row.get("loan_rmnd", "0"), f"US output1[{index}].loan_rmnd"
+        )
         if quantity == 0:
             continue
+        position_rows.append((row, quantity))
+        if fx_to_krw is None and not observed_cash_fx:
+            observed_position_fx.add(
+                positive_decimal(
+                    row.get("bass_exrt"),
+                    f"US output1[{index}].bass_exrt",
+                )
+            )
+    if len(observed_position_fx) > 1:
+        raise BlockedError(
+            "KIS US present balance returned conflicting position FX rates"
+        )
+
+    if fx_to_krw is not None:
+        effective_fx: Decimal | None = fx_to_krw
+        fx_source = "JOB_INPUT"
+    elif observed_cash_fx:
+        effective_fx = next(iter(observed_cash_fx))
+        fx_source = "KIS_PRESENT_BALANCE:frst_bltn_exrt"
+    elif observed_position_fx:
+        effective_fx = next(iter(observed_position_fx))
+        fx_source = "KIS_PRESENT_BALANCE:bass_exrt"
+    else:
+        effective_fx = None
+        fx_source = "NOT_APPLICABLE:NO_SETTLED_USD_OR_POSITION"
+
+    positions: list[dict[str, Any]] = []
+    for row, quantity in position_rows:
+        if effective_fx is None:
+            raise BlockedError("KIS US positions require a positive FX rate")
         symbol = str(row.get("pdno", "")).strip().upper()
         exchange = manifest_exchange(
             mapping,
@@ -602,7 +652,14 @@ def collect_us(
                 "symbol": symbol,
             }
         )
-    return settled_cash, borrowed, positions, open_orders, effective_fx
+    return (
+        settled_cash,
+        borrowed,
+        positions,
+        open_orders,
+        effective_fx,
+        fx_source,
+    )
 
 
 def collect(
@@ -627,13 +684,17 @@ def collect(
         effective_fx = Decimal(1)
         fx_source = "FIXED_KRW"
     else:
-        settled, borrowed, positions, open_orders, effective_fx = collect_us(
-            broker, mapping, job["fx_to_krw"]
-        )
-        fx_source = (
-            "KIS_PRESENT_BALANCE:frst_bltn_exrt"
-            if job["fx_to_krw"] is None
-            else "JOB_INPUT"
+        (
+            settled,
+            borrowed,
+            positions,
+            open_orders,
+            effective_fx,
+            fx_source,
+        ) = collect_us(
+            broker,
+            mapping,
+            job["fx_to_krw"],
         )
     positions = aggregate_positions(positions)
     freeze_time = frozen_at or datetime.now(timezone.utc)
@@ -662,7 +723,9 @@ def collect(
             "as_of": as_of,
             "settled_cash": format(settled, "f"),
             "borrowed_buying_power": format(borrowed, "f"),
-            "fx_to_krw": format(effective_fx, "f"),
+            "fx_to_krw": (
+                format(effective_fx, "f") if effective_fx is not None else None
+            ),
             "positions": account_positions,
             "open_orders": open_orders,
         },
@@ -996,6 +1059,79 @@ def self_test() -> dict[str, Any]:
         assert us_receipt["fx_source"] == "KIS_PRESENT_BALANCE:frst_bltn_exrt"
         assert us_account["open_orders"][0]["exchange"] == "NYSE"
         assert us_account["open_orders"][0]["side"] == "SELL"
+
+        empty_us_job_raw = {
+            **us_job_raw,
+            "manual_exposure_components": [],
+            "output_account_path": str(directory / "account-us-empty.json"),
+            "output_exposure_path": str(directory / "exposure-us-empty.json"),
+            "output_status_path": str(directory / "status-us-empty.json"),
+        }
+        empty_us_job_path = directory / "job-us-empty.json"
+        atomic_write_json(empty_us_job_path, empty_us_job_raw)
+        empty_us_responses = [
+            HttpResponse(
+                200,
+                {},
+                {
+                    "access_token": "fixture-token",
+                    "token_type": "Bearer",
+                    "expires_in": 86400,
+                },
+            ),
+            HttpResponse(
+                200,
+                {},
+                {
+                    "rt_cd": "0",
+                    "output1": [],
+                    "output2": [],
+                    "output3": [{"tot_frcr_cblc_smtl": "0"}],
+                },
+            ),
+            HttpResponse(200, {}, {"rt_cd": "0", "output": []}),
+        ]
+        previous_empty_us = {
+            name: os.environ.get(name)
+            for name in (
+                "QTA_KIS_APP_KEY",
+                "QTA_KIS_APP_SECRET",
+                "QTA_KIS_ACCOUNT_PREFIX",
+                "QTA_KIS_ACCOUNT_PRODUCT",
+            )
+        }
+        os.environ.update(
+            {
+                "QTA_KIS_APP_KEY": "test-key",
+                "QTA_KIS_APP_SECRET": "test-secret",
+                "QTA_KIS_ACCOUNT_PREFIX": "12345678",
+                "QTA_KIS_ACCOUNT_PRODUCT": "01",
+            }
+        )
+        try:
+            empty_us_receipt = collect(
+                load_job(empty_us_job_path),
+                transport=QueueTransport(empty_us_responses),
+                frozen_at=now,
+            )
+        finally:
+            for name, value in previous_empty_us.items():
+                if value is None:
+                    os.environ.pop(name, None)
+                else:
+                    os.environ[name] = value
+        empty_us_account = read_json_object(
+            Path(empty_us_job_raw["output_account_path"]),
+            "empty US account",
+        )
+        assert empty_us_receipt["status"] == "READY"
+        assert empty_us_receipt["fx_source"] == (
+            "NOT_APPLICABLE:NO_SETTLED_USD_OR_POSITION"
+        )
+        assert empty_us_account["settled_cash"] == "0"
+        assert empty_us_account["fx_to_krw"] is None
+        assert empty_us_account["positions"] == []
+        assert empty_us_account["open_orders"] == []
 
         stale = read_json_object(manual_path, "manual")
         stale["source_as_of"] = "2026-07-25T09:00:00+09:00"
