@@ -50,6 +50,7 @@ REQUIRED_CONFIG_FIELDS = {
 OPTIONAL_CONFIG_FIELDS = {
     "exposure_component_paths",
     "exposure_component_max_age_seconds",
+    "qta_method_version",
 }
 EXECUTION_DEFAULT_FIELDS = {
     "snapshot_max_age_seconds",
@@ -209,6 +210,11 @@ def normalize_config(raw: Any, path: Path) -> dict[str, Any]:
     if not isinstance(execution, dict):
         raise PipelineBlockedError("execution_policy must be an object")
     exact_fields(execution, EXECUTION_DEFAULT_FIELDS, "execution_policy")
+    qta_method_version = raw.get("qta_method_version", "qta-1.0.0")
+    if qta_method_version not in {"qta-1.0.0", "qta-2.0.0"}:
+        raise PipelineBlockedError(
+            "qta_method_version must be qta-1.0.0 or qta-2.0.0"
+        )
     component_paths = raw.get("exposure_component_paths", [])
     if not isinstance(component_paths, list):
         raise PipelineBlockedError("exposure_component_paths must be an array")
@@ -272,6 +278,7 @@ def normalize_config(raw: Any, path: Path) -> dict[str, Any]:
         "risk_policy": risk,
         "exposure_component_paths": normalized_component_paths,
         "exposure_component_max_age_seconds": max_age,
+        "qta_method_version": qta_method_version,
         "config_path": path.resolve(),
     }
 
@@ -697,6 +704,8 @@ def prepare(
             str(selector_path),
             "--output",
             str(screen_path),
+            "--method-version",
+            config["qta_method_version"],
         ),
         f"{market} screen",
     )

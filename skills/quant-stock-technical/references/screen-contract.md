@@ -123,12 +123,16 @@ no-trade result when no setup passes; use one or more only when underfilling
 that exchange should block the whole screen. The same exact
 `eligible_setup_statuses` restriction from v1 applies.
 
-Run the same `qta-1.0.0` calculator once per included instrument. Use
+By default, run the stable `qta-1.0.0` calculator once per included
+instrument. Pass `--method-version qta-2.0.0` only for the research-only
+first-hour model described in `methodology.md`. Use
 `canonical_symbol` as the QTA ticker, the explicit exchange benchmark CSV, and
 `tick_contract.resolved_tick_size`; never use `data_symbol` or `broker_symbol`
 interchangeably.
 
-Apply the v1 score ordering independently inside each exchange. The final
+Apply the method-specific score ordering independently inside each exchange.
+QTA1 orders medium, long, short, then risk after total score. QTA2 orders
+short, medium, risk, then long after total score. The final
 tie-break is canonical symbol ascending. Set `exchange_rank` before taking the
 configured top K. A score remains ticker-relative rather than a
 cross-sectional percentile or probability.
@@ -151,3 +155,9 @@ Emit `qta-screen/v2` with:
 The polling trader combines KOSPI then KOSDAQ for a Korean session, and NYSE
 then NASDAQ for a U.S. session. It orders by the frozen exchange order,
 `exchange_rank`, then `broker_symbol`; it does not rescore candidates.
+
+`screen_universe.py` uses up to eight worker processes by default. `--workers
+1` provides the serial reference path. Both paths must emit byte-identical
+artifacts. When `--output` is supplied, the complete screen is written only to
+that file and stdout contains a compact hash/status summary rather than
+thousands of instrument payloads.

@@ -119,3 +119,44 @@ calculation_status = READY
 ```
 
 `stock-scenario-story` accepts only the complete unmodified JSON result. A Markdown rendering, hand-entered score summary, incomplete payload, or failed calculation is not a valid handoff.
+
+## QTA 2.0.0 first-hour research model
+
+`qta-2.0.0` reuses the same causal daily features, cutoff rules, price levels,
+and per-ticker historical percentile transform. It changes only the horizon
+aggregation for the first regular-session hour:
+
+```text
+clip(
+  0.50 * short
+  + 0.30 * medium
+  + 0.20 * (100 - risk),
+  0,
+  100
+)
+```
+
+Long-horizon strength remains visible in the payload but has zero weight in
+the first-hour total. A setup also requires median 20-session turnover of at
+least KRW 1,000,000,000 for Korean instruments or USD 1,000,000 for U.S.
+instruments.
+
+The frozen payload requires a downstream same-session market-regime check:
+
+```text
+metric = same_session_previous_close_return_bps
+minimum_change_bps = 0
+max_age_seconds = 90
+```
+
+The runner admits a new entry only when the exchange benchmark or documented
+broad-market proxy is fresh, belongs to the current session, and is not below
+the previous close. It never applies this check to exit management.
+
+The model was created after a full-universe diagnostic for the 2026-07-28
+opening hour. On that single session relative to QTA1, Spearman rank
+correlation increased on KOSDAQ, KOSPI, NASDAQ, and NYSE. This is diagnostic
+evidence, not sufficient promotion evidence. The payload therefore emits
+`validation_status=RESEARCH_ONLY`, and the execution skill accepts it only in
+shadow mode until multiple later sessions are evaluated without retuning the
+formula.

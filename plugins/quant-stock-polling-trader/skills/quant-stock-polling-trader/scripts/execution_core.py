@@ -31,6 +31,9 @@ SCREEN_SCHEMA = "qta-screen/v1"
 SCREEN_SCHEMA_V2 = "qta-screen/v2"
 MARKET_CURRENCY = {"KR": "KRW", "US": "USD"}
 V2_SELECTOR_VERSION = "qta-screen-1.1.0"
+QTA_METHOD_V1 = "qta-1.0.0"
+QTA_METHOD_V2 = "qta-2.0.0"
+SUPPORTED_QTA_METHODS = {QTA_METHOD_V1, QTA_METHOD_V2}
 V2_EXCHANGES_BY_MARKET = {
     "KR": ("KOSPI", "KOSDAQ"),
     "US": ("NYSE", "NASDAQ"),
@@ -149,6 +152,23 @@ QTA_READY_FIELDS = {
     "reference_observations",
     "assumptions",
 }
+QTA2_READY_FIELDS = QTA_READY_FIELDS | {
+    "validation_status",
+    "liquidity",
+    "market_regime",
+}
+QTA2_LIQUIDITY_FIELDS = {
+    "median_20_session_turnover",
+    "minimum_turnover",
+    "currency",
+    "status",
+}
+QTA2_MARKET_REGIME_FIELDS = {
+    "metric",
+    "minimum_change_bps",
+    "max_age_seconds",
+    "status",
+}
 QTA_BLOCKED_FIELDS = {
     "source_skill",
     "result_schema",
@@ -183,11 +203,27 @@ QTA_REFERENCE_FIELDS = {
     "60d gap p95",
 }
 QTA_SCORE_BASIS = "ticker-relative historical percentile; not probability of profit"
+QTA2_SCORE_BASIS = (
+    "ticker-relative historical percentiles aligned to first-hour "
+    "continuation; not probability of profit"
+)
 QTA_ASSUMPTIONS = [
     "input rows are finalized completed daily sessions",
     "prices are corporate-action adjusted and aligned to analysis-date raw price scale",
     "fees, tax, FX, slippage, position size, and execution are excluded",
 ]
+QTA2_ASSUMPTIONS = [
+    *QTA_ASSUMPTIONS,
+    "QTA 2.0 is research-only until multi-session walk-forward validation",
+    "same-session benchmark regime admission is required downstream",
+]
+QTA2_LIQUIDITY_FLOOR = {
+    "KR": Decimal("1000000000"),
+    "US": Decimal("1000000"),
+}
+QTA2_REGIME_METRIC = "same_session_previous_close_return_bps"
+QTA2_REGIME_MINIMUM_CHANGE_BPS = Decimal("0")
+QTA2_REGIME_MAX_AGE_SECONDS = 90
 QTA_SETUP_STATUSES = {"READY", "CONDITIONAL"}
 QTA_OPINIONS = {"강한 긍정", "긍정", "중립", "부정", "강한 부정"}
 QTA_MIN_SHARED_SESSIONS = 756
@@ -1126,7 +1162,7 @@ def validate_v2_qta_identity(
     if (
         qta.get("source_skill") != "quant-stock-technical"
         or qta.get("result_schema") != "quant-stock-technical/v1"
-        or qta.get("method_version") != "qta-1.0.0"
+        or qta.get("method_version") not in SUPPORTED_QTA_METHODS
     ):
         raise BlockedError(f"{label} provenance is invalid")
     if qta.get("market") != instrument["market"]:
@@ -1142,7 +1178,14 @@ def validate_v2_ready_qta(
     *,
     screen_analysis_date: date,
 ) -> None:
-    exact_fields(qta, QTA_READY_FIELDS, label)
+    method_version = qta.get("method_version")
+    exact_fields(
+        qta,
+        QTA2_READY_FIELDS
+        if method_version == QTA_METHOD_V2
+        else QTA_READY_FIELDS,
+        label,
+    )
     validate_v2_qta_identity(qta, instrument, label)
     if qta["calculation_status"] != "READY":
         raise BlockedError(f"{label}.calculation_status must be READY")
@@ -1161,7 +1204,12 @@ def validate_v2_ready_qta(
         raise BlockedError(
             f"{label}.shared_sessions must be an integer >= {QTA_MIN_SHARED_SESSIONS}"
         )
-    if qta["score_basis"] != QTA_SCORE_BASIS:
+    expected_score_basis = (
+        QTA2_SCORE_BASIS
+        if method_version == QTA_METHOD_V2
+        else QTA_SCORE_BASIS
+    )
+    if qta["score_basis"] != expected_score_basis:
         raise BlockedError(f"{label}.score_basis is invalid")
 
     horizon_scores: dict[str, Decimal] = {}
@@ -1226,7 +1274,8 @@ def validate_v2_ready_qta(
     expected_take_profit = entry + Decimal(2) * (entry - stop)
     if take_profit != expected_take_profit:
         raise BlockedError(
-            f"{label}.take_profit_price must equal the qta-1.0.0 2R target"
+            f"{label}.take_profit_price must equal the "
+            f"{method_version} 2R target"
         )
     total_score = validate_json_number(
         qta["total_score"],
@@ -1234,17 +1283,97 @@ def validate_v2_ready_qta(
         minimum=Decimal(0),
         maximum=Decimal(100),
     )
-    recomputed_total = (
-        Decimal("0.25") * horizon_scores["short"]
-        + Decimal("0.35") * horizon_scores["medium"]
-        + Decimal("0.40") * horizon_scores["long"]
-        - Decimal("0.20") * max(risk_score - Decimal(50), Decimal(0))
-    )
+    if method_version == QTA_METHOD_V2:
+        recomputed_total = (
+            Decimal("0.50") * horizon_scores["short"]
+            + Decimal("0.30") * horizon_scores["medium"]
+            + Decimal("0.20") * (Decimal(100) - risk_score)
+        )
+    else:
+        recomputed_total = (
+            Decimal("0.25") * horizon_scores["short"]
+            + Decimal("0.35") * horizon_scores["medium"]
+            + Decimal("0.40") * horizon_scores["long"]
+            - Decimal("0.20") * max(risk_score - Decimal(50), Decimal(0))
+        )
     recomputed_total = min(Decimal(100), max(Decimal(0), recomputed_total))
     if abs(total_score - recomputed_total) > Decimal("0.02"):
         raise BlockedError(
-            f"{label}.total_score does not match the qta-1.0.0 score formula"
+            f"{label}.total_score does not match the {method_version} score formula"
         )
+    liquidity_ready = True
+    if method_version == QTA_METHOD_V2:
+        if qta["validation_status"] != "RESEARCH_ONLY":
+            raise BlockedError(
+                f"{label}.validation_status must be RESEARCH_ONLY"
+            )
+        liquidity = qta["liquidity"]
+        if not isinstance(liquidity, dict):
+            raise BlockedError(f"{label}.liquidity must be an object")
+        exact_fields(
+            liquidity,
+            QTA2_LIQUIDITY_FIELDS,
+            f"{label}.liquidity",
+        )
+        median_turnover = validate_json_number(
+            liquidity["median_20_session_turnover"],
+            f"{label}.liquidity.median_20_session_turnover",
+            minimum=Decimal(0),
+        )
+        minimum_turnover = validate_json_number(
+            liquidity["minimum_turnover"],
+            f"{label}.liquidity.minimum_turnover",
+            minimum=Decimal(0),
+        )
+        expected_currency = MARKET_CURRENCY[instrument["market"]]
+        if liquidity["currency"] != expected_currency:
+            raise BlockedError(
+                f"{label}.liquidity.currency must be {expected_currency}"
+            )
+        expected_floor = QTA2_LIQUIDITY_FLOOR[instrument["market"]]
+        if minimum_turnover != expected_floor:
+            raise BlockedError(
+                f"{label}.liquidity.minimum_turnover does not match QTA 2.0"
+            )
+        liquidity_ready = median_turnover >= minimum_turnover
+        expected_liquidity_status = "READY" if liquidity_ready else "BLOCKED"
+        if liquidity["status"] != expected_liquidity_status:
+            raise BlockedError(
+                f"{label}.liquidity.status does not match turnover"
+            )
+        market_regime = qta["market_regime"]
+        if not isinstance(market_regime, dict):
+            raise BlockedError(f"{label}.market_regime must be an object")
+        exact_fields(
+            market_regime,
+            QTA2_MARKET_REGIME_FIELDS,
+            f"{label}.market_regime",
+        )
+        if market_regime["metric"] != QTA2_REGIME_METRIC:
+            raise BlockedError(f"{label}.market_regime.metric is invalid")
+        minimum_change = validate_json_number(
+            market_regime["minimum_change_bps"],
+            f"{label}.market_regime.minimum_change_bps",
+            minimum=Decimal("-10000"),
+            maximum=Decimal("10000"),
+        )
+        if minimum_change != QTA2_REGIME_MINIMUM_CHANGE_BPS:
+            raise BlockedError(
+                f"{label}.market_regime.minimum_change_bps does not match "
+                "QTA 2.0"
+            )
+        if (
+            isinstance(market_regime["max_age_seconds"], bool)
+            or market_regime["max_age_seconds"]
+            != QTA2_REGIME_MAX_AGE_SECONDS
+        ):
+            raise BlockedError(
+                f"{label}.market_regime.max_age_seconds does not match QTA 2.0"
+            )
+        if market_regime["status"] != "REQUIRED":
+            raise BlockedError(
+                f"{label}.market_regime.status must be REQUIRED"
+            )
     allowed_setup_statuses = (
         {"READY", "CONDITIONAL"}
         if total_score == Decimal(60)
@@ -1252,6 +1381,8 @@ def validate_v2_ready_qta(
         if total_score > Decimal(60)
         else {"CONDITIONAL"}
     )
+    if not liquidity_ready:
+        allowed_setup_statuses = {"CONDITIONAL"}
     if qta["setup_status"] not in allowed_setup_statuses:
         raise BlockedError(f"{label}.setup_status does not match total_score")
 
@@ -1280,8 +1411,15 @@ def validate_v2_ready_qta(
                 f"between {QTA_MIN_REFERENCE_OBSERVATIONS} and "
                 f"{maximum_reference_count}"
             )
-    if qta["assumptions"] != QTA_ASSUMPTIONS:
-        raise BlockedError(f"{label}.assumptions do not match qta-1.0.0")
+    expected_assumptions = (
+        QTA2_ASSUMPTIONS
+        if method_version == QTA_METHOD_V2
+        else QTA_ASSUMPTIONS
+    )
+    if qta["assumptions"] != expected_assumptions:
+        raise BlockedError(
+            f"{label}.assumptions do not match {method_version}"
+        )
 
 
 def validate_v2_blocked_qta(
@@ -1321,6 +1459,16 @@ def validate_v2_qta(
 
 
 def qta_ranking_key(qta: dict[str, Any]) -> tuple[Any, ...]:
+    if qta.get("method_version") == QTA_METHOD_V2:
+        return (
+            -decimal_value(qta["total_score"], "qta.total_score"),
+            -decimal_value(qta["short"]["score"], "qta.short.score"),
+            -decimal_value(qta["medium"]["score"], "qta.medium.score"),
+            decimal_value(qta["risk"]["score"], "qta.risk.score"),
+            -decimal_value(qta["long"]["score"], "qta.long.score"),
+            str(qta["market"]),
+            str(qta["ticker"]),
+        )
     return (
         -decimal_value(qta["total_score"], "qta.total_score"),
         -decimal_value(qta["medium"]["score"], "qta.medium.score"),
@@ -1420,6 +1568,7 @@ def validate_v2_selected(
     selected: dict[str, Any],
     *,
     analysis_date: date,
+    method_version: str,
 ) -> dict[tuple[str, str], dict[str, Any]]:
     expected_exchanges = set(V2_EXCHANGE_CONTRACTS)
     if set(selected) != expected_exchanges:
@@ -1472,6 +1621,10 @@ def validate_v2_selected(
                 screen_analysis_date=analysis_date,
                 require_ready=True,
             )
+            if qta["method_version"] != method_version:
+                raise BlockedError(
+                    f"{label}.qta method differs from screen.method_version"
+                )
             key = (exchange, instrument["broker_symbol"])
             if key in seen:
                 raise BlockedError(
@@ -1494,8 +1647,10 @@ def validate_v2_screen(screen: dict[str, Any]) -> None:
         raise BlockedError(f"qta-screen/v2 schema must be {SCREEN_SCHEMA_V2}")
     if screen["screen_status"] != "READY":
         raise BlockedError("screen_status must be READY")
-    if screen["method_version"] != "qta-1.0.0":
-        raise BlockedError("method_version must be qta-1.0.0")
+    if screen["method_version"] not in SUPPORTED_QTA_METHODS:
+        raise BlockedError(
+            "method_version must be qta-1.0.0 or qta-2.0.0"
+        )
     if screen["selector_version"] != V2_SELECTOR_VERSION:
         raise BlockedError(f"selector_version must be {V2_SELECTOR_VERSION}")
     validate_sha256(screen["screen_hash"], "screen_hash")
@@ -1541,6 +1696,7 @@ def validate_v2_screen(screen: dict[str, Any]) -> None:
     selected_by_key = validate_v2_selected(
         selected,
         analysis_date=analysis_date,
+        method_version=screen["method_version"],
     )
     decisions = screen["decisions"]
     if not isinstance(decisions, list):
@@ -1586,6 +1742,10 @@ def validate_v2_screen(screen: dict[str, Any]) -> None:
             screen_analysis_date=analysis_date,
             require_ready=False,
         )
+        if qta["method_version"] != screen["method_version"]:
+            raise BlockedError(
+                f"{label}.qta method differs from screen.method_version"
+            )
         calculation_ready = qta["calculation_status"] == "READY"
         if not calculation_ready:
             computed_blocked_count += 1
@@ -1960,7 +2120,7 @@ def plan_orders(
             qta.get("source_skill") != "quant-stock-technical"
             or qta.get("result_schema") != "quant-stock-technical/v1"
             or qta.get("calculation_status") != "READY"
-            or qta.get("method_version") != "qta-1.0.0"
+            or qta.get("method_version") != screen_raw["method_version"]
         ):
             raise BlockedError("selected QTA payload contract is invalid")
         if is_v2:
@@ -2137,6 +2297,7 @@ def plan_orders(
                     "instrument_type": instrument["instrument_type"],
                     "benchmark_id": instrument["benchmark_id"],
                     "venue": instrument["venue"],
+                    "resolved_tick_size": format(tick, "f"),
                     "tick_contract_hash": sha256_json(instrument["tick_contract"]),
                 }
             )
