@@ -10,6 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "skills" / "quant-stock-polling-trader" / "scripts"
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(SCRIPTS))
 
 import execution_core
