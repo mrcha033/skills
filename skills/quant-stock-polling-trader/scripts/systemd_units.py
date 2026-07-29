@@ -10,7 +10,12 @@ import json
 import os
 import re
 import stat
+import subprocess
 import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -48,14 +53,17 @@ SCHEDULES = {
     ("snapshot", "US"): "Mon..Fri *-*-* 09:20:00 America/New_York",
     ("entry", "KR"): "Mon..Fri *-*-* 08:59:00 Asia/Seoul",
     ("entry", "US"): "Mon..Fri *-*-* 09:29:00 America/New_York",
-    ("daily-prepare", "KR"): "Mon..Fri *-*-* 07:00:00 Asia/Seoul",
-    ("daily-prepare", "US"): "Mon..Fri *-*-* 08:00:00 America/New_York",
+    ("daily-prepare", "KR"): "Mon..Fri *-*-* 01:00:00 Asia/Seoul",
+    ("daily-prepare", "US"): "Mon..Fri *-*-* 01:00:00 America/New_York",
     ("daily-snapshot", "KR"): "Mon..Fri *-*-* 08:50:00 Asia/Seoul",
     ("daily-snapshot", "US"): "Mon..Fri *-*-* 09:20:00 America/New_York",
     ("daily-entry", "KR"): "Mon..Fri *-*-* 08:59:00 Asia/Seoul",
     ("daily-entry", "US"): "Mon..Fri *-*-* 09:29:00 America/New_York",
 }
 UNIT_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,47}$")
+NTFY_TOPIC_URL_ENV = "QTA_NTFY_TOPIC_URL"
+NTFY_TOKEN_ENV = "QTA_NTFY_TOKEN"
+NTFY_TIMEOUT_SECONDS = 10
 
 
 class UnitBlockedError(ValueError):
@@ -643,7 +651,168 @@ def acquire_market_locks(
     return descriptors
 
 
-def execute(bundle: dict[str, Any], name: str) -> None:
+def ntfy_topic_url(environment: Mapping[str, str]) -> str | None:
+    value = environment.get(NTFY_TOPIC_URL_ENV, "").strip()
+    if not value:
+        return None
+    try:
+        parsed = urllib.parse.urlsplit(value)
+    except ValueError as exc:
+        raise UnitBlockedError(
+            f"{NTFY_TOPIC_URL_ENV} must be a plain HTTP(S) topic URL"
+        ) from exc
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.netloc
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+        or not parsed.path.strip("/")
+        or any(ord(character) < 0x20 for character in value)
+    ):
+        raise UnitBlockedError(
+            f"{NTFY_TOPIC_URL_ENV} must be a plain HTTP(S) topic URL"
+        )
+    return value
+
+
+def read_daily_outcome(
+    runtime: Path,
+    job: Mapping[str, Any],
+    returncode: int,
+) -> tuple[str, list[str]]:
+    outcome = "PASS" if returncode == 0 else "BLOCKED"
+    details: list[str] = []
+    if not str(job["kind"]).startswith("daily-"):
+        return outcome, details
+    descriptor_path = runtime / "current" / f"{str(job['market']).lower()}.json"
+    try:
+        descriptor = json.loads(descriptor_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return outcome, details
+    if not isinstance(descriptor, dict) or descriptor.get("market") != job["market"]:
+        return outcome, details
+    status = descriptor.get("status")
+    if (
+        isinstance(status, str)
+        and status
+        and (
+            returncode == 0
+            or status in {"BLOCKED", "MANUAL_BLOCK"}
+        )
+    ):
+        outcome = status
+    session_date = descriptor.get("session_date")
+    if isinstance(session_date, str) and session_date:
+        details.append(f"session={session_date}")
+    if job["kind"] == "daily-snapshot":
+        plan_hash = descriptor.get("plan_hash")
+        if isinstance(plan_hash, str) and plan_hash:
+            details.append(f"plan={plan_hash[:12]}")
+    if job["kind"] == "daily-entry":
+        report_path = descriptor.get("final_report_path")
+        if isinstance(report_path, str) and report_path:
+            try:
+                report = json.loads(Path(report_path).read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                report = {}
+            if isinstance(report, dict):
+                counts = report.get("counts")
+                if isinstance(counts, dict):
+                    for field in (
+                        "planned",
+                        "submitted",
+                        "filled",
+                        "cancelled",
+                        "blocked",
+                    ):
+                        value = counts.get(field)
+                        if isinstance(value, int) and not isinstance(value, bool):
+                            details.append(f"{field}={value}")
+    return outcome, details
+
+
+def publish_ntfy(
+    *,
+    environment: Mapping[str, str],
+    job: Mapping[str, Any],
+    outcome: str,
+    duration_seconds: int,
+    details: list[str],
+) -> dict[str, str]:
+    try:
+        topic_url = ntfy_topic_url(environment)
+    except UnitBlockedError:
+        return {
+            "channel": "ntfy",
+            "status": "FAILED",
+            "reason": "INVALID_TOPIC_URL",
+        }
+    if topic_url is None:
+        return {"channel": "ntfy", "status": "DISABLED"}
+    blocked = outcome in {"BLOCKED", "MANUAL_BLOCK"}
+    title = f"QTA {job['market']} {job['kind']} {outcome}"
+    message_parts = [
+        f"market={job['market']}",
+        f"stage={job['kind']}",
+        f"status={outcome}",
+        f"duration={duration_seconds}s",
+        *details,
+        "live_enabled=false",
+        "broker_api_mutations=0",
+    ]
+    headers = {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Title": title,
+        "Priority": "urgent" if blocked else (
+            "high" if job["kind"] == "daily-entry" else "default"
+        ),
+        "Tags": "warning" if blocked else "white_check_mark",
+    }
+    token = environment.get(NTFY_TOKEN_ENV, "").strip()
+    if token:
+        if any(ord(character) < 0x21 or ord(character) > 0x7E for character in token):
+            return {
+                "channel": "ntfy",
+                "status": "FAILED",
+                "reason": "INVALID_TOKEN",
+            }
+        headers["Authorization"] = f"Bearer {token}"
+    try:
+        request = urllib.request.Request(
+            topic_url,
+            data=" ".join(message_parts).encode("utf-8"),
+            headers=headers,
+            method="POST",
+        )
+        with urllib.request.urlopen(
+            request,
+            timeout=NTFY_TIMEOUT_SECONDS,
+        ) as response:
+            status = getattr(response, "status", 200)
+            if not 200 <= status < 300:
+                return {
+                    "channel": "ntfy",
+                    "status": "FAILED",
+                    "reason": f"HTTP_{status}",
+                }
+    except urllib.error.HTTPError as exc:
+        return {
+            "channel": "ntfy",
+            "status": "FAILED",
+            "reason": f"HTTP_{exc.code}",
+        }
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+        return {
+            "channel": "ntfy",
+            "status": "FAILED",
+            "reason": "TRANSPORT_ERROR",
+        }
+    return {"channel": "ntfy", "status": "SENT"}
+
+
+def execute(bundle: dict[str, Any], name: str) -> int:
     job = next((item for item in bundle["jobs"] if item["name"] == name), None)
     if job is None:
         raise UnitBlockedError(f"unknown job: {name}")
@@ -656,7 +825,23 @@ def execute(bundle: dict[str, Any], name: str) -> None:
     environment["PYTHONDONTWRITEBYTECODE"] = "1"
     environment.pop("PYTHONPATH", None)
     environment.pop("PYTHONHOME", None)
-    os.execve(command_for(bundle, job)[0], command_for(bundle, job), environment)
+    started = time.monotonic()
+    result = subprocess.run(
+        command_for(bundle, job),
+        check=False,
+        env=environment,
+    )
+    duration = max(0, round(time.monotonic() - started))
+    outcome, details = read_daily_outcome(runtime, job, result.returncode)
+    notification = publish_ntfy(
+        environment=environment,
+        job=job,
+        outcome=outcome,
+        duration_seconds=duration,
+        details=details,
+    )
+    print(json.dumps(notification, sort_keys=True))
+    return result.returncode
 
 
 def self_test() -> None:
@@ -825,7 +1010,7 @@ def main() -> int:
             )
             print(json.dumps(receipt, sort_keys=True))
             return 0
-        execute(bundle, args.name)
+        return execute(bundle, args.name)
     except (UnitBlockedError, OSError) as exc:
         print(
             json.dumps(

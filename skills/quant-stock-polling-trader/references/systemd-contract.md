@@ -18,9 +18,13 @@ The input is one exact `qta-systemd-bundle/v2` JSON object. It binds:
 - unique static EOD/account-snapshot/entry jobs or daily
   prepare/snapshot/entry jobs for KR and US.
 
-Daily preparation schedules are 07:00 Asia/Seoul and 08:00
-America/New_York on weekdays. Entry services start at 08:59 Asia/Seoul and
-09:29 America/New_York so the
+Daily preparation starts at 01:00 in each market timezone on weekdays. That
+provides eight hours before the Korean open and eight and a half hours before
+the U.S. open for the measured multi-hour four-exchange refresh. An initial
+multi-year bootstrap can take longer than the daily window and must be
+completed before relying on the timer; subsequent runs resume and increment
+the completed cache. Entry services start at 08:59 Asia/Seoul and 09:29
+America/New_York so the
 runner can complete its 30-second token warm-up before the exchange open.
 Account snapshot services run at 08:50 Asia/Seoul and 09:20
 America/New_York, use KIS live credentials in shadow mode, and must complete
@@ -43,9 +47,25 @@ output path on a later date.
 The generator accepts only KIS paper/paper or KIS live/shadow entry pairs.
 It refuses live mode. The generated service executes Python directly without a
 shell, removes `PYTHONPATH` and `PYTHONHOME` before the wrapper starts and
-again before the worker exec, disables bytecode writes, applies systemd
+again before the worker process, disables bytecode writes, applies systemd
 filesystem/process hardening, and grants writes only to the bound runtime
 directory.
+
+## Optional ntfy notification
+
+The mode-`0600` environment file may define `QTA_NTFY_TOPIC_URL` and,
+for an authenticated topic, `QTA_NTFY_TOKEN`. The topic must be a plain
+HTTP(S) topic URL without embedded credentials, a query, or a fragment. The
+wrapper publishes one completion notification after each job and reports only
+the channel result (`SENT`, `FAILED`, or `DISABLED`) to the journal. It never
+prints the topic URL, token, or server response body.
+
+Notification failure is deliberately best-effort: it does not change the
+worker's return code and cannot cause a successful shadow stage to be retried.
+`BLOCKED` and `MANUAL_BLOCK` use urgent priority; entry completion uses high
+priority. The notification is an operational side channel, not a broker API
+mutation, and it does not change `live_enabled=false` or
+`api_mutation_count=0`.
 
 ## Single writer
 

@@ -135,3 +135,9 @@ Each stage writes one readable JSON status containing its stage, status,
 market, session date, reason, details, timestamp, `live_enabled`, and
 `api_mutation_count`. Status files are operational records, not signatures;
 they do not contain receipt hashes.
+
+When a generated systemd service has `QTA_NTFY_TOPIC_URL` in its protected
+environment file, the outer systemd wrapper sends a best-effort completion or
+block notification after this status is written. Notification configuration is
+not part of the deterministic plan inputs, and delivery failure never retries
+the stage or changes its status.

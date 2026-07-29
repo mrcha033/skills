@@ -1,6 +1,15 @@
 This release contains the versioned distribution packages declared in
 `release/catalog.json`.
 
+- Distribution 2.4.2 updates `quant-stock-polling-trader` to 0.5.2. Daily
+  preparation now starts at 01:00 in each market timezone, leaving eight hours
+  before the Korean open and eight and a half hours before the U.S. open for
+  the measured multi-hour four-exchange refresh. The systemd wrapper also
+  supports optional ntfy completion/block notifications from a protected topic
+  URL and token; it never logs either secret, never retries a worker, and never
+  changes the worker return code. Broker API mutations remain zero and
+  `live_enabled=false`.
+
 - Distribution 2.4.1 updates `quant-stock-polling-trader` to 0.5.1. A KIS
   live/shadow U.S. snapshot now treats the broker's documented empty USD cash
   response as zero settled cash instead of blocking. The frozen FX field is
