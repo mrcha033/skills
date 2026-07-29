@@ -1,6 +1,17 @@
 This release contains the versioned distribution packages declared in
 `release/catalog.json`.
 
+- Distribution 2.4.4 updates `quant-stock-technical` to 0.4.5 and
+  `quant-stock-polling-trader` to 0.5.4. It adds research-only QTA2 scoring
+  from a complete 2026-07-28 first-hour universe diagnostic, turnover
+  filtering, and a fresh nonnegative same-session benchmark gate. Screening
+  is deterministic across serial and parallel execution, completes the
+  measured 5,976-name universe in under a minute, and no longer prints the
+  full screen to stdout. Authoritative strategy fills are persisted in an
+  account/market position ledger and reconciled across session dates. QTA2
+  remains shadow-only; broker API mutations and `live_enabled` remain zero and
+  false.
+
 - Distribution 2.4.3 updates `quant-stock-technical` to 0.4.4 and
   `quant-stock-polling-trader` to 0.5.3. The daily prepare stage now builds
   only KOSPI/KOSDAQ for a Korean session or NYSE/NASDAQ for a U.S. session.
