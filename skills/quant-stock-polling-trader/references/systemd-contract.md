@@ -20,7 +20,7 @@ The input is one exact `qta-systemd-bundle/v2` JSON object. It binds:
 
 Daily preparation starts at 01:00 in each market timezone on weekdays. That
 provides eight hours before the Korean open and eight and a half hours before
-the U.S. open for the measured multi-hour four-exchange refresh. An initial
+the U.S. open for the measured multi-hour market refresh. An initial
 multi-year bootstrap can take longer than the daily window and must be
 completed before relying on the timer; subsequent runs resume and increment
 the completed cache. Entry services start at 08:59 Asia/Seoul and 09:29
@@ -70,9 +70,8 @@ mutation, and it does not change `live_enabled=false` or
 ## Single writer
 
 Every generated execution acquires a nonblocking, non-symlink regular-file
-market lock below a non-symlink `runtime_directory/locks`. Daily preparation
-updates one four-exchange universe and therefore acquires both locks in
-byte-stable order. Snapshot and entry acquire only their market lock. Failure
+market lock below a non-symlink `runtime_directory/locks`. Preparation,
+snapshot, and entry acquire only their selected market lock. Failure
 to acquire a lock is `BLOCKED`, not a retry or a second writer. The wrapper
 sets every opened lock file to mode `0600`, including a regular lock file that
 predates the current bundle, and verifies the resulting mode before acquiring

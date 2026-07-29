@@ -1,7 +1,7 @@
 # KIS U.S. adjusted-EOD provider contract
 
-`fetch_kis_us_eod.py` produces the NYSE/NASDAQ half of the frozen four-exchange
-catalog before the U.S. session. It performs authentication and quotation
+`fetch_kis_us_eod.py` produces a frozen NYSE/NASDAQ catalog before the U.S.
+session. It performs authentication and quotation
 reads only and fixes `api_mutation_count` to zero.
 
 ## Frozen membership and tradability
@@ -47,13 +47,13 @@ USD 1 and `0.01` at or above USD 1. A later version may consume an
 effective-dated Regulation NMS variable tick table for finer price increments,
 but it must not infer one from price alone.
 
-## Cross-market completion
+## Scope
 
-The U.S. job may include all four official and broker descriptors and set
-`base_eod_catalog` to the completed Korean catalog. In that form the emitted
-`universe-build-spec.json` is a complete four-exchange input. If the Korean
-descriptors or catalog are absent, the output remains a U.S. component and
-must not be represented as a complete v2 manifest.
+With only U.S. descriptors and an empty `base_eod_catalog`, the emitted
+`universe-build-spec.json` is a complete NYSE/NASDAQ v2 input. The job may
+also include all four descriptors and a completed Korean base catalog for an
+explicit all-four-exchange research build. Daily U.S. execution uses the
+U.S.-only form and does not refresh Korean EOD.
 
 The initial bootstrap belongs outside both first-hour entry windows. Completed
 symbol files survive interruption; later runs fetch only the missing completed

@@ -225,8 +225,14 @@ class DailyPipelineTests(unittest.TestCase):
                 "schema": "qta-universe-build-spec/v1",
                 "as_of": "2026-07-28",
                 "analysis_date": "2026-07-27",
-                "official_sources": [],
-                "broker_sources": [],
+                "official_sources": [
+                    {"exchange": "NYSE"},
+                    {"exchange": "NASDAQ"},
+                ],
+                "broker_sources": [
+                    {"exchange": "NYSE"},
+                    {"exchange": "NASDAQ"},
+                ],
                 "eod_catalog": {},
                 "catalog_coverage_contract": original_contract,
             }
@@ -243,8 +249,9 @@ class DailyPipelineTests(unittest.TestCase):
 
             derived_path = MODULE.derive_universe_build_spec(
                 config={"catalog_coverage_contract": current_contract},
-                us_output=us_output,
+                eod_output=us_output,
                 workflow=workflow,
+                market="US",
             )
 
             self.assertEqual(
@@ -259,6 +266,92 @@ class DailyPipelineTests(unittest.TestCase):
                 ],
                 original_contract,
             )
+            source["official_sources"].append({"exchange": "KOSPI"})
+            MODULE.atomic_write_json(source_path, source)
+            MODULE.atomic_write_json(
+                us_output / "eod-bundle-receipt.json",
+                {
+                    "build_spec": {
+                        "path": str(source_path.resolve()),
+                        "sha256": MODULE.sha256_file(source_path),
+                    }
+                },
+            )
+            with self.assertRaisesRegex(
+                MODULE.PipelineBlockedError,
+                "official_sources must contain exactly",
+            ):
+                MODULE.derive_universe_build_spec(
+                    config={"catalog_coverage_contract": current_contract},
+                    eod_output=us_output,
+                    workflow=workflow,
+                    market="US",
+                )
+
+    def test_eod_job_uses_only_the_selected_market(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="qta-daily-market-eod-") as temporary:
+            root = Path(temporary)
+            technical = root / "technical"
+            scripts = technical / "scripts"
+            scripts.mkdir(parents=True)
+            for name in ("fetch_kis_kr_eod.py", "fetch_kis_us_eod.py"):
+                (scripts / name).write_text("# fixture\n", encoding="utf-8")
+            config = {
+                "runtime_root": root / "runtime",
+                "history_start_date": "2021-01-01",
+                "minimum_sessions": 756,
+                "request_interval_ms": 120,
+                "catalog_coverage_contract": {"schema": "fixture"},
+            }
+
+            for market, exchanges in (
+                ("KR", {"KOSPI", "KOSDAQ"}),
+                ("US", {"NYSE", "NASDAQ"}),
+            ):
+                sources = {
+                    "official_sources": [
+                        {"exchange": exchange} for exchange in sorted(exchanges)
+                    ],
+                    "broker_sources": [
+                        {"exchange": exchange} for exchange in sorted(exchanges)
+                    ],
+                }
+
+                def complete_job(command: list[str], label: str) -> None:
+                    self.assertEqual(label, f"KIS {market} adjusted EOD")
+                    job = json.loads(Path(command[-1]).read_text(encoding="utf-8"))
+                    self.assertEqual(
+                        {item["exchange"] for item in job["official_sources"]},
+                        exchanges,
+                    )
+                    self.assertEqual(
+                        {item["exchange"] for item in job["broker_sources"]},
+                        exchanges,
+                    )
+                    self.assertEqual(job["base_eod_catalog"], "")
+                    output = Path(job["output_directory"])
+                    output.mkdir(parents=True, exist_ok=True)
+                    MODULE.atomic_write_json(
+                        output / "eod-bundle-receipt.json",
+                        {
+                            "status": "READY",
+                            "analysis_date": "2026-07-28",
+                            "api_mutation_count": 0,
+                        },
+                    )
+
+                with patch.object(MODULE, "run_command", side_effect=complete_job):
+                    output = MODULE.ensure_eod(
+                        config=config,
+                        technical_root=technical,
+                        workflow=root / "workflow" / market.lower(),
+                        as_of="2026-07-29",
+                        analysis_date="2026-07-28",
+                        market=market,
+                        sources=sources,
+                        cache_namespace=f"test-{market.lower()}",
+                    )
+                self.assertEqual(output.name, market.lower())
 
     def test_legacy_harness_descriptor_does_not_block_v2_prepare(self) -> None:
         with tempfile.TemporaryDirectory(prefix="qta-daily-v2-") as temporary:

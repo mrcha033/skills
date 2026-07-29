@@ -363,7 +363,7 @@ def manifest_exchange(
         exchange = US_EXCHANGE_CODES.get(str(broker_exchange or "").strip().upper())
     if exchange is None:
         raise BlockedError(
-            f"held or working symbol is absent from the four-exchange map: "
+            f"held or working symbol is absent from the selected-market map: "
             f"{market}:{normalized_symbol}"
         )
     return exchange

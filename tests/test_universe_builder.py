@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Focused regression tests for the four-exchange universe manifest builder."""
+"""Focused regression tests for the market-scoped universe manifest builder."""
 
 from __future__ import annotations
 

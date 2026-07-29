@@ -457,121 +457,109 @@ def ensure_eod(
     workflow: Path,
     as_of: str,
     analysis_date: str,
-    kr_sources: dict[str, Any],
-    us_sources: dict[str, Any],
+    market: str,
+    sources: dict[str, Any],
     cache_namespace: str,
-) -> tuple[Path, Path]:
+) -> Path:
     eod_base = config["runtime_root"] / "eod" / analysis_date / cache_namespace
-    kr_output = eod_base / "kr"
-    us_output = eod_base / "us"
-    kr_receipt_path = kr_output / "eod-bundle-receipt.json"
-    us_receipt_path = us_output / "eod-bundle-receipt.json"
+    component = market.lower()
+    output = eod_base / component
+    receipt_path = output / "eod-bundle-receipt.json"
     jobs_directory = workflow / "jobs"
     jobs_directory.mkdir(parents=True, exist_ok=True)
 
-    if not kr_receipt_path.is_file():
-        seed_eod_cache(config["runtime_root"], kr_output, analysis_date, "kr")
-        kr_job = {
-            "schema": "qta-kis-kr-eod-job/v1",
+    if not receipt_path.is_file():
+        seed_eod_cache(config["runtime_root"], output, analysis_date, component)
+        job = {
+            "schema": (
+                "qta-kis-kr-eod-job/v1"
+                if market == "KR"
+                else "qta-kis-us-eod-job/v1"
+            ),
             "as_of": as_of,
             "analysis_date": analysis_date,
             "environment": "live",
-            "output_directory": str(kr_output.resolve()),
+            "output_directory": str(output.resolve()),
             "history_start_date": config["history_start_date"],
             "minimum_sessions": config["minimum_sessions"],
             "request_interval_ms": config["request_interval_ms"],
-            "official_sources": kr_sources["official_sources"],
-            "broker_sources": kr_sources["broker_sources"],
+            "official_sources": sources["official_sources"],
+            "broker_sources": sources["broker_sources"],
             "catalog_coverage_contract": config["catalog_coverage_contract"],
             "base_eod_catalog": "",
         }
-        kr_job_path = jobs_directory / "kr-eod.json"
-        atomic_write_json(kr_job_path, kr_job)
+        job_path = jobs_directory / f"{component}-eod.json"
+        atomic_write_json(job_path, job)
+        script = technical_root / "scripts" / (
+            "fetch_kis_kr_eod.py"
+            if market == "KR"
+            else "fetch_kis_us_eod.py"
+        )
         run_command(
             python_command(
-                technical_root / "scripts" / "fetch_kis_kr_eod.py",
+                script,
                 "collect",
                 "--job",
-                str(kr_job_path),
+                str(job_path),
             ),
-            "KIS Korean adjusted EOD",
+            f"KIS {market} adjusted EOD",
         )
-    kr_receipt = load_json(kr_receipt_path, "Korean EOD receipt")
+    receipt = load_json(receipt_path, f"{market} EOD receipt")
     if (
-        kr_receipt.get("status") != "READY"
-        or kr_receipt.get("analysis_date") != analysis_date
-        or kr_receipt.get("api_mutation_count") != 0
+        receipt.get("status") != "READY"
+        or receipt.get("analysis_date") != analysis_date
+        or receipt.get("api_mutation_count") != 0
     ):
-        raise PipelineBlockedError("Korean EOD receipt is not READY and read-only")
-
-    if not us_receipt_path.is_file():
-        seed_eod_cache(config["runtime_root"], us_output, analysis_date, "us")
-        us_job = {
-            "schema": "qta-kis-us-eod-job/v1",
-            "as_of": as_of,
-            "analysis_date": analysis_date,
-            "environment": "live",
-            "output_directory": str(us_output.resolve()),
-            "history_start_date": config["history_start_date"],
-            "minimum_sessions": config["minimum_sessions"],
-            "request_interval_ms": config["request_interval_ms"],
-            "official_sources": (
-                kr_sources["official_sources"] + us_sources["official_sources"]
-            ),
-            "broker_sources": (
-                kr_sources["broker_sources"] + us_sources["broker_sources"]
-            ),
-            "catalog_coverage_contract": config["catalog_coverage_contract"],
-            "base_eod_catalog": str((kr_output / "eod-catalog.csv").resolve()),
-        }
-        us_job_path = jobs_directory / "us-eod.json"
-        atomic_write_json(us_job_path, us_job)
-        run_command(
-            python_command(
-                technical_root / "scripts" / "fetch_kis_us_eod.py",
-                "collect",
-                "--job",
-                str(us_job_path),
-            ),
-            "KIS U.S. adjusted EOD",
-        )
-    us_receipt = load_json(us_receipt_path, "U.S. EOD receipt")
-    if (
-        us_receipt.get("status") != "READY"
-        or us_receipt.get("analysis_date") != analysis_date
-        or us_receipt.get("api_mutation_count") != 0
-    ):
-        raise PipelineBlockedError("U.S. EOD receipt is not READY and read-only")
-    return kr_output, us_output
+        raise PipelineBlockedError(f"{market} EOD receipt is not READY and read-only")
+    return output
 
 
 def derive_universe_build_spec(
     *,
     config: dict[str, Any],
-    us_output: Path,
+    eod_output: Path,
     workflow: Path,
+    market: str,
 ) -> Path:
-    receipt_path = us_output / "eod-bundle-receipt.json"
-    regular_nonsymlink(receipt_path, "U.S. EOD receipt")
-    receipt = load_json(receipt_path, "U.S. EOD receipt")
+    if market not in {"KR", "US"}:
+        raise PipelineBlockedError("market must be KR or US")
+    receipt_path = eod_output / "eod-bundle-receipt.json"
+    regular_nonsymlink(receipt_path, "EOD receipt")
+    receipt = load_json(receipt_path, "EOD receipt")
     binding = receipt.get("build_spec")
     if not isinstance(binding, dict):
-        raise PipelineBlockedError("U.S. EOD receipt build_spec must be an object")
-    exact_fields(binding, {"path", "sha256"}, "U.S. EOD receipt build_spec")
-    source_path = absolute_path(binding["path"], "U.S. EOD build spec path")
-    expected_path = (us_output / "universe-build-spec.json").resolve()
-    regular_nonsymlink(source_path, "U.S. EOD build spec")
+        raise PipelineBlockedError("EOD receipt build_spec must be an object")
+    exact_fields(binding, {"path", "sha256"}, "EOD receipt build_spec")
+    source_path = absolute_path(binding["path"], "EOD build spec path")
+    expected_path = (eod_output / "universe-build-spec.json").resolve()
+    regular_nonsymlink(source_path, "EOD build spec")
     if source_path.resolve() != expected_path:
         raise PipelineBlockedError(
-            "U.S. EOD receipt build_spec path does not match its bundle"
+            "EOD receipt build_spec path does not match its bundle"
         )
     expected_sha256 = validate_sha256(
         binding["sha256"],
-        "U.S. EOD receipt build_spec.sha256",
+        "EOD receipt build_spec.sha256",
     )
     if sha256_file(source_path) != expected_sha256:
-        raise PipelineBlockedError("U.S. EOD build spec hash mismatch")
-    derived = load_json(source_path, "U.S. EOD build spec")
+        raise PipelineBlockedError("EOD build spec hash mismatch")
+    derived = load_json(source_path, "EOD build spec")
+    expected_exchanges = (
+        {"KOSPI", "KOSDAQ"} if market == "KR" else {"NYSE", "NASDAQ"}
+    )
+    for field in ("official_sources", "broker_sources"):
+        sources = derived.get(field)
+        if not isinstance(sources, list) or any(
+            not isinstance(item, dict) or not isinstance(item.get("exchange"), str)
+            for item in sources
+        ):
+            raise PipelineBlockedError(f"EOD build spec {field} must be an array")
+        exchanges = {item["exchange"] for item in sources}
+        if len(sources) != len(exchanges) or exchanges != expected_exchanges:
+            raise PipelineBlockedError(
+                f"EOD build spec {field} must contain exactly "
+                f"{sorted(expected_exchanges)} for {market}"
+            )
     derived["catalog_coverage_contract"] = config["catalog_coverage_contract"]
     output_path = workflow / "universe-build-spec.json"
     atomic_write_json(output_path, derived)
@@ -657,27 +645,21 @@ def prepare(
     ):
         raise PipelineBlockedError("history_start_date must precede analysis_date")
     source_root = config["runtime_root"] / "sources" / session
-    kr_sources = ensure_source_snapshot(
-        market="KR",
+    sources = ensure_source_snapshot(
+        market=market,
         as_of=session,
-        directory=source_root / "kr",
+        directory=source_root / market.lower(),
         technical_root=technical_root,
     )
-    us_sources = ensure_source_snapshot(
-        market="US",
-        as_of=session,
-        directory=source_root / "us",
-        technical_root=technical_root,
-    )
-    _, us_output = ensure_eod(
+    eod_output = ensure_eod(
         config=config,
         technical_root=technical_root,
         workflow=workflow,
         as_of=session,
         analysis_date=analysis_date,
-        kr_sources=kr_sources,
-        us_sources=us_sources,
-        cache_namespace="official",
+        market=market,
+        sources=sources,
+        cache_namespace="official-market-v1",
     )
     if datetime.now(timezone.utc) >= deadline.astimezone(timezone.utc):
         raise PipelineBlockedError(
@@ -685,8 +667,9 @@ def prepare(
         )
     build_spec = derive_universe_build_spec(
         config=config,
-        us_output=us_output,
+        eod_output=eod_output,
         workflow=workflow,
+        market=market,
     )
     manifest_path = workflow / "universe-manifest.json"
     run_command(
@@ -697,7 +680,7 @@ def prepare(
             "--output",
             str(manifest_path),
         ),
-        "four-exchange universe manifest",
+        f"{market} universe manifest",
     )
     manifest = load_json(manifest_path, "universe manifest")
     if manifest.get("build_status") != "READY":
@@ -715,7 +698,7 @@ def prepare(
             "--output",
             str(screen_path),
         ),
-        "four-exchange screen",
+        f"{market} screen",
     )
     screen = load_json(screen_path, "screen")
     if screen.get("screen_status") != "READY":

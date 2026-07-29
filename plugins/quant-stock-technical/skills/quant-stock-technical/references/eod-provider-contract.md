@@ -57,9 +57,10 @@ Create one exact `qta-kis-kr-eod-job/v1` JSON object:
 ```
 
 Copy the exact KOSPI/KOSDAQ descriptors from `source-snapshot.json` into the
-two source arrays. Other exchange descriptors and a previously frozen
-cross-market catalog may be included when producing the complete four-exchange
-build spec. Relative paths resolve from the job file.
+two source arrays. This produces a complete Korean-scoped v2 build spec.
+Other exchange descriptors and a previously frozen cross-market catalog may
+be included only for an explicit all-four-exchange research build. Relative
+paths resolve from the job file.
 
 Run:
 
@@ -107,11 +108,9 @@ eod-bundle-receipt.json
 ```
 
 If only Korean source descriptors are supplied, the emitted build spec is a
-Korean component and the existing four-exchange v2 builder will correctly
-remain blocked until the NYSE/NASDAQ descriptors and catalog rows are merged.
-Do not lower coverage thresholds to hide that fact. A Korean scheduled task may
-consume only a separately approved Korean-scoped screen contract; do not forge
-a four-exchange `READY` manifest.
+complete KOSPI/KOSDAQ input. The v2 builder emits zero counts for inactive
+NYSE/NASDAQ keys and evaluates coverage only for the active Korean pair. Do
+not add U.S. inputs to a Korean scheduled task or lower coverage thresholds.
 
 ## Credentials and mutation boundary
 
