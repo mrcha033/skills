@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,11 +49,11 @@ class SystemdUnitTests(unittest.TestCase):
         )
         self.assertEqual(
             MODULE.SCHEDULES[("daily-prepare", "KR")],
-            "Mon..Fri *-*-* 07:00:00 Asia/Seoul",
+            "Mon..Fri *-*-* 01:00:00 Asia/Seoul",
         )
         self.assertEqual(
             MODULE.SCHEDULES[("daily-prepare", "US")],
-            "Mon..Fri *-*-* 08:00:00 America/New_York",
+            "Mon..Fri *-*-* 01:00:00 America/New_York",
         )
         self.assertEqual(
             MODULE.SCHEDULES[("daily-entry", "US")],
@@ -67,6 +68,46 @@ class SystemdUnitTests(unittest.TestCase):
             MODULE.systemd_path("/tmp/qta 100%"),
             r"/tmp/qta\x20100%%",
         )
+
+    def test_ntfy_is_optional_and_secrets_are_not_reported(self) -> None:
+        job = {"market": "US", "kind": "daily-entry"}
+        self.assertEqual(
+            MODULE.publish_ntfy(
+                environment={},
+                job=job,
+                outcome="READY",
+                duration_seconds=60,
+                details=[],
+            ),
+            {"channel": "ntfy", "status": "DISABLED"},
+        )
+
+        response = mock.MagicMock()
+        response.__enter__.return_value.status = 200
+        with mock.patch.object(MODULE.urllib.request, "urlopen", return_value=response):
+            receipt = MODULE.publish_ntfy(
+                environment={
+                    "QTA_NTFY_TOPIC_URL": "https://ntfy.example/qta-secret-topic",
+                    "QTA_NTFY_TOKEN": "secret-token",
+                },
+                job=job,
+                outcome="READY",
+                duration_seconds=60,
+                details=["session=2026-07-29", "filled=0"],
+            )
+        self.assertEqual(receipt, {"channel": "ntfy", "status": "SENT"})
+        self.assertNotIn("secret", json.dumps(receipt))
+
+        invalid = MODULE.publish_ntfy(
+            environment={
+                "QTA_NTFY_TOPIC_URL": "https://user:password@ntfy.example/topic"
+            },
+            job=job,
+            outcome="BLOCKED",
+            duration_seconds=0,
+            details=[],
+        )
+        self.assertEqual(invalid["reason"], "INVALID_TOPIC_URL")
 
     def test_generated_bundle_round_trips_through_execute_reader(self) -> None:
         with tempfile.TemporaryDirectory(prefix="qta-systemd-roundtrip-") as temporary:

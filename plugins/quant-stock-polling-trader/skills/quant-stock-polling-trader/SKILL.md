@@ -82,6 +82,25 @@ Read `references/daily-pipeline-contract.md`, then:
    timers. When the user asks to automate, generation is intermediate work:
    verify, install, enable, start, and inspect the requested units.
 
+Daily preparation starts at `01:00` in each market timezone. This leaves eight
+hours before the Korean open and eight and a half hours before the U.S. open,
+instead of assuming that a full four-exchange refresh fits into two hours.
+Finish an initial multi-year bootstrap before relying on a daily timer; the
+timer is intended to resume and increment an existing cache.
+
+To receive optional ntfy completion/block notifications, place these values in
+the same mode-`0600` environment file used by the generated services:
+
+```text
+QTA_NTFY_TOPIC_URL=https://ntfy.example/a-long-private-topic
+QTA_NTFY_TOKEN=optional-access-token
+```
+
+The full topic URL and token are never written to a bundle, status file, or
+journal. Notification delivery is best-effort and cannot turn a completed
+shadow stage into a trading failure. A journal receipt records only
+`SENT`, `FAILED`, or `DISABLED`.
+
 The state path is:
 
 ```text

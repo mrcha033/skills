@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "distributionVersion": "2.4.1",
+  "distributionVersion": "2.4.2",
   "releaseTagPrefix": "skills-v",
   "guaranteeScope": "Package compatibility guarantees archive layout, manifest placement, and byte integrity. Runtime compatibility remains conditional on each skill's declared tools, authentication, network, and data requirements.",
   "formats": {
@@ -96,7 +96,7 @@
     },
     {
       "name": "quant-stock-polling-trader",
-      "version": "0.5.1",
+      "version": "0.5.2",
       "runtime": {
         "codex": "supported",
         "claudeCode": "supported",
@@ -112,7 +112,7 @@
         "frozen screen, account, exposure, calendar, risk, and execution-policy inputs",
         "systemd for generated Linux user units"
       ],
-      "notes": "The daily KIS live/shadow pipeline is a direct prepare, snapshot/plan, entry, and reconciliation flow with API mutations fixed to zero. It no longer requires approved source digests, provenance signatures, account-identity HMACs, trading-arm artifacts, or Toss/NH files. Additional exposure files are optional. It keeps official calendars, completed EOD data, settled-cash sizing, deterministic plan hashes, single-writer ledgers, nonpersistent entry timers, secure credential handling, and live_enabled=false."
+      "notes": "The daily KIS live/shadow pipeline is a direct prepare, snapshot/plan, entry, and reconciliation flow with API mutations fixed to zero. Daily preparation starts at 01:00 in each market timezone to leave a measured multi-hour refresh window, while initial multi-year bootstrap remains a separate prerequisite. Optional ntfy completion/block notifications read only a protected topic URL/token and cannot alter the worker result. The workflow does not require approved source digests, provenance signatures, account-identity HMACs, trading-arm artifacts, or Toss/NH files."
     },
     {
       "name": "quant-stock-technical",
