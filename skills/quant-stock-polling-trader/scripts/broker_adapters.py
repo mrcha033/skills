@@ -9,7 +9,8 @@ import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, replace
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, ClassVar
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -765,6 +766,36 @@ class KisBroker:
         "NYSE": "NYS",
         "AMEX": "AMS",
     }
+    REGIME_BENCHMARKS: ClassVar[dict[str, dict[str, str]]] = {
+        "KOSPI": {
+            "market": "KR",
+            "benchmark_id": "KOSPI_COMPOSITE",
+            "provider_symbol": "0001",
+            "regime_proxy_id": "KOSPI_COMPOSITE",
+            "timezone": "Asia/Seoul",
+        },
+        "KOSDAQ": {
+            "market": "KR",
+            "benchmark_id": "KOSDAQ_COMPOSITE",
+            "provider_symbol": "1001",
+            "regime_proxy_id": "KOSDAQ_COMPOSITE",
+            "timezone": "Asia/Seoul",
+        },
+        "NYSE": {
+            "market": "US",
+            "benchmark_id": "NYSE_COMPOSITE",
+            "provider_symbol": "SPX",
+            "regime_proxy_id": "S&P_500",
+            "timezone": "America/New_York",
+        },
+        "NASDAQ": {
+            "market": "US",
+            "benchmark_id": "NASDAQ_COMPOSITE",
+            "provider_symbol": "COMP",
+            "regime_proxy_id": "NASDAQ_COMPOSITE",
+            "timezone": "America/New_York",
+        },
+    }
 
     def __init__(
         self,
@@ -1122,6 +1153,189 @@ class KisBroker:
             "raw_status": "OK",
         }
 
+    def benchmark_quote(
+        self,
+        *,
+        exchange: str,
+        session_date: str,
+    ) -> dict[str, Any]:
+        """Return one same-session, read-only benchmark regime observation."""
+        exchange = str(exchange).upper()
+        contract = self.REGIME_BENCHMARKS.get(exchange)
+        if contract is None:
+            raise BlockedError(f"unsupported benchmark exchange: {exchange}")
+        try:
+            parsed_session_date = date.fromisoformat(session_date)
+        except (TypeError, ValueError) as exc:
+            raise BlockedError("benchmark session_date must be YYYY-MM-DD") from exc
+        if parsed_session_date.isoformat() != session_date:
+            raise BlockedError("benchmark session_date must be YYYY-MM-DD")
+        compact_date = session_date.replace("-", "")
+        received_at = datetime.now(timezone.utc)
+
+        if contract["market"] == "KR":
+            tr_id = "FHPUP02110100"
+            response = self.transport.request(
+                "GET",
+                (
+                    f"{self.base_url}/uapi/domestic-stock/v1/quotations/"
+                    "inquire-index-tickprice"
+                ),
+                headers=self.headers(tr_id),
+                query={
+                    "FID_INPUT_ISCD": contract["provider_symbol"],
+                    "FID_COND_MRKT_DIV_CODE": "U",
+                },
+                timeout_seconds=5,
+            )
+            body = kis_result(response, f"{exchange} benchmark")
+            rows = body.get("output")
+            if not isinstance(rows, list) or not rows:
+                raise BlockedError(
+                    f"KIS {exchange} benchmark output must be a non-empty array"
+                )
+            valid_rows = [
+                row
+                for row in rows
+                if isinstance(row, dict)
+                and kis_market_timestamp(
+                    date_value=compact_date,
+                    time_value=row.get("stck_cntg_hour"),
+                    timezone_name=contract["timezone"],
+                )
+                is not None
+            ]
+            if not valid_rows:
+                raise BlockedError(
+                    f"KIS {exchange} benchmark has no broker timestamp"
+                )
+            latest = max(
+                valid_rows,
+                key=lambda row: str(row["stck_cntg_hour"]),
+            )
+            source_timestamp = kis_market_timestamp(
+                date_value=compact_date,
+                time_value=latest["stck_cntg_hour"],
+                timezone_name=contract["timezone"],
+            )
+            current = decimal_value(
+                latest.get("bstp_nmix_prpr"),
+                f"{exchange} benchmark current",
+            )
+            difference = abs(
+                decimal_value(
+                    latest.get("bstp_nmix_prdy_vrss"),
+                    f"{exchange} benchmark previous difference",
+                )
+            )
+            sign = str(latest.get("prdy_vrss_sign") or "").strip()
+            if sign in {"1", "2"}:
+                signed_difference = difference
+            elif sign == "3":
+                signed_difference = Decimal(0)
+            elif sign in {"4", "5"}:
+                signed_difference = -difference
+            else:
+                raise BlockedError(
+                    f"KIS {exchange} benchmark has an unknown previous-close sign"
+                )
+            previous_close = current - signed_difference
+            if current <= 0 or previous_close <= 0:
+                raise BlockedError(
+                    f"KIS {exchange} benchmark prices must be positive"
+                )
+        else:
+            if self.environment == "paper":
+                raise BlockedError(
+                    "KIS U.S. paper benchmark feed is unsupported; use "
+                    "kis-live/shadow"
+                )
+            tr_id = "FHKST03030200"
+            response = self.transport.request(
+                "GET",
+                (
+                    f"{self.base_url}/uapi/overseas-price/v1/quotations/"
+                    "inquire-time-indexchartprice"
+                ),
+                headers=self.headers(tr_id),
+                query={
+                    "FID_COND_MRKT_DIV_CODE": "N",
+                    "FID_INPUT_ISCD": contract["provider_symbol"],
+                    "FID_HOUR_CLS_CODE": "0",
+                    "FID_PW_DATA_INCU_YN": "N",
+                },
+                timeout_seconds=5,
+            )
+            body = kis_result(response, f"{exchange} benchmark")
+            summary = require_mapping(
+                body.get("output1"),
+                f"KIS {exchange} benchmark output1",
+            )
+            rows = body.get("output2")
+            if not isinstance(rows, list) or not rows:
+                raise BlockedError(
+                    f"KIS {exchange} benchmark output2 must be a non-empty array"
+                )
+            valid_rows = [
+                row
+                for row in rows
+                if isinstance(row, dict)
+                and str(row.get("stck_bsop_date") or "").strip() == compact_date
+                and kis_market_timestamp(
+                    date_value=row.get("stck_bsop_date"),
+                    time_value=row.get("stck_cntg_hour"),
+                    timezone_name=contract["timezone"],
+                )
+                is not None
+            ]
+            if not valid_rows:
+                raise BlockedError(
+                    f"KIS {exchange} benchmark has no bar for {session_date}"
+                )
+            latest = max(
+                valid_rows,
+                key=lambda row: str(row["stck_cntg_hour"]),
+            )
+            source_timestamp = kis_market_timestamp(
+                date_value=latest["stck_bsop_date"],
+                time_value=latest["stck_cntg_hour"],
+                timezone_name=contract["timezone"],
+            )
+            current = decimal_value(
+                latest.get("optn_prpr"),
+                f"{exchange} benchmark current",
+            )
+            previous_close = decimal_value(
+                summary.get("ovrs_nmix_prdy_clpr"),
+                f"{exchange} benchmark previous close",
+            )
+            if current <= 0 or previous_close <= 0:
+                raise BlockedError(
+                    f"KIS {exchange} benchmark prices must be positive"
+                )
+
+        if source_timestamp is None:
+            raise BlockedError(
+                f"KIS {exchange} benchmark source timestamp is invalid"
+            )
+        change_bps = (
+            (current / previous_close - Decimal(1)) * Decimal(10000)
+        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        return {
+            "schema": "qta-market-regime-quote/v1",
+            "broker": "kis",
+            "exchange": exchange,
+            "benchmark_id": contract["benchmark_id"],
+            "regime_proxy_id": contract["regime_proxy_id"],
+            "provider_symbol": contract["provider_symbol"],
+            "current": format(current, "f"),
+            "previous_close": format(previous_close, "f"),
+            "change_bps": format(change_bps, "f"),
+            "source_timestamp": source_timestamp,
+            "received_at": received_at.isoformat(),
+            "raw_status": "OK",
+        }
+
     def build_cancel_request(
         self,
         *,
@@ -1330,6 +1544,13 @@ class KisBroker:
             "FT_CCLD_QTY",
             "ft_ccld_qty",
         )
+        average_fill_price = self._case_value(
+            record,
+            "AVG_PRVS",
+            "avg_prvs",
+            "FT_CCLD_UNPR3",
+            "ft_ccld_unpr3",
+        )
         remaining = self._case_value(
             record, "RMN_QTY", "rmn_qty", "NCCS_QTY", "nccs_qty"
         )
@@ -1348,6 +1569,17 @@ class KisBroker:
             if remaining not in (None, "")
             else None
         )
+        average_fill_decimal = (
+            decimal_value(average_fill_price, "average fill price")
+            if average_fill_price not in (None, "")
+            else None
+        )
+        if average_fill_decimal is not None and average_fill_decimal <= 0:
+            if filled_decimal is not None and filled_decimal > 0:
+                raise BlockedError(
+                    "KIS filled order has a nonpositive average fill price"
+                )
+            average_fill_decimal = None
         cancel_value = str(
             self._case_value(record, "CNCL_YN", "cncl_yn", "CANCEL_YN") or ""
         ).upper()
@@ -1379,6 +1611,9 @@ class KisBroker:
             "filled_quantity": None
             if filled_decimal is None
             else format(filled_decimal, "f"),
+            "average_fill_price": None
+            if average_fill_decimal is None
+            else format(average_fill_decimal, "f"),
             "remaining_quantity": None
             if remaining_decimal is None
             else format(remaining_decimal, "f"),

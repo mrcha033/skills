@@ -5,7 +5,7 @@
 Keep three independent contracts:
 
 ```text
-qta-1.0.0          completed T-1 adjusted daily data -> technical payload
+qta-1.0.0/2.0.0    completed T-1 adjusted daily data -> technical payload
 qta-screen-1.0.0   legacy KR/US manifest -> deterministic candidates
 qta-screen-1.1.0   selected-market manifest -> exchange-ranked candidates
 open1h-exec-2.0.0  broker/account snapshots -> intents and order lifecycle
@@ -61,6 +61,15 @@ two-decimal rounding envelope, score/opinion and score/setup relationships,
 resolved-tick alignment, and the emitted 2R take-profit geometry. A smaller,
 reranked, or semantically forged object cannot make itself acceptable merely
 by hashing its own contents.
+
+For `qta-2.0.0`, the validator instead recomputes its first-hour total,
+verifies the market-specific turnover floor, and requires the exact
+research-only market-regime policy. QTA2 can run only in shadow mode. Before
+stock quotes in each cycle, the runner reads KOSPI Composite, KOSDAQ
+Composite, Nasdaq Composite, or the documented S&P 500 broad-market proxy for
+NYSE candidates. It verifies the current-session timestamp, a maximum age of
+90 seconds, and return from previous close of at least zero basis points. A
+failed check skips new entries for that exchange and cycle.
 
 Each account position must include `market` and `symbol`, plus `exchange` for a
 v2 screen. Each item in `open_orders` must represent a currently working order
@@ -164,6 +173,9 @@ KIS live US shadow: ceil(intent_count * 1 * 0.12s)
 Toss shadow: ceil(intent_count * 2 * 0.10s)
 ```
 
+QTA2 adds one KIS benchmark request per active exchange to the same cycle
+budget.
+
 Reject a configured interval below that floor. This is only an API-pacing
 feasibility bound, not proof of network latency. Production promotion also
 requires observed shadow percentiles.
@@ -210,6 +222,16 @@ candidate.
 At the window end, freeze new entries, cancel outstanding paper-mode entry
 orders, and reconcile. Continue managing already filled paper positions.
 Automatic market flattening is not implemented.
+
+The account/market strategy-position ledger is stored one directory above the
+date-specific intent ledger. Authoritative cumulative entry fills create or
+update a position with its original stop, target, tick, FX, and plan identity.
+Before the next session, exact broker quantities are reconciled and valid
+residuals roll to `CARRY_EXIT_ONLY`; they are excluded from new additions.
+The bundled lifecycle module deterministically calculates stop, gap-stop,
+target, close-liquidation, partial-fill, and daily-loss decisions, but the
+current polling service does not yet send live exit mutations. Do not describe
+that decision module as active automatic liquidation.
 
 ## State machine
 

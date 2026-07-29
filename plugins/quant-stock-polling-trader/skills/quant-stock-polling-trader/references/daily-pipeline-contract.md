@@ -38,6 +38,7 @@ Use `qta-daily-shadow-config/v2`:
   "mode": "shadow",
   "history_start_date": "2021-01-01",
   "minimum_sessions": 756,
+  "qta_method_version": "qta-2.0.0",
   "request_interval_ms": 120,
   "catalog_coverage_contract": {
     "schema": "qta-catalog-coverage-contract/v1",
@@ -94,7 +95,11 @@ Use `qta-daily-shadow-config/v2`:
 }
 ```
 
-Only the fields shown above are required. Two optional fields may be added:
+`qta_method_version` is optional and defaults to `qta-1.0.0`. Select
+`qta-2.0.0` only for shadow research; the screen and runner then enforce its
+liquidity and same-session market-regime contracts.
+
+Three other optional fields may be added:
 
 ```json
 {
@@ -116,6 +121,12 @@ The intent ledger is:
 
 ```text
 RUNTIME_ROOT/state/<account-alias>/<market>/<session-date>
+```
+
+The strategy-position ledger persists across dates at:
+
+```text
+RUNTIME_ROOT/state/<account-alias>/<market>/positions.sqlite3
 ```
 
 The workflow descriptor is

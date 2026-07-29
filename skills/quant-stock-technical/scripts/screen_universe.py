@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Run qta-1.0.0 across a frozen v1/v2 universe and apply its selector."""
+"""Run an approved QTA method across a frozen v1/v2 universe."""
 
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import hashlib
 import json
+import os
 import re
 import sys
 from datetime import date
@@ -14,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 import analyze_stock as qta
+import analyze_stock_v2 as qta2
 
 MANIFEST_SCHEMA = "qta-universe-manifest/v1"
 SCREEN_SCHEMA = "qta-screen/v1"
@@ -952,13 +955,18 @@ def instrument_tick_size(instrument: dict[str, Any]) -> str:
     return str(instrument["tick_contract"]["resolved_tick_size"])
 
 
-def blocked_payload(instrument: dict[str, Any], reason: str) -> dict[str, Any]:
+def blocked_payload(
+    instrument: dict[str, Any],
+    reason: str,
+    *,
+    method_version: str,
+) -> dict[str, Any]:
     return {
         "source_skill": "quant-stock-technical",
         "result_schema": "quant-stock-technical/v1",
         "calculation_status": "BLOCKED",
         "reason": reason,
-        "method_version": qta.METHOD_VERSION,
+        "method_version": method_version,
         "market": instrument_market(instrument),
         "ticker": instrument_ticker(instrument),
     }
@@ -968,6 +976,8 @@ def analyze_instrument(
     instrument: dict[str, Any],
     analysis_date: date,
     manifest_directory: Path,
+    *,
+    calculator: Any = qta,
 ) -> dict[str, Any]:
     ticker_path = Path(instrument["ticker_csv"])
     benchmark_path = Path(instrument["benchmark_csv"])
@@ -988,7 +998,7 @@ def analyze_instrument(
             qta.read_csv(str(benchmark_path)),
             analysis_date,
         )
-        return qta.calculate(
+        return calculator.calculate(
             ticker_rows,
             benchmark_rows,
             instrument_market(instrument),
@@ -997,7 +1007,32 @@ def analyze_instrument(
             instrument["source_name"],
         )
     except (qta.BlockedError, OSError, ValueError) as exc:
-        return blocked_payload(instrument, str(exc))
+        return blocked_payload(
+            instrument,
+            str(exc),
+            method_version=calculator.METHOD_VERSION,
+        )
+
+
+def analyze_instrument_task(
+    task: tuple[dict[str, Any], str, str, str],
+) -> dict[str, Any]:
+    instrument, analysis_date_text, manifest_directory_text, method_version = task
+    calculators = {
+        qta.METHOD_VERSION: qta,
+        qta2.METHOD_VERSION: qta2,
+    }
+    calculator = calculators.get(method_version)
+    if calculator is None:
+        raise ScreenBlockedError(
+            f"unsupported QTA method version: {method_version!r}"
+        )
+    return analyze_instrument(
+        instrument,
+        date.fromisoformat(analysis_date_text),
+        Path(manifest_directory_text),
+        calculator=calculator,
+    )
 
 
 def score(payload: dict[str, Any], path: str) -> Decimal:
@@ -1012,6 +1047,16 @@ def score(payload: dict[str, Any], path: str) -> Decimal:
 
 
 def ranking_key(payload: dict[str, Any]) -> tuple[Any, ...]:
+    if payload.get("method_version") == qta2.METHOD_VERSION:
+        return (
+            -score(payload, "total_score"),
+            -score(payload, "short.score"),
+            -score(payload, "medium.score"),
+            score(payload, "risk.score"),
+            -score(payload, "long.score"),
+            str(payload["market"]),
+            str(payload["ticker"]),
+        )
     return (
         -score(payload, "total_score"),
         -score(payload, "medium.score"),
@@ -1112,11 +1157,16 @@ def finalize_screen(
             decision["ticker"],
         ) in selected_keys
 
+    method_versions = {
+        str(result.get("method_version")) for result in ordered_results
+    }
+    if len(method_versions) != 1:
+        raise ScreenBlockedError("screen results contain multiple QTA methods")
     output = {
         "source_skill": "quant-stock-technical",
         "schema": SCREEN_SCHEMA,
         "screen_status": screen_status,
-        "method_version": qta.METHOD_VERSION,
+        "method_version": method_versions.pop(),
         "selector_version": SELECTOR_VERSION,
         "analysis_date": manifest["analysis_date"],
         "manifest_hash": sha256_json(manifest),
@@ -1240,11 +1290,16 @@ def finalize_screen_v2(
     for key in selected_keys:
         decision_by_key[key]["selected"] = True
 
+    method_versions = {
+        str(result.get("method_version")) for result in ordered_results
+    }
+    if len(method_versions) != 1:
+        raise ScreenBlockedError("screen results contain multiple QTA methods")
     output = {
         "source_skill": "quant-stock-technical",
         "schema": SCREEN_SCHEMA_V2,
         "screen_status": screen_status,
-        "method_version": qta.METHOD_VERSION,
+        "method_version": method_versions.pop(),
         "selector_version": SELECTOR_VERSION_V2,
         "analysis_date": manifest["analysis_date"],
         "manifest_hash": manifest["manifest_hash"],
@@ -1264,6 +1319,9 @@ def build_screen(
     manifest: dict[str, Any],
     selector: dict[str, Any],
     manifest_directory: Path,
+    *,
+    method_version: str = qta.METHOD_VERSION,
+    workers: int = 1,
 ) -> dict[str, Any]:
     normalized_manifest = normalize_manifest(manifest)
     normalized_selector = normalize_selector(selector)
@@ -1278,10 +1336,39 @@ def build_screen(
     ):
         raise ScreenBlockedError("qta-universe-manifest/v2 requires qta-screen-1.1.0")
     analysis_date = date.fromisoformat(normalized_manifest["analysis_date"])
-    results = [
-        analyze_instrument(instrument, analysis_date, manifest_directory)
+    calculators = {
+        qta.METHOD_VERSION: qta,
+        qta2.METHOD_VERSION: qta2,
+    }
+    calculator = calculators.get(method_version)
+    if calculator is None:
+        raise ScreenBlockedError(
+            f"unsupported QTA method version: {method_version!r}"
+        )
+    if isinstance(workers, bool) or workers <= 0 or workers > 32:
+        raise ScreenBlockedError("workers must be an integer between 1 and 32")
+    tasks = [
+        (
+            instrument,
+            analysis_date.isoformat(),
+            str(manifest_directory),
+            calculator.METHOD_VERSION,
+        )
         for instrument in normalized_manifest["instruments"]
     ]
+    if workers == 1:
+        results = [analyze_instrument_task(task) for task in tasks]
+    else:
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=workers
+        ) as executor:
+            results = list(
+                executor.map(
+                    analyze_instrument_task,
+                    tasks,
+                    chunksize=8,
+                )
+            )
     if normalized_manifest["schema"] == MANIFEST_SCHEMA:
         return finalize_screen(normalized_manifest, normalized_selector, results)
     return finalize_screen_v2(normalized_manifest, normalized_selector, results)
@@ -1763,6 +1850,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--manifest")
     parser.add_argument("--selector")
     parser.add_argument("--output")
+    parser.add_argument(
+        "--method-version",
+        choices=(qta.METHOD_VERSION, qta2.METHOD_VERSION),
+        default=qta.METHOD_VERSION,
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=0,
+        help="worker processes; 0 selects up to 8 local CPUs",
+    )
     parser.add_argument("--self-test", action="store_true")
     return parser.parse_args()
 
@@ -1772,8 +1870,33 @@ def emit(value: dict[str, Any], output: str | None) -> None:
         value, ensure_ascii=False, sort_keys=True, indent=2, allow_nan=False
     )
     if output:
-        Path(output).write_text(rendered + "\n", encoding="utf-8")
-    print(rendered)
+        output_path = Path(output)
+        output_path.write_text(rendered + "\n", encoding="utf-8")
+        summary = {
+            "source_skill": value.get(
+                "source_skill",
+                "quant-stock-technical",
+            ),
+            "schema": value.get("schema"),
+            "screen_status": value.get("screen_status"),
+            "method_version": value.get("method_version"),
+            "analysis_date": value.get("analysis_date"),
+            "blocked_count": value.get("blocked_count"),
+            "screen_hash": value.get("screen_hash"),
+            "reason": value.get("reason"),
+            "output": str(output_path.resolve()),
+        }
+        print(
+            json.dumps(
+                summary,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            )
+        )
+    else:
+        print(rendered)
 
 
 def main() -> int:
@@ -1802,6 +1925,12 @@ def main() -> int:
             manifest,
             load_object(Path(args.selector).resolve()),
             manifest_path.parent,
+            method_version=args.method_version,
+            workers=(
+                min(8, max(1, os.cpu_count() or 1))
+                if args.workers == 0
+                else args.workers
+            ),
         )
     except (ScreenBlockedError, OSError, ValueError, json.JSONDecodeError) as exc:
         emit(

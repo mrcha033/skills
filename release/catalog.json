@@ -96,7 +96,7 @@
     },
     {
       "name": "quant-stock-polling-trader",
-      "version": "0.5.3",
+      "version": "0.5.4",
       "runtime": {
         "codex": "supported",
         "claudeCode": "supported",
@@ -112,11 +112,11 @@
         "frozen screen, account, exposure, calendar, risk, and execution-policy inputs",
         "systemd for generated Linux user units"
       ],
-      "notes": "The daily KIS live/shadow pipeline is a direct prepare, snapshot/plan, entry, and reconciliation flow with API mutations fixed to zero. Daily preparation starts at 01:00 in each market timezone and refreshes only KOSPI/KOSDAQ for KR or NYSE/NASDAQ for US, avoiding cross-market cutoff errors and duplicate reads. Optional ntfy completion/block notifications read only a protected topic URL/token and cannot alter the worker result. The workflow does not require approved source digests, provenance signatures, account-identity HMACs, trading-arm artifacts, or Toss/NH files."
+      "notes": "The daily KIS live/shadow pipeline now accepts research-only QTA2 screens, performs a fresh same-session benchmark-regime check before entry quotes, and persists strategy fill ownership in an account/market position ledger across session dates. Daily preparation remains market-scoped, ntfy stays best-effort, and API mutations remain fixed to zero."
     },
     {
       "name": "quant-stock-technical",
-      "version": "0.4.4",
+      "version": "0.4.5",
       "runtime": {
         "codex": "supported",
         "claudeCode": "supported",
@@ -128,7 +128,7 @@
         "user-provided finalized OHLCV and benchmark files, or KIS Open API credentials for read-only Korean and U.S. EOD acquisition",
         "outbound KRX, Nasdaq Trader, KIS, and benchmark source access"
       ],
-      "notes": "The Korean and U.S. EOD collectors are resumable and read-only. qta-universe-manifest/v2 now accepts exactly a Korean pair, a U.S. pair, or all four exchanges while keeping all four count keys and zeroing inactive exchanges. Coverage is enforced for every active exchange. Complete byte-equivalent cache files are not rewritten, and invalid KIS adjusted rows remain source-audited without interpolation."
+      "notes": "Adds research-only qta-2.0.0 for the first regular-session hour, full-universe read-only opening-hour collection/evaluation, deterministic parallel screening, and compact stdout receipts. QTA1 remains byte-equivalent as the stable comparison baseline."
     },
     {
       "name": "stock-scenario-story",

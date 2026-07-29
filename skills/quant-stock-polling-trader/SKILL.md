@@ -88,6 +88,12 @@ without making a Korean session wait for U.S. EOD or vice versa.
 Finish an initial multi-year bootstrap before relying on a daily timer; the
 timer is intended to resume and increment an existing cache.
 
+Set optional `qta_method_version` to `qta-2.0.0` for the research-only
+first-hour model. The runner then performs one read-only benchmark-regime call
+per active exchange and cycle before stock quotes. A negative, stale,
+wrong-session, or unavailable regime observation blocks new entries for that
+cycle. QTA2 cannot run in paper or live mode.
+
 To receive optional ntfy completion/block notifications, place these values in
 the same mode-`0600` environment file used by the generated services:
 
@@ -110,6 +116,15 @@ RUNTIME_ROOT/state/<account-alias>/<market>/<session-date>
 The account alias is nonsecret and configured by the user. A current session
 is never entered twice. An unresolved broker mutation from a paper-mode run
 still requires reconciliation before another entry.
+
+Filled strategy quantities are stored in
+`RUNTIME_ROOT/state/<account-alias>/<market>/positions.sqlite3`, outside the
+date directory. Before a later session reads quotes, the runner reconciles
+that ledger against the frozen KIS account snapshot. Matching positions roll
+forward as `CARRY_EXIT_ONLY`; quantity differences, working orders, duplicate
+ownership, or a prior `MANUAL_BLOCK` stop new entries. Holdings not created by
+this strategy remain visible as unmanaged broker positions and are never
+silently adopted or sold.
 
 ## Direct planning and polling
 
@@ -170,6 +185,7 @@ python3 scripts/account_snapshot.py self-test
 python3 scripts/market_calendar.py self-test
 python3 scripts/daily_pipeline.py self-test
 python3 scripts/plan_orders.py --self-test
+python3 scripts/position_lifecycle.py --self-test
 python3 scripts/run_session.py self-test
 python3 scripts/reconcile.py --self-test
 python3 scripts/systemd_units.py self-test

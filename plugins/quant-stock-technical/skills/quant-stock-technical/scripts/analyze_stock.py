@@ -240,14 +240,65 @@ def rolling_volatility(values: list[float], period: int = 20) -> list[Optional[f
 
 
 def rolling_max_drawdown(values: list[float], period: int = 252) -> list[Optional[float]]:
+    """Calculate exact sliding-window drawdown in amortized linear time."""
+    if period <= 0:
+        raise BlockedError("maximum drawdown period must be positive")
     output: list[Optional[float]] = [None] * len(values)
-    for index in range(period - 1, len(values)):
-        peak = values[index - period + 1]
-        worst = 0.0
-        for value in values[index - period + 1 : index + 1]:
-            peak = max(peak, value)
-            worst = max(worst, 1.0 - value / peak)
-        output[index] = worst
+
+    # A segment stores (maximum price, minimum price, largest earlier/later
+    # peak-to-trough ratio).  The operation is associative, so a two-stack
+    # aggregate queue supports an exact ordered sliding-window query.
+    Segment = tuple[float, float, float]
+
+    def singleton(value: float) -> Segment:
+        return (value, value, 1.0)
+
+    def combine(left: Segment, right: Segment) -> Segment:
+        return (
+            max(left[0], right[0]),
+            min(left[1], right[1]),
+            max(left[2], right[2], left[0] / right[1]),
+        )
+
+    incoming: list[tuple[Segment, Segment]] = []
+    outgoing: list[tuple[Segment, Segment]] = []
+
+    def push(value: float) -> None:
+        item = singleton(value)
+        aggregate = item if not incoming else combine(incoming[-1][1], item)
+        incoming.append((item, aggregate))
+
+    def pop_oldest() -> None:
+        if not outgoing:
+            while incoming:
+                item, _ = incoming.pop()
+                aggregate = (
+                    item
+                    if not outgoing
+                    else combine(item, outgoing[-1][1])
+                )
+                outgoing.append((item, aggregate))
+        outgoing.pop()
+
+    def aggregate() -> Segment:
+        if outgoing and incoming:
+            return combine(outgoing[-1][1], incoming[-1][1])
+        if outgoing:
+            return outgoing[-1][1]
+        if incoming:
+            return incoming[-1][1]
+        raise BlockedError("cannot aggregate an empty drawdown window")
+
+    window_size = 0
+    for index, value in enumerate(values):
+        push(value)
+        window_size += 1
+        if window_size > period:
+            pop_oldest()
+            window_size -= 1
+        if window_size == period:
+            maximum_ratio = aggregate()[2]
+            output[index] = 1.0 - 1.0 / maximum_ratio
     return output
 
 

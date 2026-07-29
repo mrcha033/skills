@@ -28,6 +28,10 @@ from execution_core import (
     MARKET_CURRENCY,
     MAX_SNAPSHOT_AGE_SECONDS,
     PLAN_SCHEMA,
+    QTA2_REGIME_MAX_AGE_SECONDS,
+    QTA2_REGIME_MINIMUM_CHANGE_BPS,
+    QTA2_REGIME_METRIC,
+    QTA_METHOD_V2,
     SCREEN_SCHEMA_V2,
     V2_EXCHANGE_CONTRACTS,
     V2_EXCHANGES_BY_MARKET,
@@ -51,6 +55,13 @@ from execution_core import (
     sha256_json,
     validate_nonempty_string,
     validate_sha256,
+)
+from position_lifecycle import (
+    PositionLedger,
+    position_from_intent,
+    reconcile_account_positions,
+    record_entry_fill,
+    strategy_position_id,
 )
 
 VENUE_SCHEMA = "qta-venue-map/v1"
@@ -157,6 +168,7 @@ V2_INTENT_FIELDS = BASE_INTENT_FIELDS | {
     "instrument_type",
     "benchmark_id",
     "venue",
+    "resolved_tick_size",
     "tick_contract_hash",
 }
 SKIP_REASONS = {
@@ -165,6 +177,26 @@ SKIP_REASONS = {
     "existing_exposure",
     "max_concurrent_positions",
     "quantity_below_one",
+}
+MARKET_REGIME_QUOTE_FIELDS = {
+    "schema",
+    "broker",
+    "exchange",
+    "benchmark_id",
+    "regime_proxy_id",
+    "provider_symbol",
+    "current",
+    "previous_close",
+    "change_bps",
+    "source_timestamp",
+    "received_at",
+    "raw_status",
+}
+REGIME_PROXY_BY_EXCHANGE = {
+    "KOSPI": "KOSPI_COMPOSITE",
+    "KOSDAQ": "KOSDAQ_COMPOSITE",
+    "NYSE": "S&P_500",
+    "NASDAQ": "NASDAQ_COMPOSITE",
 }
 
 
@@ -332,6 +364,21 @@ def validate_intent(
             intent["tick_contract_hash"],
             f"{label}.tick_contract_hash",
         )
+        tick_size = validate_decimal_text(
+            intent["resolved_tick_size"],
+            f"{label}.resolved_tick_size",
+            positive=True,
+        )
+        for price, field in (
+            (entry, "entry_trigger"),
+            (limit_price, "limit_price"),
+            (stop, "stop_price"),
+            (take_profit, "take_profit_price"),
+        ):
+            if price % tick_size != 0:
+                raise BlockedError(
+                    f"{label}.{field} must align to resolved_tick_size"
+                )
         intent_seed.update(
             {
                 "exchange": exchange,
@@ -880,7 +927,7 @@ def normalize_toss_order(raw: dict[str, Any]) -> dict[str, Any]:
         "normalized_status": status_map.get(raw_status, "UNKNOWN"),
         "raw_status": raw_status,
         "filled_quantity": execution.get("filledQuantity"),
-        "average_filled_price": execution.get("averageFilledPrice"),
+        "average_fill_price": execution.get("averageFilledPrice"),
         "raw": redact(raw),
     }
 
@@ -984,6 +1031,11 @@ def create_broker(broker_name: str) -> Any:
 def validate_mode(plan: dict[str, Any], broker_name: str, mode: str) -> None:
     validate_broker_binding(plan, broker_name)
     context = plan["context"]
+    screen_method = plan["frozen_inputs"]["screen"].get("method_version")
+    if screen_method == "qta-2.0.0" and mode != "shadow":
+        raise BlockedError(
+            "qta-2.0.0 is RESEARCH_ONLY and may run only in shadow mode"
+        )
     if mode == "live":
         raise BlockedError(
             "live promotion is intentionally disabled until accepted-timeout "
@@ -1051,6 +1103,33 @@ def quote_http_request_count(
     return DEFAULT_QUOTE_HTTP_REQUESTS_PER_INTENT
 
 
+def plan_uses_qta2(plan: dict[str, Any]) -> bool:
+    frozen_inputs = plan.get("frozen_inputs")
+    if not isinstance(frozen_inputs, dict):
+        return False
+    screen = frozen_inputs.get("screen")
+    return (
+        isinstance(screen, dict)
+        and screen.get("method_version") == QTA_METHOD_V2
+    )
+
+
+def active_qta2_exchanges(plan: dict[str, Any]) -> list[str]:
+    if not plan_uses_qta2(plan):
+        return []
+    present = {
+        str(intent.get("exchange") or "").upper()
+        for intent in plan.get("intents", [])
+        if isinstance(intent, dict)
+    }
+    market = str(plan.get("context", {}).get("market") or "").upper()
+    return [
+        exchange
+        for exchange in V2_EXCHANGES_BY_MARKET.get(market, ())
+        if exchange in present
+    ]
+
+
 def polling_admission(
     plan: dict[str, Any],
     broker_name: str,
@@ -1063,8 +1142,9 @@ def polling_admission(
     quote_requests = sum(
         quote_http_request_count(broker_name, intent) for intent in plan["intents"]
     )
+    regime_requests = len(active_qta2_exchanges(plan))
     mutation_requests = intent_count if mode == "paper" else 0
-    request_budget = quote_requests + mutation_requests
+    request_budget = quote_requests + regime_requests + mutation_requests
     pacing_seconds = BROKER_PACING_SECONDS[broker_name] * request_budget
     minimum_interval = max(
         1,
@@ -1083,6 +1163,7 @@ def polling_admission(
         "quote_request_contract": (
             "KIS-live US=1; KIS KR and Toss=2 per waiting intent"
         ),
+        "market_regime_request_budget": regime_requests,
         "worst_case_mutation_requests": mutation_requests,
         "worst_case_request_budget": request_budget,
         "minimum_request_interval_ms": int(BROKER_PACING_SECONDS[broker_name] * 1000),
@@ -1093,6 +1174,104 @@ def polling_admission(
             "f",
         ),
     }
+
+
+def evaluate_market_regime(
+    *,
+    exchange: str,
+    quote: dict[str, Any],
+    observed_at: datetime,
+    session_date: str,
+) -> dict[str, Any]:
+    """Validate and deterministically admit one QTA2 exchange regime quote."""
+    exchange = str(exchange).upper()
+    if exchange not in V2_EXCHANGE_CONTRACTS:
+        raise BlockedError(f"unsupported market regime exchange: {exchange}")
+    if observed_at.tzinfo is None or observed_at.utcoffset() is None:
+        raise BlockedError("market regime observed_at must be timezone-aware")
+    exact_fields(quote, MARKET_REGIME_QUOTE_FIELDS, "market regime quote")
+    reasons: list[str] = []
+    expected_benchmark = V2_EXCHANGE_CONTRACTS[exchange]["benchmark_id"]
+    if quote["schema"] != "qta-market-regime-quote/v1":
+        reasons.append("invalid_schema")
+    if quote["broker"] != "kis":
+        reasons.append("invalid_broker")
+    if quote["exchange"] != exchange:
+        reasons.append("exchange_mismatch")
+    if quote["benchmark_id"] != expected_benchmark:
+        reasons.append("benchmark_mismatch")
+    if quote["regime_proxy_id"] != REGIME_PROXY_BY_EXCHANGE[exchange]:
+        reasons.append("proxy_mismatch")
+    if quote["raw_status"] != "OK":
+        reasons.append("raw_status_not_ok")
+
+    current = positive_decimal(quote["current"], "market regime current")
+    previous_close = positive_decimal(
+        quote["previous_close"],
+        "market regime previous_close",
+    )
+    change_bps = decimal_value(
+        quote["change_bps"],
+        "market regime change_bps",
+    )
+    recomputed_change = (
+        (current / previous_close - Decimal(1)) * Decimal(10000)
+    )
+    if abs(change_bps - recomputed_change) > Decimal("0.02"):
+        reasons.append("change_bps_mismatch")
+
+    zone_name = (
+        "Asia/Seoul"
+        if exchange in {"KOSPI", "KOSDAQ"}
+        else "America/New_York"
+    )
+    for timestamp_field in ("source_timestamp", "received_at"):
+        try:
+            timestamp = parse_aware_datetime(
+                quote[timestamp_field],
+                f"market regime {timestamp_field}",
+            )
+        except BlockedError:
+            reasons.append(f"{timestamp_field}_invalid")
+            continue
+        age_seconds = (
+            observed_at.astimezone(timezone.utc)
+            - timestamp.astimezone(timezone.utc)
+        ).total_seconds()
+        if age_seconds < -1 or age_seconds > QTA2_REGIME_MAX_AGE_SECONDS:
+            reasons.append(f"{timestamp_field}_stale")
+        if (
+            timestamp_field == "source_timestamp"
+            and timestamp.astimezone(ZoneInfo(zone_name)).date().isoformat()
+            != session_date
+        ):
+            reasons.append("source_session_date_mismatch")
+
+    quality_valid = not reasons
+    admitted = (
+        quality_valid
+        and change_bps >= QTA2_REGIME_MINIMUM_CHANGE_BPS
+    )
+    if quality_valid and not admitted:
+        reasons.append("benchmark_below_minimum")
+    without_hash = {
+        "metric": QTA2_REGIME_METRIC,
+        "exchange": exchange,
+        "benchmark_id": expected_benchmark,
+        "regime_proxy_id": quote["regime_proxy_id"],
+        "minimum_change_bps": format(
+            QTA2_REGIME_MINIMUM_CHANGE_BPS,
+            "f",
+        ),
+        "observed_change_bps": format(change_bps, "f"),
+        "max_age_seconds": QTA2_REGIME_MAX_AGE_SECONDS,
+        "quality_valid": quality_valid,
+        "admitted": admitted,
+        "reasons": reasons,
+        "quote": quote,
+        "observed_at": observed_at.isoformat(),
+    }
+    return {**without_hash, "decision_hash": sha256_json(without_hash)}
 
 
 def wait_until(target: datetime) -> None:
@@ -1270,6 +1449,102 @@ def validate_ledger_scope(ledger: Ledger, plan: dict[str, Any]) -> None:
         )
 
 
+def position_ledger_path(state_directory: Path) -> Path:
+    """Return the account/market ledger shared by all session-date directories."""
+    if not state_directory.is_absolute():
+        raise BlockedError("state_directory must be absolute")
+    return state_directory.parent / "positions.sqlite3"
+
+
+def persist_entry_fill(
+    position_ledger: PositionLedger,
+    *,
+    plan: dict[str, Any],
+    intent: dict[str, Any],
+    snapshot: dict[str, Any],
+    session_date: str,
+) -> dict[str, Any] | None:
+    """Persist an authoritative cumulative entry fill exactly once per change."""
+    raw_filled = snapshot.get("filled_quantity")
+    if raw_filled in (None, ""):
+        return None
+    cumulative = decimal_value(raw_filled, "broker filled_quantity")
+    if cumulative < 0 or cumulative != cumulative.to_integral_value():
+        raise BlockedError(
+            "broker filled_quantity must be a nonnegative whole number"
+        )
+    if cumulative == 0:
+        return None
+    raw_average = snapshot.get("average_fill_price")
+    if raw_average in (None, ""):
+        raise BlockedError(
+            "broker reported an entry fill without average_fill_price"
+        )
+    average = positive_decimal(raw_average, "broker average_fill_price")
+    account = plan["frozen_inputs"]["account"]
+    fx_to_krw = account.get("fx_to_krw")
+    if intent["market"] == "KR":
+        fx_to_krw = "1"
+    elif fx_to_krw in (None, ""):
+        raise BlockedError(
+            "a U.S. strategy position requires frozen fx_to_krw"
+        )
+
+    position_id = strategy_position_id(plan["plan_hash"], intent)
+    stored = position_ledger.get_optional(position_id)
+    if stored is None:
+        position = position_from_intent(
+            plan_hash=plan["plan_hash"],
+            intent=intent,
+            session_date=session_date,
+            fx_to_krw=fx_to_krw,
+        )
+        event_type = "ENTRY_FILL_CREATED"
+    else:
+        position = stored.payload
+        if (
+            position["plan_hash"] != plan["plan_hash"]
+            or position["entry_intent_id"] != intent["intent_id"]
+        ):
+            raise BlockedError(
+                "strategy position identity differs from plan entry intent"
+            )
+        prior_quantity = Decimal(position["acquired_quantity"])
+        prior_average = (
+            None
+            if position["average_entry_price"] is None
+            else Decimal(position["average_entry_price"])
+        )
+        if cumulative == prior_quantity and average == prior_average:
+            return position
+        if Decimal(position["exited_quantity"]) > 0:
+            raise BlockedError(
+                "entry fill changed after exit fills were recorded"
+            )
+        event_type = "ENTRY_FILL_UPDATED"
+
+    updated = record_entry_fill(
+        position,
+        cumulative_filled_quantity=format(cumulative, "f"),
+        average_fill_price=format(average, "f"),
+        session_date=session_date,
+    )
+    position_ledger.put(
+        updated,
+        event_type=event_type,
+        event_payload={
+            "broker_order_id": snapshot.get("broker_order_id"),
+            "normalized_status": snapshot.get("normalized_status"),
+            "ordered_quantity": snapshot.get("ordered_quantity"),
+            "filled_quantity": format(cumulative, "f"),
+            "average_fill_price": format(average, "f"),
+            "remaining_quantity": snapshot.get("remaining_quantity"),
+            "session_date": session_date,
+        },
+    )
+    return updated
+
+
 def run_session(
     plan: dict[str, Any],
     broker_name: str,
@@ -1324,20 +1599,48 @@ def run_session(
         "cycles_completed": 0,
         "cycles_skipped": 0,
         "quotes_evaluated": 0,
+        "market_regime_queries": 0,
+        "market_regime_passes": 0,
+        "market_regime_blocks": 0,
         "order_status_queries": 0,
         "submits_started": 0,
         "expected_http_requests_started": 0,
         "max_schedule_lateness_ms": 0,
         "max_cycle_duration_ms": 0,
         "max_quote_latency_ms": 0,
+        "max_market_regime_latency_ms": 0,
         "max_order_status_latency_ms": 0,
         "max_submit_latency_ms": 0,
+        "position_reconciliation": None,
     }
 
     with SingleWriterLock(state_directory / "writer.lock"):
         ledger = Ledger(state_directory / "ledger.sqlite3")
+        position_ledger = PositionLedger(position_ledger_path(state_directory))
         try:
             validate_ledger_scope(ledger, plan)
+            position_reconciliation = reconcile_account_positions(
+                position_ledger,
+                account_snapshot=plan["frozen_inputs"]["account"],
+                session_date=trading_date,
+            )
+            polling_metrics["position_reconciliation"] = {
+                "status": position_reconciliation["status"],
+                "reconciliation_hash": position_reconciliation[
+                    "reconciliation_hash"
+                ],
+                "managed_position_count": len(
+                    position_reconciliation["managed_positions"]
+                ),
+                "unmanaged_broker_position_count": len(
+                    position_reconciliation["unmanaged_broker_positions"]
+                ),
+            }
+            if position_reconciliation["status"] != "READY":
+                raise BlockedError(
+                    "strategy position ledger differs from the frozen broker "
+                    "account snapshot; reconcile MANUAL_BLOCK before new entries"
+                )
             warmup = warm_broker_before_open(broker, start)
             for intent in plan["intents"]:
                 ledger.create_intent(plan["plan_hash"], intent)
@@ -1417,6 +1720,86 @@ def run_session(
                         },
                     )
                 ]
+                regime_by_exchange: dict[str, dict[str, Any]] = {}
+                if plan_uses_qta2(plan):
+                    waiting_by_exchange: dict[str, list[dict[str, Any]]] = {}
+                    for candidate in plan["intents"]:
+                        if ledger.get(candidate["intent_id"]).state == "WAIT_TRIGGER":
+                            waiting_by_exchange.setdefault(
+                                candidate["exchange"],
+                                [],
+                            ).append(candidate)
+                    for exchange in active_qta2_exchanges(plan):
+                        waiting = waiting_by_exchange.get(exchange, [])
+                        if not waiting:
+                            continue
+                        if datetime.now(timezone.utc).timestamp() >= cycle_deadline:
+                            freeze_reason = "cycle_latency_budget_exceeded"
+                            break
+                        regime_started_at = datetime.now(timezone.utc)
+                        regime_started_monotonic = time.monotonic()
+                        polling_metrics["market_regime_queries"] += 1
+                        polling_metrics["expected_http_requests_started"] += 1
+                        try:
+                            regime_quote = broker.benchmark_quote(
+                                exchange=exchange,
+                                session_date=trading_date,
+                            )
+                            regime_observed_at = datetime.now(timezone.utc)
+                            regime_decision = evaluate_market_regime(
+                                exchange=exchange,
+                                quote=regime_quote,
+                                observed_at=regime_observed_at,
+                                session_date=trading_date,
+                            )
+                        except (BlockedError, TransportFailure) as exc:
+                            regime_decision = {
+                                "metric": QTA2_REGIME_METRIC,
+                                "exchange": exchange,
+                                "benchmark_id": V2_EXCHANGE_CONTRACTS[exchange][
+                                    "benchmark_id"
+                                ],
+                                "minimum_change_bps": format(
+                                    QTA2_REGIME_MINIMUM_CHANGE_BPS,
+                                    "f",
+                                ),
+                                "max_age_seconds": QTA2_REGIME_MAX_AGE_SECONDS,
+                                "quality_valid": False,
+                                "admitted": False,
+                                "reasons": ["benchmark_quote_unavailable"],
+                                "error": str(exc),
+                                "observed_at": datetime.now(
+                                    timezone.utc
+                                ).isoformat(),
+                            }
+                        regime_latency_ms = int(
+                            (time.monotonic() - regime_started_monotonic) * 1000
+                        )
+                        regime_decision["latency_ms"] = regime_latency_ms
+                        regime_decision["started_at"] = (
+                            regime_started_at.isoformat()
+                        )
+                        regime_by_exchange[exchange] = regime_decision
+                        polling_metrics["max_market_regime_latency_ms"] = max(
+                            polling_metrics["max_market_regime_latency_ms"],
+                            regime_latency_ms,
+                        )
+                        metric = (
+                            "market_regime_passes"
+                            if regime_decision["admitted"]
+                            else "market_regime_blocks"
+                        )
+                        polling_metrics[metric] += 1
+                        cycle_events.append(
+                            (
+                                waiting[0]["intent_id"],
+                                "MARKET_REGIME_EVALUATED",
+                                regime_decision,
+                            )
+                        )
+                    if freeze_reason == "cycle_latency_budget_exceeded":
+                        ledger.append_events(cycle_events)
+                        break
                 for intent in plan["intents"]:
                     if datetime.now(timezone.utc).timestamp() >= cycle_deadline:
                         freeze_reason = "cycle_latency_budget_exceeded"
@@ -1424,6 +1807,25 @@ def run_session(
                     record = ledger.get(intent["intent_id"])
                     venue = venue_by_intent[intent["intent_id"]]
                     if record.state == "WAIT_TRIGGER":
+                        if plan_uses_qta2(plan):
+                            regime_decision = regime_by_exchange.get(
+                                intent["exchange"]
+                            )
+                            if (
+                                regime_decision is None
+                                or not regime_decision["admitted"]
+                            ):
+                                cycle_events.append(
+                                    (
+                                        intent["intent_id"],
+                                        "ENTRY_BLOCKED_BY_MARKET_REGIME",
+                                        {
+                                            "exchange": intent["exchange"],
+                                            "decision": regime_decision,
+                                        },
+                                    )
+                                )
+                                continue
                         if not entry_window_open(end):
                             freeze_reason = "entry_window_closed"
                             break
@@ -1721,6 +2123,28 @@ def run_session(
                             status_latency_ms,
                         )
                         next_state = snapshot["normalized_status"]
+                        try:
+                            persist_entry_fill(
+                                position_ledger,
+                                plan=plan,
+                                intent=intent,
+                                snapshot=snapshot,
+                                session_date=trading_date,
+                            )
+                        except BlockedError as exc:
+                            ledger.transition(
+                                intent["intent_id"],
+                                "UNKNOWN",
+                                {
+                                    "reason": (
+                                        "strategy position ledger sync failed: "
+                                        f"{exc}"
+                                    ),
+                                    "snapshot": snapshot,
+                                },
+                            )
+                            freeze_reason = "position_ledger_sync_failed"
+                            break
                         if next_state != record.state:
                             if next_state not in {
                                 "ACKNOWLEDGED",
@@ -1769,6 +2193,21 @@ def run_session(
                     break
                 cycle += 1
 
+            for intent in plan["intents"]:
+                record = ledger.get(intent["intent_id"])
+                if record.state == "WAIT_TRIGGER":
+                    ledger.transition(
+                        intent["intent_id"],
+                        "CANCELLED",
+                        {
+                            "reason": (
+                                "entry_window_closed"
+                                if freeze_reason == "entry_window_closed"
+                                else str(freeze_reason or "entry_window_ended")
+                            )
+                        },
+                    )
+
             if plan["order_policy"]["cancel_remainder_at_window_end"]:
                 for intent in plan["intents"]:
                     record = ledger.get(intent["intent_id"])
@@ -1797,6 +2236,13 @@ def run_session(
                                 ack=ack,
                                 venue=venue_by_intent[intent["intent_id"]],
                                 trading_date=trading_date,
+                            )
+                            persist_entry_fill(
+                                position_ledger,
+                                plan=plan,
+                                intent=intent,
+                                snapshot=cancel_snapshot,
+                                session_date=trading_date,
                             )
                             next_state = cancel_snapshot["normalized_status"]
                             if next_state in {"FILLED", "CANCELLED"} or (
@@ -1883,6 +2329,7 @@ def run_session(
                 polling_metrics,
             )
         finally:
+            position_ledger.close()
             ledger.close()
 
 

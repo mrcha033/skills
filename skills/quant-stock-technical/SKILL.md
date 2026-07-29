@@ -62,7 +62,8 @@ invalid cutoff row remains blocking.
 ## Workflow
 
 1. Read `references/methodology.md` when explaining, reviewing, or changing the model.
-2. Run `scripts/analyze_stock.py` with the user-supplied files and identifiers.
+2. Run `scripts/analyze_stock.py` for the stable QTA1 baseline. Use
+   `scripts/analyze_stock_v2.py` only for first-hour research/shadow work.
 3. Return the calculator output without changing values or labels.
 4. State the data source and cutoff. Keep `score_basis` visible whenever a user could mistake the score for a probability.
 5. If the calculator returns `BLOCKED`, report the missing or invalid input. Do not manufacture a partial recommendation.
@@ -87,8 +88,11 @@ For a Korean, U.S., or all-four-exchange target universe, first read
 `scripts/build_universe_manifest.py`, then read `references/screen-contract.md`
 and run `scripts/screen_universe.py`. Use `qta-universe-manifest/v1` only for
 legacy, explicitly curated KR/US inputs. The selector is a separate
-cross-sectional strategy assumption; it does not change `qta-1.0.0` or turn
-its score into a probability. Pass the complete frozen screen artifact to
+cross-sectional strategy assumption; it does not turn either score into a
+probability. `screen_universe.py --method-version qta-2.0.0` selects the
+research-only first-hour model; its output additionally requires a fresh
+same-session benchmark-regime admission in the execution runner. Pass the
+complete frozen screen artifact to
 `$quant-stock-polling-trader`; never submit orders from this skill.
 
 After changing universe or screening code, run:
@@ -97,6 +101,9 @@ After changing universe or screening code, run:
 python3 scripts/fetch_kis_kr_eod.py --self-test
 python3 scripts/fetch_kis_us_eod.py --self-test
 python3 scripts/build_universe_manifest.py --self-test
+python3 scripts/analyze_stock_v2.py --self-test
+python3 scripts/collect_open1h_research.py --self-test
+python3 scripts/evaluate_open1h_research.py --self-test
 python3 scripts/screen_universe.py --self-test
 ```
 
@@ -104,7 +111,9 @@ When `$stock-scenario-story` will run next, save the unmodified JSON output to a
 
 ## Output boundaries
 
-- Interpret the 0-100 score as historical technical strength under method `qta-1.0.0`, not as probability of profit.
+- Interpret the 0-100 score as historical technical strength under the emitted
+  method version, not as probability of profit. `qta-2.0.0` remains
+  `RESEARCH_ONLY` until multi-session walk-forward evidence exists.
 - Treat entry, stop, and take-profit as calculated price levels, not execution or suitability advice.
 - Keep brokerage fees, tax, FX, slippage, position sizing, account constraints, and order semantics outside this technical score unless a later version explicitly models them.
 - Do not claim real-time monitoring. This version consumes completed end-of-day data.
