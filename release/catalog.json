@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "distributionVersion": "2.4.4",
+  "distributionVersion": "2.4.5",
   "releaseTagPrefix": "skills-v",
   "guaranteeScope": "Package compatibility guarantees archive layout, manifest placement, and byte integrity. Runtime compatibility remains conditional on each skill's declared tools, authentication, network, and data requirements.",
   "formats": {
@@ -116,7 +116,7 @@
     },
     {
       "name": "quant-stock-technical",
-      "version": "0.4.5",
+      "version": "0.4.6",
       "runtime": {
         "codex": "supported",
         "claudeCode": "supported",
@@ -128,7 +128,7 @@
         "user-provided finalized OHLCV and benchmark files, or KIS Open API credentials for read-only Korean and U.S. EOD acquisition",
         "outbound KRX, Nasdaq Trader, KIS, and benchmark source access"
       ],
-      "notes": "Adds research-only qta-2.0.0 for the first regular-session hour, full-universe read-only opening-hour collection/evaluation, deterministic parallel screening, and compact stdout receipts. QTA1 remains byte-equivalent as the stable comparison baseline."
+      "notes": "Adds read-only selected-candidate point-in-time outcomes and an explicitly survivor-biased 2-252-session Korean opening-hour walk-forward diagnostic. A flat initial true-range seed now initializes ADX at zero instead of making it permanently unavailable, and feature failures identify the exact field. QTA2 remains research-only."
     },
     {
       "name": "stock-scenario-story",

@@ -289,6 +289,14 @@ def main() -> None:
         "skills/quant-stock-technical/scripts/fetch_kis_us_eod.py",
         "--self-test",
     )
+    run(
+        "skills/quant-stock-technical/scripts/selected_open1h_outcomes.py",
+        "--self-test",
+    )
+    run(
+        "skills/quant-stock-technical/scripts/walk_forward_open1h.py",
+        "--self-test",
+    )
     run("skills/quant-stock-technical/scripts/screen_universe.py", "--self-test")
     run(
         "skills/quant-stock-polling-trader/scripts/execution_core.py",

@@ -215,6 +215,14 @@ def atr_adx(bars: list[Bar], period: int = 14) -> tuple[list[Optional[float]], l
             minus_di[index] = 100.0 * minus_value / atr_value
             denominator = plus_di[index] + minus_di[index]
             dx[index] = 0.0 if denominator == 0 else 100.0 * abs(plus_di[index] - minus_di[index]) / denominator
+        else:
+            # A newly listed or previously suspended instrument can begin with
+            # a flat true-range seed.  Wilder's directional movement is zero
+            # in that case; leaving DX unavailable would prevent ADX from ever
+            # initializing, even after the instrument starts trading.
+            plus_di[index] = 0.0
+            minus_di[index] = 0.0
+            dx[index] = 0.0
 
     first_adx = 2 * period - 1
     initial_dx = [value for value in dx[period : first_adx + 1] if value is not None]
@@ -459,7 +467,10 @@ def calculate(ticker_bars: list[Bar], benchmark_bars: list[Bar], market: str, ti
     percentiles: dict[str, float] = {}
     reference_counts: dict[str, int] = {}
     for name, series in {**features, **risk_features}.items():
-        percentiles[name], reference_counts[name] = percentile_rank(series, index)
+        try:
+            percentiles[name], reference_counts[name] = percentile_rank(series, index)
+        except BlockedError as exc:
+            raise BlockedError(f"{name}: {exc}") from exc
 
     short_weights = {
         "return_5": 0.25,
@@ -600,6 +611,20 @@ def synthetic_bars(length: int, drift: float, phase: float) -> list[Bar]:
 def self_test() -> None:
     ticker_bars = synthetic_bars(1100, 0.0006, 0.0)
     benchmark_bars = synthetic_bars(1100, 0.0003, 1.0)
+    flat_then_active = [
+        Bar(
+            day=date(2020, 1, 1) + timedelta(days=index),
+            open=100.0 if index < 20 else 100.0 + index - 20,
+            high=100.0 if index < 20 else 101.0 + index - 20,
+            low=100.0 if index < 20 else 99.0 + index - 20,
+            close=100.0 if index < 20 else 100.5 + index - 20,
+            volume=0.0 if index < 20 else 1_000.0,
+        )
+        for index in range(80)
+    ]
+    _, restarted_adx, _, _ = atr_adx(flat_then_active, 14)
+    assert restarted_adx[-1] is not None
+    assert math.isfinite(restarted_adx[-1])
     with tempfile.TemporaryDirectory(prefix="qta-self-test-") as directory:
         paths = [Path(directory) / "ticker.csv", Path(directory) / "benchmark.csv"]
         for path, bars in zip(paths, (ticker_bars, benchmark_bars)):

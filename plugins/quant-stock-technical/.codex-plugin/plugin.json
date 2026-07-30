@@ -1,7 +1,7 @@
 {
   "name": "quant-stock-technical",
-  "version": "0.4.5",
-  "description": "Acquire audited KIS Korean and U.S. EOD data and screen a deterministic four-exchange stock universe.",
+  "version": "0.4.6",
+  "description": "Acquire audited KIS EOD data, screen four exchanges, and evaluate selected opening-hour outcomes.",
   "author": {
     "name": "mrcha033",
     "url": "https://github.com/mrcha033"
@@ -16,8 +16,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Quant Stock Technical",
-    "shortDescription": "Four-exchange EOD acquisition and screening",
-    "longDescription": "Acquire resumable read-only KIS Korean and U.S. adjusted EOD data, audit invalid provider rows without interpolation, and build a source-hashed KOSPI, KOSDAQ, NYSE, and NASDAQ universe.",
+    "shortDescription": "Four-exchange screening and opening-hour research",
+    "longDescription": "Acquire resumable read-only KIS Korean and U.S. adjusted EOD data, build a source-hashed four-exchange universe, and evaluate frozen selected candidates against opening-hour outcomes.",
     "developerName": "mrcha033",
     "category": "Finance",
     "capabilities": [
@@ -28,7 +28,7 @@
     "defaultPrompt": [
       "Acquire resumable read-only KIS Korean and U.S. adjusted-EOD bundles.",
       "Calculate a technical report from these completed OHLCV files.",
-      "Build and screen a frozen four-exchange technical universe."
+      "Evaluate frozen selected candidates against opening-hour outcomes."
     ]
   }
 }

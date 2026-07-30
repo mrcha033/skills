@@ -28,8 +28,8 @@
       "name": "quant-stock-technical",
       "displayName": "Quant Stock Technical",
       "source": "./plugins/quant-stock-technical",
-      "description": "Acquire audited KIS Korean and U.S. EOD data and screen a deterministic KOSPI, KOSDAQ, NYSE, and NASDAQ technical universe.",
-      "version": "0.4.5",
+      "description": "Acquire audited KIS EOD data, screen four exchanges, and evaluate selected opening-hour outcomes.",
+      "version": "0.4.6",
       "author": {
         "name": "mrcha033"
       },
