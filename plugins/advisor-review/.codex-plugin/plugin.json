@@ -1,7 +1,7 @@
 {
   "name": "advisor-review",
-  "version": "0.2.0",
-  "description": "Run an evidence-linked Sol review with a validated parent follow-through gate.",
+  "version": "0.4.0",
+  "description": "Run an evidence-linked Sol review with Orca orchestration and proactive research-memory use.",
   "author": {
     "name": "mrcha033",
     "url": "https://github.com/mrcha033"
@@ -23,7 +23,9 @@
     "capabilities": [
       "Interactive",
       "Read-only review",
-      "Decision validation"
+      "Decision validation",
+      "Research memory retrieval and checkpoint",
+      "Orca worker model routing"
     ],
     "websiteURL": "https://github.com/mrcha033/skills",
     "defaultPrompt": [

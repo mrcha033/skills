@@ -1,0 +1,52 @@
+{
+  "description": "Activate Advisor Review and research-memory workflows for an Orca orchestrator.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/activate_for_orca_orchestrator.py\"",
+            "statusMessage": "Checking Orca orchestrator activation",
+            "additionalContextLimit": 500
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/activate_for_orca_orchestrator.py\"",
+            "statusMessage": "Checking Orca orchestrator activation",
+            "additionalContextLimit": 500
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/retrieve_s3_when_stuck.py\"",
+            "additionalContextLimit": 500
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/checkpoint_s3_memory.py\"",
+            "statusMessage": "Checking for reusable research lessons",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
