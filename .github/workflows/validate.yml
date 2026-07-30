@@ -26,36 +26,6 @@ jobs:
           PY
       - name: Validate distribution catalog synchronization
         run: python -B scripts/sync_distribution.py --check
-      - name: Run deterministic calculator self-test
-        run: python -B skills/quant-stock-technical/scripts/analyze_stock.py --self-test
-      - name: Run first-hour research calculator self-test
-        run: python -B skills/quant-stock-technical/scripts/analyze_stock_v2.py --self-test
-      - name: Run read-only opening-hour collector self-test
-        run: python -B skills/quant-stock-technical/scripts/collect_open1h_research.py --self-test
-      - name: Run opening-hour evaluator self-test
-        run: python -B skills/quant-stock-technical/scripts/evaluate_open1h_research.py --self-test
-      - name: Run selected opening-hour outcomes self-test
-        run: python -B skills/quant-stock-technical/scripts/selected_open1h_outcomes.py --self-test
-      - name: Run selected opening-hour walk-forward self-test
-        run: python -B skills/quant-stock-technical/scripts/walk_forward_open1h.py --self-test
-      - name: Run four-exchange universe builder self-test
-        run: python -B skills/quant-stock-technical/scripts/build_universe_manifest.py --self-test
-      - name: Run deterministic universe screen self-test
-        run: python -B skills/quant-stock-technical/scripts/screen_universe.py --self-test
-      - name: Run KIS Korea EOD collector self-test
-        run: python -B skills/quant-stock-technical/scripts/fetch_kis_kr_eod.py --self-test
-      - name: Run KIS U.S. EOD collector self-test
-        run: python -B skills/quant-stock-technical/scripts/fetch_kis_us_eod.py --self-test
-      - name: Run account snapshot collector self-test
-        run: python -B skills/quant-stock-polling-trader/scripts/account_snapshot.py self-test
-      - name: Run official market calendar self-test
-        run: python -B skills/quant-stock-polling-trader/scripts/market_calendar.py self-test
-      - name: Run recurring daily pipeline self-test
-        run: python -B skills/quant-stock-polling-trader/scripts/daily_pipeline.py self-test
-      - name: Run strategy-position lifecycle self-test
-        run: python -B skills/quant-stock-polling-trader/scripts/position_lifecycle.py --self-test
-      - name: Run systemd generator self-test
-        run: python -B skills/quant-stock-polling-trader/scripts/systemd_units.py self-test
       - name: Run mandatory handoff-gate self-test
         run: python -B skills/stock-scenario-story/scripts/validate_quant_handoff.py --self-test
       - name: Run numbers-free story gate self-test
@@ -82,28 +52,6 @@ jobs:
         run: python -B tests/test_handoff_integration.py
       - name: Run advisor integration test
         run: python -B tests/test_advisor_review.py
-      - name: Run universe builder regression
-        run: python -B tests/test_universe_builder.py
-      - name: Run four-exchange screen contract regression
-        run: python -B tests/test_screen_universe.py
-      - name: Run screening and execution regression
-        run: python -B tests/test_quant_execution.py
-      - name: Run QTA2 execution and market-regime regression
-        run: |
-          python -B tests/test_qta2_execution.py
-          python -B tests/test_qta2_market_regime.py
-      - name: Run strategy-position ledger regression
-        run: python -B tests/test_position_lifecycle.py
-      - name: Run systemd unit generator regression
-        run: python -B tests/test_systemd_units.py
-      - name: Run KIS U.S. EOD regression
-        run: python -B tests/test_kis_us_eod.py
-      - name: Run KIS Korea EOD regression
-        run: python -B tests/test_kis_kr_eod.py
-      - name: Run official market calendar regression
-        run: python -B tests/test_market_calendar.py
-      - name: Run recurring daily pipeline regression
-        run: python -B tests/test_daily_pipeline.py
       - name: Validate marketplace packaging
         run: python -B tests/test_marketplace_packaging.py
       - name: Validate deterministic release packaging

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "distributionVersion": "2.4.5",
+  "distributionVersion": "2.5.0",
   "releaseTagPrefix": "skills-v",
   "guaranteeScope": "Package compatibility guarantees archive layout, manifest placement, and byte integrity. Runtime compatibility remains conditional on each skill's declared tools, authentication, network, and data requirements.",
   "formats": {
@@ -95,44 +95,8 @@
       "notes": "The skill deliberately depends on an existing local browser login and does not accept copied credentials or cookies."
     },
     {
-      "name": "quant-stock-polling-trader",
-      "version": "0.5.4",
-      "runtime": {
-        "codex": "supported",
-        "claudeCode": "supported",
-        "chatgptWeb": "unsupported",
-        "claudeWeb": "unsupported"
-      },
-      "requirements": [
-        "Python 3",
-        "local shell execution",
-        "KIS Open API credentials for the selected paper or live scope",
-        "outbound access to the selected broker API",
-        "secure local secret injection or a permission-0600 dotenv fallback",
-        "frozen screen, account, exposure, calendar, risk, and execution-policy inputs",
-        "systemd for generated Linux user units"
-      ],
-      "notes": "The daily KIS live/shadow pipeline now accepts research-only QTA2 screens, performs a fresh same-session benchmark-regime check before entry quotes, and persists strategy fill ownership in an account/market position ledger across session dates. Daily preparation remains market-scoped, ntfy stays best-effort, and API mutations remain fixed to zero."
-    },
-    {
-      "name": "quant-stock-technical",
-      "version": "0.4.6",
-      "runtime": {
-        "codex": "supported",
-        "claudeCode": "supported",
-        "chatgptWeb": "conditional",
-        "claudeWeb": "conditional"
-      },
-      "requirements": [
-        "Python 3",
-        "user-provided finalized OHLCV and benchmark files, or KIS Open API credentials for read-only Korean and U.S. EOD acquisition",
-        "outbound KRX, Nasdaq Trader, KIS, and benchmark source access"
-      ],
-      "notes": "Adds read-only selected-candidate point-in-time outcomes and an explicitly survivor-biased 2-252-session Korean opening-hour walk-forward diagnostic. A flat initial true-range seed now initializes ADX at zero instead of making it permanently unavailable, and feature failures identify the exact field. QTA2 remains research-only."
-    },
-    {
       "name": "stock-scenario-story",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "runtime": {
         "codex": "conditional",
         "claudeCode": "conditional",
@@ -140,11 +104,11 @@
         "claudeWeb": "conditional"
       },
       "requirements": [
-        "complete quant-stock-technical JSON handoff",
+        "complete external QTA JSON handoff matching quant-stock-technical/v1",
         "Python 3",
         "web research with point-of-use citations"
       ],
-      "notes": "The skill is never standalone at runtime even though its upload archive is standalone."
+      "notes": "The skill consumes the legacy quant-stock-technical/v1 handoff contract from an external QTA system; the producer is no longer distributed in this marketplace."
     },
     {
       "name": "yonsei-central-student-governance-counsel",

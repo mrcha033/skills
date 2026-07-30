@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""End-to-end contract test between the paired stock-analysis skills."""
+"""Validate the story skill against the external QTA handoff contract."""
 
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-QUANT_PATH = ROOT / "skills/quant-stock-technical/scripts/analyze_stock.py"
 STORY_GATE_PATH = ROOT / "skills/stock-scenario-story/scripts/validate_quant_handoff.py"
 
 
@@ -24,11 +23,9 @@ def load_module(name: str, path: Path):
 
 
 def main() -> None:
-    quant = load_module("quant_calculator", QUANT_PATH)
     story_gate = load_module("story_gate", STORY_GATE_PATH)
-    ticker_bars = quant.synthetic_bars(1100, 0.0006, 0.0)
-    benchmark_bars = quant.synthetic_bars(1100, 0.0003, 1.0)
-    result = quant.calculate(ticker_bars, benchmark_bars, "TEST", "SYNTH", 0.01, "integration-test")
+    result = story_gate.valid_fixture()
+    result["source_name"] = "external-qta-contract-fixture"
     receipt = story_gate.validate(result)
     assert receipt["gate_status"] == "PASSED"
     assert receipt["source_skill"] == "quant-stock-technical"
