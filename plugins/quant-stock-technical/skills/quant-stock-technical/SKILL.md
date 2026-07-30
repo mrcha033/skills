@@ -1,6 +1,6 @@
 ---
 name: quant-stock-technical
-description: Acquire resumable read-only KIS Korean and U.S. adjusted-EOD bundles, calculate reproducible numbers-only stock technical analysis, and screen deterministic KOSPI, KOSDAQ, NYSE, and NASDAQ target universes. Use when the user needs completed historical OHLCV and benchmarks, an as-of-date market/ticker report, short-, medium-, and long-horizon opinions, a quantitative risk counterpoint, entry/stop/take-profit levels, a 0-100 technical-strength score, or a frozen exchange-aware screen for a separate execution system. Do not use news, fundamentals, analyst views, narrative judgment, intraday execution, or live-order claims.
+description: Acquire resumable read-only KIS Korean and U.S. adjusted-EOD bundles, calculate reproducible numbers-only stock technical analysis, screen deterministic KOSPI, KOSDAQ, NYSE, and NASDAQ target universes, and evaluate frozen selected candidates against opening-hour outcomes. Use when the user needs completed historical OHLCV and benchmarks, an as-of-date market/ticker report, short-, medium-, and long-horizon opinions, a quantitative risk counterpoint, entry/stop/take-profit levels, a 0-100 technical-strength score, a frozen exchange-aware screen, or a read-only point-in-time or explicitly survivor-biased walk-forward diagnostic. Do not use news, fundamentals, analyst views, narrative judgment, intraday execution, or live-order claims.
 ---
 
 # Quant Stock Technical
@@ -104,8 +104,16 @@ python3 scripts/build_universe_manifest.py --self-test
 python3 scripts/analyze_stock_v2.py --self-test
 python3 scripts/collect_open1h_research.py --self-test
 python3 scripts/evaluate_open1h_research.py --self-test
+python3 scripts/selected_open1h_outcomes.py --self-test
+python3 scripts/walk_forward_open1h.py --self-test
 python3 scripts/screen_universe.py --self-test
 ```
+
+For a longer selected-candidate diagnostic, use
+`scripts/walk_forward_open1h.py`. It holds one source manifest membership
+static across prior sessions and therefore labels the result
+`STATIC_SOURCE_MANIFEST_SURVIVOR_BIASED`; it is research evidence, not a
+point-in-time universe backtest or promotion evidence.
 
 When `$stock-scenario-story` will run next, save the unmodified JSON output to a file. That downstream skill requires `source_skill`, `result_schema`, `method_version`, and the complete calculator payload; do not summarize or reconstruct the handoff manually.
 

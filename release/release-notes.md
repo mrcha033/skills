@@ -1,6 +1,14 @@
 This release contains the versioned distribution packages declared in
 `release/catalog.json`.
 
+- Distribution 2.4.5 updates `quant-stock-technical` to 0.4.6. It adds
+  read-only selected-candidate point-in-time outcomes and an explicitly
+  survivor-biased 2-252-session Korean opening-hour walk-forward diagnostic.
+  A flat initial true-range seed now initializes ADX at zero instead of making
+  it permanently unavailable, and blocked calculations identify the exact
+  missing feature. QTA2 remains research-only; the new diagnostics make no
+  order calls and always report `live_enabled=false`.
+
 - Distribution 2.4.4 updates `quant-stock-technical` to 0.4.5 and
   `quant-stock-polling-trader` to 0.5.4. It adds research-only QTA2 scoring
   from a complete 2026-07-28 first-hour universe diagnostic, turnover
