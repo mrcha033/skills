@@ -1,4 +1,0 @@
-interface:
-  display_name: "Quant Stock Polling Trader"
-  short_description: "Simple KIS shadow polling and systemd automation"
-  default_prompt: "Use $quant-stock-polling-trader to configure a direct KIS shadow workflow, prepare the market, snapshot and plan, run first-hour polling, reconcile, and automate it with systemd without approval-digest or trading-arm gates."

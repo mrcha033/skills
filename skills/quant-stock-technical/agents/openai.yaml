@@ -1,4 +1,0 @@
-interface:
-  display_name: "Quant Stock Technical"
-  short_description: "Four-exchange screening and opening-hour research"
-  default_prompt: "Use $quant-stock-technical to acquire read-only KIS EOD data, calculate reproducible technical scores, screen a frozen four-exchange universe, or evaluate selected opening-hour outcomes."

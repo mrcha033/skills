@@ -1,6 +1,6 @@
 ---
 name: stock-scenario-story
-description: Research and perform a vivid, numbers-free, evidence-grounded stock story only after a complete quant-stock-technical JSON result has passed the bundled handoff validator. Use when the user wants a flamboyant showman-style qualitative tale about a company's products, characters, competition, customers, catalysts, culture, policy pressures, dreams, and dangers as pure entertainment. Never run standalone, reveal or restate upstream numbers, reconstruct missing quant inputs, or present the performance as a forecast or personalized investment advice.
+description: Research and perform a vivid, numbers-free, evidence-grounded stock story only after a complete external QTA JSON result matching quant-stock-technical/v1 has passed the bundled handoff validator. Use when the user wants a flamboyant showman-style qualitative tale about a company's products, characters, competition, customers, catalysts, culture, policy pressures, dreams, and dangers as pure entertainment. Never run standalone, reveal or restate upstream numbers, reconstruct missing quant inputs, or present the performance as a forecast or personalized investment advice.
 ---
 
 # Stock Scenario Story
@@ -9,7 +9,10 @@ Turn a validated deterministic technical result into an entertaining but auditab
 
 ## Mandatory invocation gate
 
-Require the complete JSON output from `$quant-stock-technical`. A summary, screenshot, Markdown table, manually typed score, or output from another calculator is insufficient.
+Require the complete JSON output from the standalone QTA system. It must match
+the legacy `quant-stock-technical/v1` contract; the producer is not a required
+marketplace skill. A summary, screenshot, Markdown table, manually typed score,
+or output from another calculator is insufficient.
 
 Run:
 
@@ -17,7 +20,9 @@ Run:
 python3 scripts/validate_quant_handoff.py /absolute/path/to/quant-result.json --output /absolute/path/to/quant-receipt.json
 ```
 
-Continue only when the receipt has `gate_status: PASSED`. If it returns `BLOCKED`, stop and request a fresh JSON run from `$quant-stock-technical`. Never repair, infer, or hand-create the missing upstream fields.
+Continue only when the receipt has `gate_status: PASSED`. If it returns
+`BLOCKED`, stop and request a fresh JSON export from the standalone QTA system.
+Never repair, infer, or hand-create the missing upstream fields.
 
 Treat the receipt as an invisible backstage pass. Use it only to prove that the deterministic analysis ran first. Never quote, paraphrase, compare, hint at, or display its numeric contents in the qualitative output.
 

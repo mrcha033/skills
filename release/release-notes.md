@@ -1,6 +1,13 @@
 This release contains the versioned distribution packages declared in
 `release/catalog.json`.
 
+- Distribution 2.5.0 removes `quant-stock-technical` and
+  `quant-stock-polling-trader` from the skill marketplace. Their deterministic
+  source, tests, and active shadow automation were ported byte-for-byte into a
+  dedicated standalone QTA project before removal. `stock-scenario-story`
+  is updated to 0.1.1, remains available, and continues to validate the legacy
+  `quant-stock-technical/v1` external handoff contract.
+
 - Distribution 2.4.5 updates `quant-stock-technical` to 0.4.6. It adds
   read-only selected-candidate point-in-time outcomes and an explicitly
   survivor-biased 2-252-session Korean opening-hour walk-forward diagnostic.

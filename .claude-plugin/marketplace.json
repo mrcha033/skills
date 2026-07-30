@@ -25,29 +25,11 @@
       ]
     },
     {
-      "name": "quant-stock-technical",
-      "displayName": "Quant Stock Technical",
-      "source": "./plugins/quant-stock-technical",
-      "description": "Acquire audited KIS EOD data, screen four exchanges, and evaluate selected opening-hour outcomes.",
-      "version": "0.4.6",
-      "author": {
-        "name": "mrcha033"
-      },
-      "homepage": "https://github.com/mrcha033/skills",
-      "repository": "https://github.com/mrcha033/skills",
-      "category": "finance",
-      "tags": [
-        "stocks",
-        "technical-analysis",
-        "quantitative"
-      ]
-    },
-    {
       "name": "stock-scenario-story",
       "displayName": "Stock Scenario Story",
       "source": "./plugins/stock-scenario-story",
       "description": "Research and narrate a sourced, numbers-free market story after a validated quant handoff.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": {
         "name": "mrcha033"
       },
@@ -130,24 +112,6 @@
         "kakaotalk",
         "reply",
         "retrieval"
-      ]
-    },
-    {
-      "name": "quant-stock-polling-trader",
-      "displayName": "Quant Stock Polling Trader",
-      "source": "./plugins/quant-stock-polling-trader",
-      "description": "Build and supervise deterministic daily KIS shadow sessions from official calendars through reconciliation.",
-      "version": "0.5.4",
-      "author": {
-        "name": "mrcha033"
-      },
-      "homepage": "https://github.com/mrcha033/skills",
-      "repository": "https://github.com/mrcha033/skills",
-      "category": "finance",
-      "tags": [
-        "stocks",
-        "broker-api",
-        "polling"
       ]
     }
   ]

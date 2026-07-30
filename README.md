@@ -1,6 +1,6 @@
 # MrCha Skills
 
-A public, multi-topic collection of portable Agent Skills by `mrcha033`, packaged as eight independently installable marketplace plugins for Codex and Claude Code.
+A public, multi-topic collection of portable Agent Skills by `mrcha033`, packaged as six independently installable marketplace plugins for Codex and Claude Code.
 
 Each directory under `skills/` remains a self-contained skill built around `SKILL.md`. Each marketplace plugin contains exactly one matching skill; none adds MCP servers or hooks. Broker credentials stay local and are never packaged.
 
@@ -15,8 +15,6 @@ codex plugin add agent-finish-line@mrcha-skills
 codex plugin add yonsei-central-student-governance-counsel@mrcha-skills
 codex plugin add learnus-course-copilot@mrcha-skills
 codex plugin add katok-reply-reuse@mrcha-skills
-codex plugin add quant-stock-technical@mrcha-skills
-codex plugin add quant-stock-polling-trader@mrcha-skills
 codex plugin add stock-scenario-story@mrcha-skills
 ```
 
@@ -31,8 +29,6 @@ claude plugin install agent-finish-line@mrcha-skills
 claude plugin install yonsei-central-student-governance-counsel@mrcha-skills
 claude plugin install learnus-course-copilot@mrcha-skills
 claude plugin install katok-reply-reuse@mrcha-skills
-claude plugin install quant-stock-technical@mrcha-skills
-claude plugin install quant-stock-polling-trader@mrcha-skills
 claude plugin install stock-scenario-story@mrcha-skills
 ```
 
@@ -111,60 +107,21 @@ The General Student Council corpus is sourced from the public Drive linked by th
 
 ## Finance skills
 
-### Quant Stock Technical
+### QTA migration
 
-`quant-stock-technical` calculates reproducible technical opinions, risk, entry, stop, target, and a historical technical-strength score from completed daily adjusted OHLCV data. It can also build and screen a deterministic, source-hashed intersection of KOSPI, KOSDAQ, NYSE, and NASDAQ listings without changing `qta-1.0.0`. It excludes news, fundamentals, sentiment, analyst opinion, discretionary model judgment, and broker mutations.
-
-`quant-stock-polling-trader` is a separately installable execution plugin. Its
-daily path is a direct `prepare → snapshot/plan → shadow entry → reconcile`
-workflow for KIS. It does not require approved source digests, provenance
-signatures, account-identity HMACs, trading-arm files, or Toss/NH exports.
-Additional Toss/NH exposure files may be supplied when the user wants them
-included, but they are not prerequisites.
-Its first-hour runner precomputes the slow path before the open, warms
-authentication 30 seconds early, admits only broker-rate-feasible candidate
-counts, polls on absolute rank-ordered cycles, and records cycle/quote/submit
-latency. Live mutation remains disabled.
-Its systemd generator emits an execution-readable strict bundle and hardened
-units into an empty directory. The command itself is non-activating, but an
-explicit request for actual automation is not complete until the reviewed
-units are installed, enabled or started as requested, and their user-systemd
-state is verified.
-The four-exchange v2 universe is currently qualified from KIS stock masters, so
-v2 planning is KIS-only; Toss remains available only through the legacy
-contract until a Toss-qualified universe snapshot is implemented and verified.
-V2 planning also requires a local SHA-256-bound market-session snapshot,
-the latest completed session date, and fresh same-instant account/exposure
-snapshots.
-
-For KIS, keep paper and live app keys separate. Prefer process environment or
-an OS secret store; use `~/.config/mrcha-skills/secrets.env` with permission
-`0600` only as a fallback. Check status first:
-
-```bash
-python3 skills/quant-stock-polling-trader/scripts/broker_credentials.py status --environment paper
-```
-
-If it reports `BLOCKED`, run `configure` yourself in an interactive local
-terminal so credentials never enter chat or an agent-owned PTY:
-
-```bash
-python3 skills/quant-stock-polling-trader/scripts/broker_credentials.py configure --environment paper
-```
-
-After configuration, let the agent recheck presence and verify token issuance
-without printing or persisting the token:
-
-```bash
-python3 skills/quant-stock-polling-trader/scripts/broker_credentials.py status --environment paper
-python3 skills/quant-stock-polling-trader/scripts/broker_credentials.py auth-check --environment paper
-```
-
-Authentication does not enable an order, and live mutation remains disabled.
+`quant-stock-technical` and `quant-stock-polling-trader` are no longer
+distributed as marketplace skills. The QTA implementation and its automation
+now live in a dedicated standalone project, where long-running market-data,
+execution, ledger, and calibration jobs can be managed as one application.
+Existing users should remove those two marketplace plugins after migrating
+their local runtime; this repository does not publish a replacement plugin.
 
 ### Stock Scenario Story
 
-`stock-scenario-story` is its qualitative antithesis. It runs only after validating the complete result from `quant-stock-technical`, hides every upstream number, researches the surrounding company and market context, and tells a sourced, theatrical, numbers-free story purely for entertainment.
+`stock-scenario-story` runs only after validating a complete external QTA
+result matching the legacy `quant-stock-technical/v1` contract, hides every
+upstream number, researches the surrounding company and market context, and
+tells a sourced, theatrical, numbers-free story purely for entertainment.
 
 ## Versioned release packages
 
@@ -218,8 +175,6 @@ If marketplace installation is unavailable, clone the repository and copy only t
 
 ```bash
 git clone https://github.com/mrcha033/skills.git mrcha-skills
-cp -R mrcha-skills/skills/quant-stock-technical ~/.codex/skills/
-cp -R mrcha-skills/skills/quant-stock-polling-trader ~/.codex/skills/
 cp -R mrcha-skills/skills/stock-scenario-story ~/.codex/skills/
 cp -R mrcha-skills/skills/advisor-review ~/.codex/skills/
 cp -R mrcha-skills/skills/agent-finish-line ~/.codex/skills/
@@ -228,7 +183,10 @@ cp -R mrcha-skills/skills/learnus-course-copilot ~/.codex/skills/
 cp -R mrcha-skills/skills/katok-reply-reuse ~/.codex/skills/
 ```
 
-Start a new Codex task after copying. Invoke `$advisor-review` explicitly when you want an independent review. For the paired finance workflow, invoke `$quant-stock-technical` first and pass its unmodified JSON result to `$stock-scenario-story`.
+Start a new Codex task after copying. Invoke `$advisor-review` explicitly when
+you want an independent review. For the finance story workflow, pass an
+unmodified external QTA result matching `quant-stock-technical/v1` to
+`$stock-scenario-story`.
 
 ## Standalone Claude Code skills
 
@@ -257,42 +215,9 @@ marketplace and update normally. ChatGPT and Claude web uploads remain copied
 artifacts, so those users must upload the newly versioned file; the platform
 does not currently turn a local upload into a repository subscription.
 
-## Input
-
-The deterministic calculator requires finalized ticker and same-exchange
-benchmark CSV files with:
-
-```text
-date,open,high,low,close,adjusted_close,volume
-```
-
-Also provide the market, ticker, and valid effective tick size. The calculator
-requires at least 756 shared completed sessions and recommends 1,260.
-
-The four-exchange builder additionally requires dated official listing and
-broker-master snapshots, explicit adjusted-EOD file mappings, benchmark
-mappings, effective-dated tick contracts, and a hashed per-exchange catalog
-coverage minimum. Missing data is recorded as an exclusion; it is never
-fetched or guessed during the entry window.
-
 ## Validation
 
 ```bash
-python3 -B skills/quant-stock-technical/scripts/analyze_stock.py --self-test
-python3 -B skills/quant-stock-technical/scripts/build_universe_manifest.py --self-test
-python3 -B skills/quant-stock-technical/scripts/screen_universe.py --self-test
-python3 -B skills/quant-stock-technical/scripts/fetch_kis_kr_eod.py --self-test
-python3 -B skills/quant-stock-technical/scripts/fetch_kis_us_eod.py --self-test
-python3 -B skills/quant-stock-polling-trader/scripts/execution_core.py --self-test
-python3 -B skills/quant-stock-polling-trader/scripts/broker_adapters.py --self-test
-python3 -B skills/quant-stock-polling-trader/scripts/broker_credentials.py self-test
-python3 -B skills/quant-stock-polling-trader/scripts/account_snapshot.py self-test
-python3 -B skills/quant-stock-polling-trader/scripts/market_calendar.py self-test
-python3 -B skills/quant-stock-polling-trader/scripts/daily_pipeline.py self-test
-python3 -B skills/quant-stock-polling-trader/scripts/systemd_units.py self-test
-python3 -B skills/quant-stock-polling-trader/scripts/plan_orders.py --self-test
-python3 -B skills/quant-stock-polling-trader/scripts/run_session.py self-test
-python3 -B skills/quant-stock-polling-trader/scripts/reconcile.py --self-test
 python3 -B skills/stock-scenario-story/scripts/validate_quant_handoff.py --self-test
 python3 -B skills/stock-scenario-story/scripts/validate_story_text.py --self-test
 python3 -B skills/advisor-review/scripts/build_context_packet.py --self-test
@@ -306,19 +231,10 @@ python3 -B skills/katok-reply-reuse/scripts/rank_replies.py --self-test
 python3 -B skills/yonsei-central-student-governance-counsel/scripts/self_test.py
 python3 -B tests/test_handoff_integration.py
 python3 -B tests/test_advisor_review.py
-python3 -B tests/test_universe_builder.py
-python3 -B tests/test_screen_universe.py
-python3 -B tests/test_quant_execution.py
-python3 -B tests/test_kis_us_eod.py
-python3 -B tests/test_market_calendar.py
-python3 -B tests/test_daily_pipeline.py
-python3 -B tests/test_systemd_units.py
 python3 -B scripts/sync_distribution.py --check
 python3 -B tests/test_marketplace_packaging.py
 python3 -B tests/test_release_packaging.py
 claude plugin validate . --strict
 ```
-
-The score is historical technical strength, not a probability of profit. Calculated price levels do not account for suitability, position sizing, fees, taxes, FX, slippage, broker rules, or fill probability.
 
 No software license has been granted yet. Public availability does not grant permission to copy, modify, or redistribute the contents.
