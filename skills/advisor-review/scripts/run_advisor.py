@@ -23,6 +23,7 @@ RUNTIMES = ("codex", "claude", "opencode", "gemini")
 ALLOWED_EFFORTS = ("high", "xhigh", "max")
 RUN_SCHEMA_VERSION = "advisor-run-2.0"
 OUTPUT_SCHEMA = advice_validator.OUTPUT_SCHEMA
+JSON_SCHEMA_DRAFT_URI = "https://json-schema.org/draft/2020-12/schema"
 SESSION_MARKERS = {
     "OPENCODE": "opencode",
     "CLAUDE_CODE": "claude",
@@ -175,6 +176,8 @@ def build_prompt(
         "- Prefer the smallest discriminating experiment with an explicit stop condition.\n"
         "- Label every action read_only, reversible, or destructive.\n"
         "- Return only one JSON object matching the required output schema.\n\n"
+        "REQUIRED OUTPUT JSON SCHEMA\n"
+        f"{json.dumps(OUTPUT_SCHEMA, ensure_ascii=False, indent=2)}\n\n"
         "REVIEW RUBRIC\n"
         f"{rubric.strip()}\n\n"
         "CONTEXT PACKET\n"
@@ -323,6 +326,16 @@ def parse_advice_output(
 ) -> dict[str, Any]:
     errors: list[str] = []
     for candidate in _json_candidates(raw):
+        if (
+            isinstance(candidate, dict)
+            and candidate.get("$schema") == JSON_SCHEMA_DRAFT_URI
+        ):
+            # OpenCode may echo the schema metadata when producing structured
+            # JSON. It is transport metadata, not part of advisor advice;
+            # keep all other unexpected fields strict.
+            candidate = {
+                key: value for key, value in candidate.items() if key != "$schema"
+            }
         try:
             return advice_validator.validate(candidate, known_refs=known_refs)
         except advice_validator.AdviceError as exc:
@@ -539,6 +552,7 @@ def self_test() -> None:
     assert "Do not call tools." in prompt
     assert "Requested advisor model: test-model" in prompt
     assert "Requested advisor effort: xhigh" in prompt
+    assert '"evidence_refs"' in prompt
     assert packet["context_hash"] in prompt
     assert detect_runtime("auto", environ={"OPENCODE": "1"}, available=[]) == "opencode"
     try:
@@ -571,6 +585,11 @@ def self_test() -> None:
         )[:3] == ["opencode", "--pure", "run"]
 
         advice = _valid_advice()
+        echoed_schema_advice = {**advice, "$schema": JSON_SCHEMA_DRAFT_URI}
+        assert parse_advice_output(
+            json.dumps(echoed_schema_advice),
+            known_refs=advice_validator.known_refs_from_packet(packet),
+        ) == advice
         valid_codex = temp_dir / "valid-codex"
         valid_codex.write_text(
             "#!/usr/bin/env python3\n"
@@ -605,6 +624,18 @@ def self_test() -> None:
         assert receipt["request"]["requested_model"] == "test-model"
         assert receipt["request"]["observed_model"] is None
         assert receipt["request"]["identity_verification"].startswith("unverified")
+
+        incomplete = _valid_advice()
+        del incomplete["diagnosis"]["evidence_refs"]
+        try:
+            parse_advice_output(
+                json.dumps(incomplete),
+                known_refs=advice_validator.known_refs_from_packet(packet),
+            )
+        except RunnerError as exc:
+            assert "evidence_refs" in str(exc)
+        else:
+            raise AssertionError("incomplete advisor JSON was accepted")
 
         for runtime in ("claude", "opencode", "gemini"):
             valid_runtime = temp_dir / f"valid-{runtime}"
