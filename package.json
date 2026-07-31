@@ -1,0 +1,26 @@
+{
+  "name": "mrcha-skills",
+  "version": "2.5.0",
+  "description": "Portable agent skills for OpenCode, Codex, and Claude Code.",
+  "type": "module",
+  "main": "./index.js",
+  "exports": "./index.js",
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "agent-skills",
+    "codex",
+    "claude-code"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mrcha033/skills.git"
+  },
+  "homepage": "https://github.com/mrcha033/skills",
+  "bugs": {
+    "url": "https://github.com/mrcha033/skills/issues"
+  }
+}

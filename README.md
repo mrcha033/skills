@@ -34,6 +34,22 @@ claude plugin install stock-scenario-story@mrcha-skills
 
 Install only the plugins you want. Run `/reload-plugins` in an active Claude Code session. Skills use their plugin namespace, such as `/advisor-review:advisor-review`.
 
+### OpenCode
+
+This repository is also an npm-compatible OpenCode plugin. Add the GitHub
+package to `~/.config/opencode/opencode.jsonc`:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["github:mrcha033/skills"]
+}
+```
+
+OpenCode installs the package and registers its bundled `skills/` directory.
+Restart OpenCode after changing the configuration. Once published to npm, the
+same entry can use `"mrcha-skills"` instead.
+
 ### Migrate Secuway VPN to its standalone marketplace
 
 `secuway-vpn` moved to the dedicated

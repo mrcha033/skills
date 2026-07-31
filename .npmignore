@@ -1,0 +1,13 @@
+.github/
+.agents/
+.claude-plugin/
+dist/
+downloads/
+plugins/
+release/
+scripts/
+tests/
+**/__pycache__/
+**/*.py[cod]
+.gitignore
+.gitattributes
