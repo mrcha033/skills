@@ -182,7 +182,7 @@ def self_test() -> None:
                 "kind": "fact",
                 "claim": "The parent task recorded no bundled advisor runner call.",
                 "evidence_refs": ["E1"],
-                "impact": "The fixed Sol reviewer could not influence parent actions.",
+                "impact": "The selected runtime reviewer could not influence parent actions.",
             },
             {
                 "id": "F2",
@@ -209,7 +209,7 @@ def self_test() -> None:
                 "id": "R1",
                 "priority": 1,
                 "action": "Enable same-task activation for explicit advisor mentions.",
-                "why": "The fixed reviewer is bypassed in the observed parent task.",
+                "why": "The selected runtime reviewer is bypassed in the observed parent task.",
                 "evidence_refs": ["E1", "E2"],
                 "risk": "reversible",
             }

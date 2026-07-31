@@ -1,7 +1,7 @@
 {
   "name": "advisor-review",
   "version": "0.4.0",
-  "description": "Run an evidence-linked Sol review with Orca orchestration and proactive research-memory use.",
+  "description": "Run an evidence-linked runtime-selected advisor review with Orca orchestration and proactive research-memory use.",
   "author": {
     "name": "mrcha033",
     "url": "https://github.com/mrcha033"
@@ -16,7 +16,7 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Advisor Review",
-    "shortDescription": "Evidence-linked Sol review with follow-through validation",
+    "shortDescription": "Evidence-linked advisor review with follow-through validation",
     "longDescription": "Challenge a plan, diagnose stalled work, assess a pivot, or audit completion through source-anchored evidence and a required adopt/reject/defer decision record.",
     "developerName": "mrcha033",
     "category": "Productivity",

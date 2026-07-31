@@ -31,7 +31,7 @@
   "skills": [
     {
       "name": "advisor-review",
-      "version": "0.2.0",
+      "version": "0.4.0",
       "runtime": {
         "codex": "supported",
         "claudeCode": "conditional",
@@ -41,11 +41,11 @@
       "requirements": [
         "Python 3",
         "local shell execution",
-        "authenticated local Codex CLI",
-        "GPT-5.6 Sol model route",
-        "outbound Codex API access"
+        "authenticated CLI for the active agent runtime",
+        "caller-selected advisor model route",
+        "outbound API access for the active agent runtime"
       ],
-      "notes": "The package can be uploaded anywhere that accepts the archive layout, but the nested local Codex CLI process cannot run in a web-only skill sandbox."
+      "notes": "The package can be uploaded anywhere that accepts the archive layout, but the nested local runtime CLI cannot run in a web-only skill sandbox."
     },
     {
       "name": "agent-finish-line",

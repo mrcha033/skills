@@ -99,7 +99,7 @@ Replace `advisor-review` with any plugin name above, or install multiple individ
 
 ### Advisor Review
 
-`advisor-review` asks an independent GPT-5.6 Sol route to challenge a plan, diagnose stalled work, assess a pivot, or audit completion. Version 0.2 adds same-task activation for explicit advisor language, source-anchored evidence and bounded artifacts, evidence-linked diagnostic output, and a required adopt/reject/defer decision record before the parent agent acts. The receipt distinguishes requested model/effort from serving-side identity, which the CLI currently leaves unverified.
+`advisor-review` asks the active agent runtime's caller-selected model to challenge a plan, diagnose stalled work, assess a pivot, or audit completion. It supports Codex, Claude Code, OpenCode, and Gemini CLIs, auto-selecting the session runtime when its marker is available. The receipt distinguishes requested model/effort from serving-side identity, which runtime output may leave unverified.
 
 ### Agent Finish Line
 
@@ -163,7 +163,8 @@ truth.
 
 The compatibility guarantee is deliberately limited to package layout and byte
 integrity. It does not invent a tool or login that the target runtime lacks.
-For example, `advisor-review` needs a local authenticated Codex CLI,
+For example, `advisor-review` needs a local authenticated CLI for the active
+agent runtime,
 `katok-reply-reuse` needs the authorized macOS KakaoTalk archive, and
 `learnus-course-copilot` needs the user's authenticated local browser session.
 Those three packages can be structurally inspected by a web uploader but cannot

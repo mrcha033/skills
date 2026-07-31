@@ -35,7 +35,7 @@ def arch_candidate_advice() -> dict:
                 "kind": "fact",
                 "claim": "Explicit display-name requests did not invoke the bundled runner.",
                 "evidence_refs": ["E2", "E3"],
-                "impact": "The fixed Sol route was bypassed in the active task.",
+                "impact": "The selected advisor runtime was bypassed in the active task.",
             },
             {
                 "id": "F2",
@@ -183,6 +183,8 @@ def main() -> None:
     assert "same parent task" in instructions
     assert "Do not search the global tool catalog" in instructions
     assert "scripts/validate_decision.py" in instructions
+    assert "request.runtime" in instructions
+    assert "caller-selected-model" in instructions
     assert "observed_model" in instructions
     assert "allow_implicit_invocation: true" in agent_config
     print("advisor integration and Arch regression: PASS")

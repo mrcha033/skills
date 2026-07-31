@@ -1,17 +1,17 @@
 ---
 name: advisor-review
-description: Run a fixed GPT-5.6 Sol advisor-style review in the current task when the user invokes $advisor-review, says Advisor Review or @Advisor-Review, explicitly asks for an advisor/second opinion/adversarial review, or task instructions explicitly require independent review. Uses source-anchored evidence, bounded artifacts, and an adopt/reject/defer decision gate; do not substitute tool discovery, another task, or same-agent reflection.
+description: Run a runtime-selected advisor-style review in the current task when the user invokes $advisor-review, says Advisor Review or @Advisor-Review, explicitly asks for an advisor/second opinion/adversarial review, or task instructions explicitly require independent review. Uses source-anchored evidence, bounded artifacts, and an adopt/reject/defer decision gate; do not substitute tool discovery, another task, or same-agent reflection.
 ---
 
 # Advisor Review
 
 Use the bundled scripts from this skill directory. An explicit invocation is a latch: run the reviewer in the **same parent task** before a substantive final answer or an action that follows or conflicts with the review. Read-only evidence collection may continue while constructing the packet.
 
-Do not search the global tool catalog for an advisor. Do not open a second user-visible task. The only child execution is the isolated `codex exec` process started by `scripts/run_advisor.py`.
+Do not search the global tool catalog for an advisor. Do not open a second user-visible task. The only child execution is the isolated runtime CLI process started by `scripts/run_advisor.py`.
 
 ## Requirements
 
-Require shell execution, an authenticated local `codex` CLI, access to the requested `gpt-5.6-sol` model route, and outbound Codex API access from the parent shell. A parent sandbox that blocks subprocess networking also blocks the nested reviewer. If any requirement is missing, report that the independent review is blocked; do not weaken the sandbox without user or task authority.
+Require shell execution, an authenticated CLI for the active session runtime, access to the caller-selected advisor model, and outbound access for that runtime from the parent shell. Supported runtimes are `codex`, `claude`, `opencode`, and `gemini`; `--runtime auto` uses the active session marker such as `OPENCODE=1`, and refuses an ambiguous host instead of guessing. A parent sandbox that blocks subprocess networking also blocks the nested reviewer. If any requirement is missing, report that the independent review is blocked; do not weaken the sandbox without user or task authority.
 
 The runner is not a confidentiality boundary. Sanitize evidence and artifacts before building the packet.
 
@@ -33,28 +33,30 @@ The runner is not a confidentiality boundary. Sanitize evidence and artifacts be
    - Include negative results, conflicting state, and context limitations.
    - Never silently truncate decision-critical text. A builder failure is a blocked review.
 6. Read `references/review-rubric.md`.
-7. Select effort:
-   1. Honor an explicit request for `high`, `xhigh`, or `max`.
-   2. Use `max` only for an explicitly requested deepest review or a critical, hard-to-reverse decision with major unresolved ambiguity.
-   3. Use `xhigh` for cross-component failures, conflicting verified evidence, two or more failed approaches, major pivots, or high-impact completion claims.
-   4. Otherwise use `high`.
-8. Run exactly one isolated review by default and save its receipt:
+7. Select the advisor model and effort as the calling agent. Use a model available to the selected runtime, honor an explicit model or effort request, and otherwise choose based on the review phase and risk:
+   1. Use `max` only for an explicitly requested deepest review or a critical, hard-to-reverse decision with major unresolved ambiguity.
+   2. Use `xhigh` for cross-component failures, conflicting verified evidence, two or more failed approaches, major pivots, or high-impact completion claims.
+   3. Otherwise use `high`.
+8. Run exactly one isolated review by default and save its receipt. Pass the active session runtime, selected model, and selected effort explicitly so the receipt records the caller's request:
 
    ```bash
-   python3 scripts/run_advisor.py \
-     --input context-packet.json \
-     --effort xhigh \
-     --output advisor-receipt.json
+    python3 scripts/run_advisor.py \
+      --input context-packet.json \
+      --runtime auto \
+      --model <caller-selected-model> \
+      --effort xhigh \
+      --output advisor-receipt.json
    ```
 
    Keep the returned receipt in the invoking task. A receipt produced in another user-visible task is not a handoff.
 
 9. Check the receipt:
-   - `request.requested_model` must be `gpt-5.6-sol`.
+   - `request.runtime` must be the active session runtime or the explicitly selected runtime.
+   - `request.requested_model` must equal the model selected by the calling agent.
    - `request.requested_effort` must match the selected effort.
-   - `observed_model` and `observed_effort` may be `null`; the current CLI does not authoritatively expose serving-side identity. Never describe requested identity as verified actual identity.
+   - `observed_model` and `observed_effort` may be `null`; runtime output does not authoritatively expose serving-side identity. Never describe requested identity as verified actual identity.
    - Any runner error, schema failure, timeout, or context-hash mismatch blocks the review.
-   - The isolated child uses a temporary `CODEX_HOME` with only the host authentication file linked when present. It also disables plugins, remote-plugin loading, skill search, and multi-agent execution so unrelated skill catalogs cannot consume the review context.
+   - The isolated child uses read-only or plan-mode controls, disables session persistence where supported, and disables plugin/skill loading where the runtime exposes that control. The Codex adapter uses a temporary `CODEX_HOME` with only the host authentication file linked when present; OpenCode runs with `--pure` and external skill/config loading disabled.
 10. Read `references/decision-contract.md`. Resolve every `R#` recommendation as `adopt`, `reject`, or `defer`, then run:
 
     ```bash
@@ -95,10 +97,10 @@ Use paired old/new fixtures where practical. Judge detection, evidence linkage, 
 
 Report:
 
-- phase, context mode, requested Sol model, requested effort, and identity verification status;
+- phase, context mode, selected runtime, requested advisor model, requested effort, and identity verification status;
 - advisor verdict and evidence-linked diagnosis;
 - each consequential recommendation's adopt/reject/defer disposition;
 - the selected next action and stop condition;
 - unresolved risks or context limitations.
 
-Call the result an **advisor-style independent review**, not Claude Advisor parity.
+Call the result an **advisor-style independent review**, not parity with any one runtime's native advisor feature.

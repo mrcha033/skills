@@ -1,6 +1,6 @@
 interface:
   display_name: "Advisor Review"
   short_description: "Evidence-linked Sol diagnosis with a follow-through gate"
-  default_prompt: "Use $advisor-review in this same task: build source-anchored evidence, run the fixed Sol reviewer, and validate every adopt/reject/defer decision before acting."
+  default_prompt: "Use $advisor-review in this same task: build source-anchored evidence, select the active runtime's advisor model and effort, run the isolated reviewer, and validate every adopt/reject/defer decision before acting."
 policy:
   allow_implicit_invocation: true

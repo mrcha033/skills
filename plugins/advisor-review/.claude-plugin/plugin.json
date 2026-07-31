@@ -3,7 +3,7 @@
   "name": "advisor-review",
   "displayName": "Advisor Review",
   "version": "0.4.0",
-  "description": "Run an evidence-linked Sol review with Orca orchestration and proactive research-memory use.",
+  "description": "Run an evidence-linked runtime-selected advisor review with Orca orchestration and proactive research-memory use.",
   "author": {
     "name": "mrcha033",
     "url": "https://github.com/mrcha033"
